@@ -54,6 +54,7 @@ class NoConformidadBase(BaseModel):
     fuente: str = Field(..., max_length=100)
     detectado_por: Optional[UUID] = None
     fecha_deteccion: datetime
+    gravedad: Optional[str] = Field(None, max_length=50)
     estado: str = Field(default='abierta', max_length=50)
     analisis_causa: Optional[str] = None
     plan_accion: Optional[str] = None
@@ -70,6 +71,7 @@ class NoConformidadUpdate(BaseModel):
     proceso_id: Optional[UUID] = None
     tipo: Optional[str] = Field(None, max_length=50)
     fuente: Optional[str] = Field(None, max_length=100)
+    gravedad: Optional[str] = Field(None, max_length=50)
     estado: Optional[str] = Field(None, max_length=50)
     analisis_causa: Optional[str] = None
     plan_accion: Optional[str] = None

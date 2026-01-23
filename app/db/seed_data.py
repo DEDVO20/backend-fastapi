@@ -26,8 +26,7 @@ def crear_areas_iniciales(db: Session):
             db.add(area)
     
     db.commit()
-    print("✅ Áreas iniciales creadas")
-
+    print("✅ Áreas iniciales creadas")  
 
 def crear_roles_permisos_iniciales(db: Session):
     """Crear roles y permisos iniciales"""

@@ -47,6 +47,7 @@ class NoConformidad(BaseModel):
     fuente = Column(String(100), nullable=False)
     detectado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     fecha_deteccion = Column(BaseModel.creado_en.type, nullable=False)
+    gravedad = Column(String(50), nullable=True)
     estado = Column(String(50), nullable=False, default='abierta')
     analisis_causa = Column(Text, nullable=True)
     plan_accion = Column(Text, nullable=True)
