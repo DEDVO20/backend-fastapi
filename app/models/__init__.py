@@ -1,0 +1,117 @@
+"""
+Modelos de la base de datos - Sistema de Gestión de Calidad
+"""
+
+# Importar modelo base
+from .base import BaseModel, UUIDMixin, TimestampMixin
+
+# Importar modelos de usuarios y autenticación
+from .usuario import (
+    Area,
+    Usuario,
+    Rol,
+    Permiso,
+    UsuarioRol,
+    RolPermiso
+)
+
+# Importar modelos de procesos
+from .proceso import (
+    Proceso,
+    EtapaProceso,
+    InstanciaProceso,
+    ParticipanteProceso,
+    AccionProceso
+)
+
+# Importar modelos de documentos
+from .documento import (
+    Documento,
+    VersionDocumento,
+    DocumentoProceso
+)
+
+# Importar modelos de calidad
+from .calidad import (
+    Indicador,
+    NoConformidad,
+    AccionCorrectiva,
+    ObjetivoCalidad,
+    SeguimientoObjetivo
+)
+
+# Importar modelos de auditorías
+from .auditoria import (
+    Auditoria,
+    HallazgoAuditoria
+)
+
+# Importar modelos de riesgos
+from .riesgo import (
+    Riesgo,
+    ControlRiesgo
+)
+
+# Importar modelos de capacitación
+from .capacitacion import (
+    Capacitacion,
+    AsistenciaCapacitacion
+)
+
+# Importar modelos del sistema
+from .sistema import (
+    Ticket,
+    Notificacion,
+    Configuracion,
+    CampoFormulario,
+    RespuestaFormulario,
+    Asignacion
+)
+
+# Lista de todos los modelos para facilitar operaciones masivas
+__all__ = [
+    # Base
+    "BaseModel",
+    "UUIDMixin",
+    "TimestampMixin",
+    # Usuarios y autenticación
+    "Area",
+    "Usuario",
+    "Rol",
+    "Permiso",
+    "UsuarioRol",
+    "RolPermiso",
+    # Procesos
+    "Proceso",
+    "EtapaProceso",
+    "InstanciaProceso",
+    "ParticipanteProceso",
+    "AccionProceso",
+    # Documentos
+    "Documento",
+    "VersionDocumento",
+    "DocumentoProceso",
+    # Calidad
+    "Indicador",
+    "NoConformidad",
+    "AccionCorrectiva",
+    "ObjetivoCalidad",
+    "SeguimientoObjetivo",
+    # Auditorías
+    "Auditoria",
+    "HallazgoAuditoria",
+    # Riesgos
+    "Riesgo",
+    "ControlRiesgo",
+    # Capacitación
+    "Capacitacion",
+    "AsistenciaCapacitacion",
+    # Sistema
+    "Ticket",
+    "Notificacion",
+    "Configuracion",
+    "CampoFormulario",
+    "RespuestaFormulario",
+    "Asignacion",
+]
+

@@ -1,0 +1,63 @@
+ Image back-fastapi-app Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 574B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 934B done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/python:3.11-slim
+#3 DONE 1.7s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 535B done
+#4 DONE 0.0s
+
+#5 [1/7] FROM docker.io/library/python:3.11-slim@sha256:5be45dbade29bebd6886af6b438fd7e0b4eb7b611f39ba62b430263f82de36d2
+#5 resolve docker.io/library/python:3.11-slim@sha256:5be45dbade29bebd6886af6b438fd7e0b4eb7b611f39ba62b430263f82de36d2 0.0s done
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 transferring context: 5.66kB done
+#6 DONE 0.0s
+
+#7 [3/7] RUN apt-get update && apt-get install -y     gcc     postgresql-client     && rm -rf /var/lib/apt/lists/*
+#7 CACHED
+
+#8 [4/7] COPY requirements.txt .
+#8 CACHED
+
+#9 [5/7] RUN pip install --no-cache-dir --upgrade pip &&     pip install --no-cache-dir -r requirements.txt
+#9 CACHED
+
+#10 [6/7] COPY ./app ./app
+#10 CACHED
+
+#11 [2/7] WORKDIR /app
+#11 CACHED
+
+#12 [7/7] RUN useradd -m -u 1000 fastapi && chown -R fastapi:fastapi /app
+#12 CACHED
+
+#13 exporting to image
+#13 exporting layers done
+#13 exporting manifest sha256:49c90535a557bb601fd69ec6b2a238449d4d299b7e1aee9049715f761108515d done
+#13 exporting config sha256:f55a705439d022aec8db92964bdb4cc5407a6b22f4bc543cb21956ec7d8f599e done
+#13 exporting attestation manifest sha256:21b6540c06c76c1acb035bcd369046145c29ed5b51a46c084062a9f01575b11a 0.0s done
+#13 exporting manifest list sha256:35378ef754a50fb1acfab2b0be65c42ee0e7cd418728d308852206958cbb7f27 0.0s done
+#13 naming to docker.io/library/back-fastapi-app:latest done
+#13 unpacking to docker.io/library/back-fastapi-app:latest 0.0s done
+#13 DONE 0.1s
+
+#14 resolving provenance for metadata file
+#14 DONE 0.0s
+ Image back-fastapi-app Built 
+ Container fastapi_postgres Running 
+ Container fastapi_app Recreate 
+ Container fastapi_pgadmin Running 
+ Container fastapi_app Recreated 
+ Container fastapi_postgres Waiting 
+ Container fastapi_postgres Healthy 
+ Container fastapi_app Starting 
+ Container fastapi_app Started 
