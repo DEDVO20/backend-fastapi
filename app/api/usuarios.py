@@ -346,3 +346,121 @@ def eliminar_usuario(usuario_id: UUID, db: Session = Depends(get_db)):
     usuario.activo = False
     db.commit()
     return None
+
+
+# ======================
+# Carga Masiva de Usuarios
+# ======================
+
+@router.post("/usuarios/carga-masiva", response_model=dict)
+async def carga_masiva_usuarios(
+    file: UploadFile,
+    db: Session = Depends(get_db)
+):
+    """
+    Carga masiva de usuarios desde archivo Excel o CSV
+    
+    Formato del archivo:
+    - documento, nombre, segundo_nombre, primer_apellido, segundo_apellido
+    - correo_electronico, nombre_usuario, contrasena
+    - area_codigo, roles (separados por coma), activo
+    """
+    from fastapi import UploadFile
+    from ..utils.carga_masiva import (
+        validar_archivo,
+        leer_archivo,
+        validar_columnas,
+        procesar_fila,
+        cargar_caches
+    )
+    from ..schemas.usuario import (
+        CargaMasivaResultado,
+        CargaMasivaUsuarioExitoso,
+        CargaMasivaErrorDetalle
+    )
+    
+    # Validar archivo
+    valido, mensaje = validar_archivo(file)
+    if not valido:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=mensaje
+        )
+    
+    try:
+        # Leer contenido del archivo
+        contenido = await file.read()
+        
+        # Leer archivo como DataFrame
+        df = leer_archivo(contenido, file.filename)
+        
+        # Validar columnas
+        columnas_faltantes = validar_columnas(df)
+        if columnas_faltantes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Columnas faltantes en el archivo: {', '.join(columnas_faltantes)}"
+            )
+        
+        # Validar límite de filas
+        if len(df) > 1000:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El archivo no puede contener más de 1000 usuarios"
+            )
+        
+        # Cargar caches de áreas y roles
+        areas_cache, roles_cache = cargar_caches(db)
+        
+        # Procesar cada fila
+        exitosos = []
+        errores = []
+        
+        for idx, fila in df.iterrows():
+            fila_num = idx + 2  # +2 porque idx empieza en 0 y hay header
+            
+            exito, resultado = procesar_fila(
+                fila_num,
+                fila,
+                db,
+                areas_cache,
+                roles_cache
+            )
+            
+            if exito:
+                # resultado es el usuario creado
+                exitosos.append(CargaMasivaUsuarioExitoso(
+                    fila=fila_num,
+                    nombre_usuario=resultado.nombre_usuario,
+                    nombre_completo=f"{resultado.nombre} {resultado.primer_apellido}",
+                    correo_electronico=resultado.correo_electronico
+                ))
+            else:
+                # resultado es lista de errores
+                errores.extend(resultado)
+        
+        # Si hay errores, hacer rollback
+        if errores:
+            db.rollback()
+        else:
+            db.commit()
+        
+        # Preparar respuesta
+        resultado = CargaMasivaResultado(
+            total_procesados=len(df),
+            exitosos=len(exitosos),
+            errores=len(errores),
+            detalles_exitosos=exitosos,
+            detalles_errores=errores
+        )
+        
+        return resultado.model_dump()
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error procesando el archivo: {str(e)}"
+        )

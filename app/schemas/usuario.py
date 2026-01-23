@@ -166,3 +166,29 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     usuario: UsuarioResponse
+
+
+# Carga Masiva Schemas
+class CargaMasivaErrorDetalle(BaseModel):
+    """Detalle de un error en carga masiva"""
+    fila: int
+    campo: str
+    valor: Optional[str] = None
+    error: str
+
+
+class CargaMasivaUsuarioExitoso(BaseModel):
+    """Usuario creado exitosamente"""
+    fila: int
+    nombre_usuario: str
+    nombre_completo: str
+    correo_electronico: str
+
+
+class CargaMasivaResultado(BaseModel):
+    """Resultado de la carga masiva"""
+    total_procesados: int
+    exitosos: int
+    errores: int
+    detalles_exitosos: List[CargaMasivaUsuarioExitoso]
+    detalles_errores: List[CargaMasivaErrorDetalle]
