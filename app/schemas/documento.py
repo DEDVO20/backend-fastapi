@@ -7,6 +7,18 @@ from datetime import datetime
 from uuid import UUID
 
 
+# Usuario Schema (anidado)
+class UsuarioNested(BaseModel):
+    """Schema anidado para información básica de usuario"""
+    id: UUID
+    nombre: str
+    primerApellido: str
+    segundoApellido: Optional[str] = None
+    correoElectronico: str
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
 # Documento Schemas
 class DocumentoBase(BaseModel):
     codigo: str = Field(..., max_length=100)
@@ -43,6 +55,9 @@ class DocumentoResponse(DocumentoBase):
     id: UUID
     creado_en: datetime
     actualizado_en: datetime
+    creador: Optional[UsuarioNested] = None
+    aprobador: Optional[UsuarioNested] = None
+    versiones: Optional[list['VersionDocumentoResponse']] = []
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -63,6 +78,7 @@ class VersionDocumentoCreate(VersionDocumentoBase):
 class VersionDocumentoResponse(VersionDocumentoBase):
     id: UUID
     creado_en: datetime
+    creador: Optional[UsuarioNested] = None
     
     model_config = ConfigDict(from_attributes=True)
 

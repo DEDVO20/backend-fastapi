@@ -2,7 +2,7 @@
 Endpoints CRUD para gestión de documentos
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 from uuid import UUID
 
@@ -34,7 +34,11 @@ def listar_documentos(
     db: Session = Depends(get_db)
 ):
     """Listar todos los documentos"""
-    query = db.query(Documento)
+    query = db.query(Documento).options(
+        joinedload(Documento.creador),
+        joinedload(Documento.aprobador),
+        joinedload(Documento.versiones).joinedload(VersionDocumento.creador)
+    )
     
     if estado:
         query = query.filter(Documento.estado == estado)
@@ -66,7 +70,12 @@ def crear_documento(documento: DocumentoCreate, db: Session = Depends(get_db)):
 @router.get("/documentos/{documento_id}", response_model=DocumentoResponse)
 def obtener_documento(documento_id: UUID, db: Session = Depends(get_db)):
     """Obtener un documento por ID"""
-    documento = db.query(Documento).filter(Documento.id == documento_id).first()
+    documento = db.query(Documento).options(
+        joinedload(Documento.creador),
+        joinedload(Documento.aprobador),
+        joinedload(Documento.versiones).joinedload(VersionDocumento.creador)
+    ).filter(Documento.id == documento_id).first()
+    
     if not documento:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -120,7 +129,9 @@ def eliminar_documento(documento_id: UUID, db: Session = Depends(get_db)):
 @router.get("/documentos/{documento_id}/versiones", response_model=List[VersionDocumentoResponse])
 def listar_versiones_documento(documento_id: UUID, db: Session = Depends(get_db)):
     """Listar versiones de un documento"""
-    versiones = db.query(VersionDocumento).filter(
+    versiones = db.query(VersionDocumento).options(
+        joinedload(VersionDocumento.creador)
+    ).filter(
         VersionDocumento.documento_id == documento_id
     ).order_by(VersionDocumento.creado_en.desc()).all()
     return versiones

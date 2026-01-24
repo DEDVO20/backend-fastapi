@@ -26,7 +26,7 @@ def upload_avatar(file_path: str, file_name: str) -> Tuple[bool, str]:
     
     Args:
         file_path: Ruta del archivo a subir
-        file_name: Nombre del archivo en el bucket
+        file_name: Ruta del archivo en el bucket (puede incluir carpetas, ej: "usuario_id/avatar.webp")
         
     Returns:
         Tuple[bool, str]: (éxito, url_o_mensaje_error)
@@ -38,14 +38,19 @@ def upload_avatar(file_path: str, file_name: str) -> Tuple[bool, str]:
         with open(file_path, 'rb') as f:
             file_data = f.read()
         
-        # Subir archivo (upsert=True permite sobrescribir)
+        # Intentar eliminar el archivo existente si existe (para sobrescribir)
+        try:
+            supabase.storage.from_(SUPABASE_BUCKET).remove([file_name])
+        except:
+            # Si el archivo no existe, continuar normalmente
+            pass
+        
+        # Subir archivo
+        # El file_name puede incluir carpetas usando "/" (ej: "usuario_id/avatar.webp")
         response = supabase.storage.from_(SUPABASE_BUCKET).upload(
-            file_name,
-            file_data,
-            file_options={
-                "content-type": "image/webp",
-                "upsert": "true"
-            }
+            path=file_name,
+            file=file_data,
+            file_options={"content-type": "image/webp"}
         )
         
         # Obtener URL pública

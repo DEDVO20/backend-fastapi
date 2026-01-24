@@ -1,7 +1,7 @@
 """
 Endpoints CRUD para gestión de usuarios
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
@@ -464,3 +464,86 @@ async def carga_masiva_usuarios(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error procesando el archivo: {str(e)}"
         )
+
+
+# ======================
+# Foto de Perfil
+# ======================
+
+@router.post("/usuarios/{usuario_id}/foto-perfil")
+async def subir_foto_perfil(
+    usuario_id: UUID,
+    file: UploadFile,
+    db: Session = Depends(get_db)
+):
+    """Subir o actualizar foto de perfil del usuario"""
+    from fastapi import UploadFile
+    import tempfile
+    import os
+    from ..utils.image_processing import validate_image, process_avatar
+    from ..utils.supabase_client import upload_avatar, delete_avatar, get_file_name_from_url
+    
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    try:
+        file_content = await file.read()
+        valido, mensaje = validate_image(file_content)
+        if not valido:
+            raise HTTPException(status_code=400, detail=mensaje)
+        
+        exito, file_name_or_error, processed_content = process_avatar(file_content, str(usuario_id))
+        if not exito:
+            raise HTTPException(status_code=500, detail=f"Error procesando imagen: {file_name_or_error}")
+        
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.webp') as tmp_file:
+            tmp_file.write(processed_content)
+            tmp_path = tmp_file.name
+        
+        try:
+            exito_upload, url_or_error = upload_avatar(tmp_path, file_name_or_error)
+            if not exito_upload:
+                raise HTTPException(status_code=500, detail=f"Error subiendo imagen: {url_or_error}")
+            
+            if usuario.foto_url:
+                old_file_name = get_file_name_from_url(usuario.foto_url)
+                if old_file_name:
+                    delete_avatar(old_file_name)
+            
+            usuario.foto_url = url_or_error
+            db.commit()
+            db.refresh(usuario)
+            
+            return {"message": "Foto actualizada", "foto_url": url_or_error}
+        finally:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/usuarios/{usuario_id}/foto-perfil")
+def eliminar_foto_perfil(usuario_id: UUID, db: Session = Depends(get_db)):
+    """Eliminar foto de perfil del usuario"""
+    from ..utils.supabase_client import delete_avatar, get_file_name_from_url
+    
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    
+    if not usuario.foto_url:
+        raise HTTPException(status_code=400, detail="No tiene foto de perfil")
+    
+    try:
+        file_name = get_file_name_from_url(usuario.foto_url)
+        if file_name:
+            delete_avatar(file_name)
+        
+        usuario.foto_url = None
+        db.commit()
+        return {"message": "Foto eliminada"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
