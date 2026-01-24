@@ -1,7 +1,7 @@
 """
 Modelos de documentos y control de versiones
 """
-from sqlalchemy import Column, String, Text, ForeignKey, Index, UniqueConstraint
+from sqlalchemy import Column, String, Text, ForeignKey, Index, UniqueConstraint, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from .base import BaseModel
@@ -18,8 +18,8 @@ class Documento(BaseModel):
     ruta_archivo = Column(Text, nullable=True)
     version_actual = Column(String(20), nullable=False, default='1.0')
     estado = Column(String(50), nullable=False, default='borrador')
-    fecha_aprobacion = Column(BaseModel.creado_en.type, nullable=True)
-    fecha_vigencia = Column(BaseModel.creado_en.type, nullable=True)
+    fecha_aprobacion = Column(DateTime(timezone=True), nullable=True)
+    fecha_vigencia = Column(DateTime(timezone=True), nullable=True)
     creado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     aprobado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     

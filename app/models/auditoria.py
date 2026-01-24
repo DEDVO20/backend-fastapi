@@ -1,7 +1,7 @@
 """
 Modelos de auditorías y hallazgos
 """
-from sqlalchemy import Column, String, Text, ForeignKey, Index
+from sqlalchemy import Column, String, Text, ForeignKey, Index, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from .base import BaseModel
@@ -16,9 +16,9 @@ class Auditoria(BaseModel):
     tipo_auditoria = Column(String(50), nullable=False)
     alcance = Column(Text, nullable=True)
     objetivo = Column(Text, nullable=True)
-    fecha_planificada = Column(BaseModel.creado_en.type, nullable=True)
-    fecha_inicio = Column(BaseModel.creado_en.type, nullable=True)
-    fecha_fin = Column(BaseModel.creado_en.type, nullable=True)
+    fecha_planificada = Column(DateTime(timezone=True), nullable=True)
+    fecha_inicio = Column(DateTime(timezone=True), nullable=True)
+    fecha_fin = Column(DateTime(timezone=True), nullable=True)
     estado = Column(String(50), nullable=False, default='planificada')
     equipo_auditor = Column(Text, nullable=True)
     auditor_lider_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
@@ -52,7 +52,7 @@ class HallazgoAuditoria(BaseModel):
     clausula_norma = Column(String(100), nullable=True)
     evidencia = Column(Text, nullable=True)
     responsable_respuesta_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
-    fecha_respuesta = Column(BaseModel.creado_en.type, nullable=True)
+    fecha_respuesta = Column(DateTime(timezone=True), nullable=True)
     estado = Column(String(50), nullable=False, default='abierto')
     
     # Relaciones

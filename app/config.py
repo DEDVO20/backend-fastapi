@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     
     # Base de datos
-    DATABASE_URL: str = "postgresql://fastapi_user:fastapi_password@postgres:5432/fastapi_db"
+    DATABASE_URL: str = "postgresql://postgres:123456789@localhost:5432/calidad_db"
     
     # Seguridad
     SECRET_KEY: str = "your-secret-key-change-this-in-production"

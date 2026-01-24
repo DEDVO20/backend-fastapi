@@ -1,7 +1,7 @@
 """
 Modelos de capacitación y asistencia
 """
-from sqlalchemy import Column, String, Text, Integer, Boolean, ForeignKey, Index, Numeric, UniqueConstraint
+from sqlalchemy import Column, String, Text, Integer, Boolean, ForeignKey, Index, Numeric, UniqueConstraint, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from .base import BaseModel
@@ -18,8 +18,8 @@ class Capacitacion(BaseModel):
     modalidad = Column(String(50), nullable=False)  # Presencial, Virtual, Mixta
     duracion_horas = Column(Integer, nullable=True)
     instructor = Column(String(200), nullable=True)
-    fecha_programada = Column(BaseModel.creado_en.type, nullable=True)
-    fecha_realizacion = Column(BaseModel.creado_en.type, nullable=True)
+    fecha_programada = Column(DateTime(timezone=True), nullable=True)
+    fecha_realizacion = Column(DateTime(timezone=True), nullable=True)
     lugar = Column(String(200), nullable=True)
     estado = Column(String(50), nullable=False, default='programada')
     objetivo = Column(Text, nullable=True)
@@ -50,7 +50,7 @@ class AsistenciaCapacitacion(BaseModel):
     calificacion = Column(Numeric(3, 1), nullable=True)  # Calificación 0.0 a 100.0
     observaciones = Column(Text, nullable=True)
     certificado = Column(Boolean, nullable=False, default=False)
-    fecha_registro = Column(BaseModel.creado_en.type, nullable=False)
+    fecha_registro = Column(DateTime(timezone=True), nullable=False)
     
     # Relaciones
     capacitacion = relationship("Capacitacion", back_populates="asistencias")

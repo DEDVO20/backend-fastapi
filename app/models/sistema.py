@@ -1,7 +1,7 @@
 """
 Modelos del sistema (tickets, notificaciones, configuraciones, formularios, asignaciones)
 """
-from sqlalchemy import Column, String, Text, Integer, Boolean, ForeignKey, Index, JSON, UniqueConstraint
+from sqlalchemy import Column, String, Text, Integer, Boolean, ForeignKey, Index, JSON, UniqueConstraint, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from .base import BaseModel
@@ -19,8 +19,8 @@ class Ticket(BaseModel):
     estado = Column(String(50), nullable=False, default='abierto')
     solicitante_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     asignado_a = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
-    fecha_limite = Column(BaseModel.creado_en.type, nullable=True)
-    fecha_resolucion = Column(BaseModel.creado_en.type, nullable=True)
+    fecha_limite = Column(DateTime(timezone=True), nullable=True)
+    fecha_resolucion = Column(DateTime(timezone=True), nullable=True)
     solucion = Column(Text, nullable=True)
     tiempo_resolucion = Column(Integer, nullable=True)  # En minutos
     satisfaccion_cliente = Column(Integer, nullable=True)  # Escala 1-5
@@ -48,7 +48,7 @@ class Notificacion(BaseModel):
     mensaje = Column(Text, nullable=False)
     tipo = Column(String(50), nullable=False)
     leida = Column(Boolean, nullable=False, default=False)
-    fecha_lectura = Column(BaseModel.creado_en.type, nullable=True)
+    fecha_lectura = Column(DateTime(timezone=True), nullable=True)
     referencia_tipo = Column(String(50), nullable=True)  # Tipo de entidad referenciada
     referencia_id = Column(UUID(as_uuid=True), nullable=True)  # ID de la entidad referenciada
     

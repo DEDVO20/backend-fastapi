@@ -51,17 +51,6 @@ class DocumentoUpdate(BaseModel):
     aprobado_por: Optional[UUID] = None
 
 
-class DocumentoResponse(DocumentoBase):
-    id: UUID
-    creado_en: datetime
-    actualizado_en: datetime
-    creador: Optional[UsuarioNested] = None
-    aprobador: Optional[UsuarioNested] = None
-    versiones: Optional[list['VersionDocumentoResponse']] = []
-    
-    model_config = ConfigDict(from_attributes=True)
-
-
 # VersionDocumento Schemas
 class VersionDocumentoBase(BaseModel):
     documento_id: UUID
@@ -79,6 +68,17 @@ class VersionDocumentoResponse(VersionDocumentoBase):
     id: UUID
     creado_en: datetime
     creador: Optional[UsuarioNested] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentoResponse(DocumentoBase):
+    id: UUID
+    creado_en: datetime
+    actualizado_en: datetime
+    creador: Optional[UsuarioNested] = None
+    aprobador: Optional[UsuarioNested] = None
+    versiones: Optional[list[VersionDocumentoResponse]] = []
     
     model_config = ConfigDict(from_attributes=True)
 

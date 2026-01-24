@@ -1,7 +1,7 @@
 """
 Modelos de gestión de calidad (indicadores, no conformidades, objetivos)
 """
-from sqlalchemy import Column, String, Text, Integer, ForeignKey, Index, Numeric, Date
+from sqlalchemy import Column, String, Text, Integer, ForeignKey, Index, Numeric, Date, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from .base import BaseModel
@@ -46,12 +46,12 @@ class NoConformidad(BaseModel):
     tipo = Column(String(50), nullable=False)
     fuente = Column(String(100), nullable=False)
     detectado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
-    fecha_deteccion = Column(BaseModel.creado_en.type, nullable=False)
+    fecha_deteccion = Column(DateTime(timezone=True), nullable=False)
     gravedad = Column(String(50), nullable=True)
     estado = Column(String(50), nullable=False, default='abierta')
     analisis_causa = Column(Text, nullable=True)
     plan_accion = Column(Text, nullable=True)
-    fecha_cierre = Column(BaseModel.creado_en.type, nullable=True)
+    fecha_cierre = Column(DateTime(timezone=True), nullable=True)
     responsable_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     
     # Relaciones
@@ -107,8 +107,8 @@ class ObjetivoCalidad(BaseModel):
     descripcion = Column(Text, nullable=False)
     area_id = Column(UUID(as_uuid=True), ForeignKey("areas.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     responsable_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
-    fecha_inicio = Column(BaseModel.creado_en.type, nullable=False)
-    fecha_fin = Column(BaseModel.creado_en.type, nullable=False)
+    fecha_inicio = Column(DateTime(timezone=True), nullable=False)
+    fecha_fin = Column(DateTime(timezone=True), nullable=False)
     estado = Column(String(50), nullable=False, default='planificado')
     progreso = Column(Numeric(5, 2), nullable=False, default=0)
     
@@ -131,7 +131,7 @@ class SeguimientoObjetivo(BaseModel):
     __tablename__ = "seguimiento_objetivos"
     
     objetivo_calidad_id = Column(UUID(as_uuid=True), ForeignKey("objetivos_calidad.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False)
-    fecha_seguimiento = Column(BaseModel.creado_en.type, nullable=False)
+    fecha_seguimiento = Column(DateTime(timezone=True), nullable=False)
     valor_actual = Column(Numeric(10, 2), nullable=True)
     observaciones = Column(Text, nullable=True)
     responsable_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
