@@ -13,8 +13,8 @@ pydantic-settings>=2.1.0
 
 # Autenticación y seguridad
 python-jose[cryptography]>=3.3.0
-passlib>=1.7.4
-bcrypt>=4.0.1
+passlib[bcrypt]==1.7.4
+bcrypt==4.1.2
 python-multipart>=0.0.6
 
 # CORS
@@ -26,3 +26,7 @@ email-validator>=2.1.0
 # Procesamiento de archivos
 openpyxl>=3.1.0
 pandas>=2.0.0
+
+# Supabase y procesamiento de imágenes
+supabase>=2.0.0
+pillow>=10.0.0

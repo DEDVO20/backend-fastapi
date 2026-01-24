@@ -2,7 +2,7 @@
 Configuración de la aplicación usando Pydantic Settings
 """
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
@@ -26,6 +26,11 @@ class Settings(BaseSettings):
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
     
+    # Supabase Storage
+    SUPABASE_URL: Optional[str] = None
+    SUPABASE_KEY: Optional[str] = None
+    SUPABASE_BUCKET: str = "avatars"
+    
     @property
     def cors_origins_list(self) -> List[str]:
         """Convierte CORS_ORIGINS string a lista"""
@@ -34,6 +39,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # Permitir variables adicionales sin error
 
 
 # Instancia global de configuración
