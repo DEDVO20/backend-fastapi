@@ -12,9 +12,9 @@ class UsuarioNested(BaseModel):
     """Schema anidado para información básica de usuario"""
     id: UUID
     nombre: str
-    primerApellido: str
+    primerApellido: Optional[str] = None
     segundoApellido: Optional[str] = None
-    correoElectronico: str
+    correoElectronico: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
 
