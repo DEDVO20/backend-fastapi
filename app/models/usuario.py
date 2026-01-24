@@ -90,6 +90,16 @@ class Usuario(BaseModel):
         apellidos = [self.primer_apellido, self.segundo_apellido] if self.segundo_apellido else [self.primer_apellido]
         return f"{' '.join(nombres)} {' '.join(apellidos)}"
     
+    @property
+    def permisos_codes(self):
+        """Retorna una lista de códigos de permisos únicos del usuario"""
+        codigos = set()
+        for ur in self.roles:
+            for rp in ur.rol.permisos:
+                if rp.permiso:
+                    codigos.add(rp.permiso.codigo)
+        return list(codigos)
+    
     def __repr__(self):
         return f"<Usuario(nombre_usuario={self.nombre_usuario}, documento={self.documento})>"
 

@@ -127,7 +127,10 @@ def listar_roles(
     db: Session = Depends(get_db)
 ):
     """Listar todos los roles"""
-    roles = db.query(Rol).offset(skip).limit(limit).all()
+    from sqlalchemy.orm import joinedload
+    roles = db.query(Rol).options(
+        joinedload(Rol.permisos).joinedload(RolPermiso.permiso)
+    ).offset(skip).limit(limit).all()
     return roles
 
 
@@ -152,12 +155,14 @@ def crear_rol(rol: RolCreate, db: Session = Depends(get_db)):
 @router.get("/roles/{rol_id}", response_model=RolResponse)
 def obtener_rol(rol_id: UUID, db: Session = Depends(get_db)):
     """Obtener un rol por ID"""
-    rol = db.query(Rol).filter(Rol.id == rol_id).first()
+    from sqlalchemy.orm import joinedload
+    rol = db.query(Rol).options(joinedload(Rol.permisos)).filter(Rol.id == rol_id).first()
     if not rol:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Rol no encontrado"
         )
+    print(f"DEBUG: obtener_rol {rol.nombre} - Permisos encontrados: {len(rol.permisos)}")
     return rol
 
 
@@ -221,15 +226,19 @@ def asignar_permisos_rol(
         )
     
     # Limpiar permisos existentes
-    db.query(RolPermiso).filter(RolPermiso.rol_id == rol_id).delete()
+    db.query(RolPermiso).filter(RolPermiso.rol_id == rol_id).delete(synchronize_session=False)
+    db.flush()
     
-    # Asignar nuevos permisos
-    permiso_ids = permisos_data.get("permisoIds", [])
+    # Asignar nuevos permisos (deduplicados)
+    permiso_ids = list(set(permisos_data.get("permisoIds", [])))
+    print(f"DEBUG: Asignando {len(permiso_ids)} permisos (únicos) al rol {rol_id}")
+    
     for permiso_id in permiso_ids:
         nuevo_rol_permiso = RolPermiso(rol_id=rol_id, permiso_id=permiso_id)
         db.add(nuevo_rol_permiso)
     
     db.commit()
+    print(f"DEBUG: Guardado exitoso para rol {rol_id}")
     return {"message": "Permisos actualizados correctamente"}
 
 
@@ -296,14 +305,24 @@ def crear_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
 
 @router.get("/usuarios/{usuario_id}", response_model=UsuarioWithArea)
 def obtener_usuario(usuario_id: UUID, db: Session = Depends(get_db)):
-    """Obtener un usuario por ID"""
-    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    """Obtener un usuario por ID con sus permisos"""
+    from sqlalchemy.orm import joinedload
+    from ..models.usuario import UsuarioRol, Rol, RolPermiso
+    usuario = db.query(Usuario).options(
+        joinedload(Usuario.area),
+        joinedload(Usuario.roles).joinedload(UsuarioRol.rol).joinedload(Rol.permisos).joinedload(RolPermiso.permiso)
+    ).filter(Usuario.id == usuario_id).first()
+    
     if not usuario:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Usuario no encontrado"
         )
-    return usuario
+    
+    # Mapear permisos manualmente para asegurar consistencia
+    user_data = UsuarioWithArea.model_validate(usuario)
+    user_data.permisos = usuario.permisos_codes
+    return user_data
 
 
 @router.put("/usuarios/{usuario_id}", response_model=UsuarioResponse)
@@ -318,6 +337,17 @@ def actualizar_usuario(usuario_id: UUID, usuario_update: UsuarioUpdate, db: Sess
     
     # Actualizar campos
     update_data = usuario_update.model_dump(exclude_unset=True)
+    
+    # Manejar roles si se proporcionan
+    rol_ids = update_data.pop('rol_ids', None)
+    if rol_ids is not None:
+        from ..models.usuario import UsuarioRol
+        # Eliminar roles anteriores
+        db.query(UsuarioRol).filter(UsuarioRol.usuario_id == usuario_id).delete()
+        # Agregar nuevos
+        for rol_id in rol_ids:
+            nuevo_rol = UsuarioRol(usuario_id=usuario_id, rol_id=rol_id)
+            db.add(nuevo_rol)
     
     # Si se proporciona nueva contraseña, hashearla
     if 'contrasena' in update_data:
