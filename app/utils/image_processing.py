@@ -83,9 +83,8 @@ def process_avatar(file_content: bytes, usuario_id: str) -> Tuple[bool, str, byt
         new_img.save(output, format='WEBP', quality=85, method=6)
         output.seek(0)
         
-        # Generar nombre único
-        timestamp = int(time.time())
-        file_name = f"{usuario_id}_{timestamp}.webp"
+        # Generar nombre con carpeta por usuario
+        file_name = f"{usuario_id}/avatar.webp"
         
         return True, file_name, output.getvalue()
         

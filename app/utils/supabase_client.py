@@ -38,11 +38,14 @@ def upload_avatar(file_path: str, file_name: str) -> Tuple[bool, str]:
         with open(file_path, 'rb') as f:
             file_data = f.read()
         
-        # Subir archivo
+        # Subir archivo (upsert=True permite sobrescribir)
         response = supabase.storage.from_(SUPABASE_BUCKET).upload(
             file_name,
             file_data,
-            file_options={"content-type": "image/webp"}
+            file_options={
+                "content-type": "image/webp",
+                "upsert": "true"
+            }
         )
         
         # Obtener URL pública
@@ -77,20 +80,31 @@ def delete_avatar(file_name: str) -> Tuple[bool, str]:
 
 def get_file_name_from_url(url: str) -> Optional[str]:
     """
-    Extrae el nombre del archivo de una URL de Supabase
+    Extrae la ruta del archivo de una URL de Supabase
     
     Args:
         url: URL completa del archivo
         
     Returns:
-        Nombre del archivo o None
+        Ruta del archivo (ej: "usuario_id/avatar.webp") o None
     """
     if not url:
         return None
     
     try:
-        # URL format: https://project.supabase.co/storage/v1/object/public/bucket/filename
+        # URL format: https://project.supabase.co/storage/v1/object/public/bucket/path/to/file
+        # Necesitamos extraer todo después del nombre del bucket
         parts = url.split('/')
-        return parts[-1] if parts else None
+        
+        # Buscar el índice del bucket en la URL
+        if 'public' in parts:
+            public_idx = parts.index('public')
+            # Todo después de 'public/bucket_name/' es la ruta del archivo
+            if len(parts) > public_idx + 2:
+                # Unir todas las partes después del bucket
+                file_path = '/'.join(parts[public_idx + 2:])
+                return file_path
+        
+        return None
     except:
         return None
