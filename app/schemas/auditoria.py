@@ -9,19 +9,22 @@ from uuid import UUID
 
 # Auditoria Schemas
 class AuditoriaBase(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    
     codigo: str = Field(..., max_length=100)
     nombre: str = Field(..., max_length=200)
-    tipo_auditoria: str = Field(..., max_length=50)
+    tipo_auditoria: str = Field(..., max_length=50, alias="tipo")
     alcance: Optional[str] = None
     objetivo: Optional[str] = None
-    fecha_planificada: Optional[datetime] = None
-    fecha_inicio: Optional[datetime] = None
-    fecha_fin: Optional[datetime] = None
+    fecha_planificada: Optional[datetime] = Field(None, alias="fechaPlanificada")
+    fecha_inicio: Optional[datetime] = Field(None, alias="fechaInicio")
+    fecha_fin: Optional[datetime] = Field(None, alias="fechaFin")
     estado: str = Field(default='planificada', max_length=50)
-    equipo_auditor: Optional[str] = None
-    auditor_lider_id: Optional[UUID] = None
-    creado_por: Optional[UUID] = None
-    informe_final: Optional[str] = None
+    norma_referencia: Optional[str] = Field(None, max_length=200, alias="normaReferencia")
+    equipo_auditor: Optional[str] = Field(None, alias="equipoAuditor")
+    auditor_lider_id: Optional[UUID] = Field(None, alias="auditorLiderId")
+    creado_por: Optional[UUID] = Field(None, alias="creadoPor")
+    informe_final: Optional[str] = Field(None, alias="informeFinal")
 
 
 class AuditoriaCreate(AuditoriaBase):
@@ -29,17 +32,20 @@ class AuditoriaCreate(AuditoriaBase):
 
 
 class AuditoriaUpdate(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    
     nombre: Optional[str] = Field(None, max_length=200)
-    tipo_auditoria: Optional[str] = Field(None, max_length=50)
+    tipo_auditoria: Optional[str] = Field(None, max_length=50, alias="tipo")
     alcance: Optional[str] = None
     objetivo: Optional[str] = None
-    fecha_planificada: Optional[datetime] = None
-    fecha_inicio: Optional[datetime] = None
-    fecha_fin: Optional[datetime] = None
+    fecha_planificada: Optional[datetime] = Field(None, alias="fechaPlanificada")
+    fecha_inicio: Optional[datetime] = Field(None, alias="fechaInicio")
+    fecha_fin: Optional[datetime] = Field(None, alias="fechaFin")
     estado: Optional[str] = Field(None, max_length=50)
-    equipo_auditor: Optional[str] = None
-    auditor_lider_id: Optional[UUID] = None
-    informe_final: Optional[str] = None
+    norma_referencia: Optional[str] = Field(None, max_length=200, alias="normaReferencia")
+    equipo_auditor: Optional[str] = Field(None, alias="equipoAuditor")
+    auditor_lider_id: Optional[UUID] = Field(None, alias="auditorLiderId")
+    informe_final: Optional[str] = Field(None, alias="informeFinal")
 
 
 class AuditoriaResponse(AuditoriaBase):
@@ -47,7 +53,7 @@ class AuditoriaResponse(AuditoriaBase):
     creado_en: datetime
     actualizado_en: datetime
     
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 # HallazgoAuditoria Schemas

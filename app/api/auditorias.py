@@ -29,7 +29,7 @@ def listar_auditorias(
     skip: int = 0,
     limit: int = 100,
     estado: str = None,
-    tipo_auditoria: str = None,
+    tipo: str = None,
     db: Session = Depends(get_db)
 ):
     """Listar auditorías"""
@@ -37,8 +37,8 @@ def listar_auditorias(
     
     if estado:
         query = query.filter(Auditoria.estado == estado)
-    if tipo_auditoria:
-        query = query.filter(Auditoria.tipo_auditoria == tipo_auditoria)
+    if tipo:
+        query = query.filter(Auditoria.tipo_auditoria == tipo)
     
     auditorias = query.offset(skip).limit(limit).all()
     return auditorias
