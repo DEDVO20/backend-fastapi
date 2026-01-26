@@ -47,9 +47,13 @@ async def get_current_user(
         raise credentials_exception
     
     # Buscar usuario en base de datos
-    # Pre-cargar relación con área para evitar errores de lazy loading en Pydantic
+    # Pre-cargar relación con área, roles y permisos para el RBAC
     from sqlalchemy.orm import joinedload
-    usuario = db.query(Usuario).options(joinedload(Usuario.area)).filter(Usuario.id == usuario_id).first()
+    from ..models.usuario import UsuarioRol, Rol, RolPermiso
+    usuario = db.query(Usuario).options(
+        joinedload(Usuario.area),
+        joinedload(Usuario.roles).joinedload(UsuarioRol.rol).joinedload(Rol.permisos).joinedload(RolPermiso.permiso)
+    ).filter(Usuario.id == usuario_id).first()
     
     if usuario is None:
         raise credentials_exception

@@ -1,14 +1,9 @@
 """
 Script para inicializar la base de datos y crear tablas
 """
-import sys
-import os
 
-# Agregar el directorio raíz al path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from database import Base, engine
-from models import *  # Importar todos los modelos
+from app.database import Base, engine
+from app.models import *  # Importar todos los modelos
 
 
 def init_db():

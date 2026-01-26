@@ -1,7 +1,7 @@
 """
 Modelos de procesos y sus componentes
 """
-from sqlalchemy import Column, String, Text, Boolean, Integer, Date, Index
+from sqlalchemy import Column, String, Text, Boolean, Integer, Date, Index, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
@@ -80,8 +80,8 @@ class InstanciaProceso(BaseModel):
     codigo_instancia = Column(String(100), nullable=False, unique=True)
     descripcion = Column(Text, nullable=True)
     estado = Column(String(50), nullable=False, default='iniciado')
-    fecha_inicio = Column(BaseModel.creado_en.type, nullable=False)
-    fecha_fin = Column(BaseModel.creado_en.type, nullable=True)
+    fecha_inicio = Column(DateTime(timezone=True), nullable=False)
+    fecha_fin = Column(DateTime(timezone=True), nullable=True)
     iniciado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     
     # Relaciones
@@ -101,7 +101,7 @@ class ParticipanteProceso(BaseModel):
     instancia_proceso_id = Column(UUID(as_uuid=True), ForeignKey("instancia_procesos.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False)
     usuario_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False)
     rol_participacion = Column(String(100), nullable=False)
-    fecha_asignacion = Column(BaseModel.creado_en.type, nullable=False)
+    fecha_asignacion = Column(DateTime(timezone=True), nullable=False)
     activo = Column(Boolean, nullable=False, default=True)
     
     # Relaciones
@@ -129,9 +129,9 @@ class AccionProceso(BaseModel):
     tipo_accion = Column(String(50), nullable=False)
     origen = Column(String(100), nullable=True)
     responsable_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
-    fecha_planificada = Column(BaseModel.creado_en.type, nullable=True)
-    fecha_implementacion = Column(BaseModel.creado_en.type, nullable=True)
-    fecha_verificacion = Column(BaseModel.creado_en.type, nullable=True)
+    fecha_planificada = Column(DateTime(timezone=True), nullable=True)
+    fecha_implementacion = Column(DateTime(timezone=True), nullable=True)
+    fecha_verificacion = Column(DateTime(timezone=True), nullable=True)
     estado = Column(String(50), nullable=False, default='planificada')
     efectividad = Column(String(50), nullable=True)
     observaciones = Column(Text, nullable=True)

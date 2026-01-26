@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 
 from ..database import get_db
-from ..models.usuario import Usuario
+from ..models.usuario import Usuario, UsuarioRol, Rol, RolPermiso
 from ..schemas.auth import LoginRequest, TokenResponse, UsuarioAuth
 from ..schemas.usuario import UsuarioWithArea
 from ..utils.security import verify_password, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
@@ -27,8 +27,11 @@ def login(
     - Usuario: admin
     - Contraseña: admin123
     """
-    # Buscar usuario por nombre de usuario
-    usuario = db.query(Usuario).filter(
+    # Buscar usuario por nombre de usuario con sus roles y permisos
+    from sqlalchemy.orm import joinedload
+    usuario = db.query(Usuario).options(
+        joinedload(Usuario.roles).joinedload(UsuarioRol.rol).joinedload(Rol.permisos).joinedload(RolPermiso.permiso)
+    ).filter(
         Usuario.nombre_usuario == login_data.nombre_usuario
     ).first()
     
@@ -42,7 +45,6 @@ def login(
     
     # Verificar contraseña
     if not verify_password(login_data.password, usuario.contrasena_hash):
-    
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuario o contraseña incorrectos",
@@ -55,6 +57,13 @@ def login(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Usuario inactivo"
         )
+    
+    # Agregar lista única de códigos de permisos
+    permisos_set = set()
+    for ur in usuario.roles:
+        for rp in ur.rol.permisos:
+            if rp.permiso:
+                permisos_set.add(rp.permiso.codigo)
     
     # Crear token JWT
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -70,7 +79,8 @@ def login(
         "email": usuario.correo_electronico,
         "nombre_completo": f"{usuario.nombre} {usuario.primer_apellido}",
         "activo": usuario.activo,
-        "foto_url": usuario.foto_url
+        "foto_url": usuario.foto_url,
+        "permisos": list(permisos_set)
     }
     
     return TokenResponse(
@@ -85,7 +95,11 @@ def get_me(current_user: Usuario = Depends(get_current_user)):
     """
     Obtener información del usuario autenticado actual
     """
-    return current_user
+    # El objeto current_user ya viene con las relaciones cargadas por get_current_user
+    # Aseguramos que los permisos se mapeen correctamente
+    user_data = UsuarioWithArea.model_validate(current_user)
+    user_data.permisos = current_user.permisos_codes
+    return user_data
 
 
 @router.post("/logout")
