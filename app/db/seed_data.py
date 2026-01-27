@@ -103,25 +103,25 @@ def crear_usuario_admin(db: Session, roles: dict):
     # Verificar si ya existe
     admin = db.query(Usuario).filter(Usuario.nombre_usuario == "admin").first()
     if admin:
-        print("ℹ️  Usuario admin ya existe")
-        return
-    
-    # Obtener área de dirección
-    area_dir = db.query(Area).filter(Area.codigo == "DIR").first()
-    
-    # Crear usuario admin
-    admin = Usuario(
-        documento=0,
-        nombre="Administrador",
-        primer_apellido="Sistema",
-        correo_electronico="admin@sistema.com",
-        nombre_usuario="admin",
-        contrasena_hash=pwd_context.hash("admin123"),  # Cambiar en producción
-        area_id=area_dir.id if area_dir else None,
-        activo=True
-    )
-    db.add(admin)
-    db.flush()
+        print("ℹ️  Usuario admin ya existe, verificando roles...")
+    else:
+        # Obtener área de dirección
+        area_dir = db.query(Area).filter(Area.codigo == "DIR").first()
+        
+        # Crear usuario admin
+        admin = Usuario(
+            documento=0,
+            nombre="Administrador",
+            primer_apellido="Sistema",
+            correo_electronico="admin@sistema.com",
+            nombre_usuario="admin",
+            contrasena_hash=pwd_context.hash("admin123"),  # Cambiar en producción
+            area_id=area_dir.id if area_dir else None,
+            activo=True
+        )
+        db.add(admin)
+        db.flush()
+        print("✅ Usuario administrador creado")
     
     # Asignar rol de administrador
     if "admin" in roles:
