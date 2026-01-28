@@ -7,7 +7,7 @@ from typing import List
 from uuid import UUID
 
 from ..database import get_db
-from ..models.calidad import Indicador, NoConformidad, AccionCorrectiva, ObjetivoCalidad
+from ..models.calidad import Indicador, NoConformidad, AccionCorrectiva, ObjetivoCalidad, SeguimientoObjetivo
 from ..schemas.calidad import (
     IndicadorCreate,
     IndicadorUpdate,
@@ -22,7 +22,11 @@ from ..schemas.calidad import (
     AccionCorrectivaVerificacion,
     ObjetivoCalidadCreate,
     ObjetivoCalidadUpdate,
-    ObjetivoCalidadResponse
+
+    ObjetivoCalidadResponse,
+    SeguimientoObjetivoCreate,
+    SeguimientoObjetivoUpdate,
+    SeguimientoObjetivoResponse
 )
 
 router = APIRouter(prefix="/api/v1", tags=["calidad"])
@@ -413,5 +417,91 @@ def eliminar_objetivo_calidad(objetivo_id: UUID, db: Session = Depends(get_db)):
         )
     
     db.delete(objetivo)
+    db.commit()
+    return None
+
+
+
+# ================================
+# Endpoints de Seguimiento Objetivos
+# ================================
+
+@router.get("/seguimientos-objetivo", response_model=List[SeguimientoObjetivoResponse])
+def listar_seguimientos_objetivo(
+    skip: int = 0,
+    limit: int = 100,
+    objetivo_id: UUID = None,
+    # TODO: filtrar por fecha?
+    db: Session = Depends(get_db)
+):
+    """Listar seguimientos de objetivos"""
+    query = db.query(SeguimientoObjetivo)
+    
+    if objetivo_id:
+        query = query.filter(SeguimientoObjetivo.objetivo_calidad_id == objetivo_id)
+    
+    # Ordenar por fecha descendente
+    query = query.order_by(SeguimientoObjetivo.fecha_seguimiento.desc())
+    
+    seguimientos = query.offset(skip).limit(limit).all()
+    return seguimientos
+
+
+@router.post("/seguimientos-objetivo", response_model=SeguimientoObjetivoResponse, status_code=status.HTTP_201_CREATED)
+def crear_seguimiento_objetivo(seguimiento: SeguimientoObjetivoCreate, db: Session = Depends(get_db)):
+    """Crear un nuevo seguimiento de objetivo"""
+    # Verificar que el objetivo existe
+    objetivo = db.query(ObjetivoCalidad).filter(ObjetivoCalidad.id == seguimiento.objetivo_calidad_id).first()
+    if not objetivo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Objetivo de calidad no encontrado"
+        )
+    
+    nuevo_seguimiento = SeguimientoObjetivo(**seguimiento.model_dump())
+    db.add(nuevo_seguimiento)
+    db.commit()
+    db.refresh(nuevo_seguimiento)
+    
+    # Opcional: Actualizar el progreso del objetivo automáticamente
+    # Esto dependería de la lógica de negocio (si el seguimiento define el progreso)
+    
+    return nuevo_seguimiento
+
+
+@router.put("/seguimientos-objetivo/{seguimiento_id}", response_model=SeguimientoObjetivoResponse)
+def actualizar_seguimiento_objetivo(
+    seguimiento_id: UUID,
+    seguimiento_update: SeguimientoObjetivoUpdate,
+    db: Session = Depends(get_db)
+):
+    """Actualizar un seguimiento de objetivo"""
+    seguimiento = db.query(SeguimientoObjetivo).filter(SeguimientoObjetivo.id == seguimiento_id).first()
+    if not seguimiento:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Seguimiento no encontrado"
+        )
+    
+    update_data = seguimiento_update.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(seguimiento, field, value)
+    
+    db.commit()
+    db.refresh(seguimiento)
+    return seguimiento
+
+
+@router.delete("/seguimientos-objetivo/{seguimiento_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_seguimiento_objetivo(seguimiento_id: UUID, db: Session = Depends(get_db)):
+    """Eliminar un seguimiento de objetivo"""
+    seguimiento = db.query(SeguimientoObjetivo).filter(SeguimientoObjetivo.id == seguimiento_id).first()
+    if not seguimiento:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Seguimiento no encontrado"
+        )
+    
+    db.delete(seguimiento)
     db.commit()
     return None
