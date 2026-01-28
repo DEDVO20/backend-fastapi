@@ -46,7 +46,12 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['usuario_id'], ['usuarios.id'], onupdate='CASCADE', ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.drop_column('auditorias', 'norma_referencia')
+    # Validar si la columna existe antes de eliminarla (Fix para entornos donde ya fue eliminada)
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = [col['name'] for col in inspector.get_columns('auditorias')]
+    if 'norma_referencia' in columns:
+        op.drop_column('auditorias', 'norma_referencia')
     # ### end Alembic commands ###
 
 
