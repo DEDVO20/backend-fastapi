@@ -58,6 +58,12 @@ from .capacitacion import (
     AsistenciaCapacitacion
 )
 
+# Importar modelos de competencias
+from .competencia import (
+    Competencia,
+    EvaluacionCompetencia
+)
+
 # Importar modelos del sistema
 from .sistema import (
     Ticket,
@@ -106,6 +112,9 @@ __all__ = [
     # Capacitación
     "Capacitacion",
     "AsistenciaCapacitacion",
+    # Competencias
+    "Competencia",
+    "EvaluacionCompetencia",
     # Sistema
     "Ticket",
     "Notificacion",

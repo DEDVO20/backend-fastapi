@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     
     # Base de datos
-    DATABASE_URL: str = "postgresql://postgres:123456789@localhost:5432/calidad_db"
+    DATABASE_URL: str = "postgresql://fastapi_user:fastapi_password@localhost:5432/fastapi_db"
     
     # Seguridad
     SECRET_KEY: str = "your-secret-key-change-this-in-production"
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     # Supabase Storage
     SUPABASE_URL: Optional[str] = None
     SUPABASE_KEY: Optional[str] = None
-    SUPABASE_BUCKET: str = "avatars"
+    SUPABASE_BUCKET: str = "imagenes"
     
     @property
     def cors_origins_list(self) -> List[str]:
