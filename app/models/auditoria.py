@@ -20,6 +20,7 @@ class Auditoria(BaseModel):
     fecha_inicio = Column(DateTime(timezone=True), nullable=True)
     fecha_fin = Column(DateTime(timezone=True), nullable=True)
     estado = Column(String(50), nullable=False, default='planificada')
+    norma_referencia = Column(String(200), nullable=True)
     equipo_auditor = Column(Text, nullable=True)
     auditor_lider_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     creado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
