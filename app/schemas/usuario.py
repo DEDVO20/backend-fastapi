@@ -152,6 +152,7 @@ class UsuarioResponse(UsuarioBase):
     actualizado_en: datetime
     permisos: List[str] = []
     roles: List[UsuarioRolResponse] = []
+    nombre_completo: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
 
