@@ -28,66 +28,74 @@ def login(
     - Contraseña: admin123
     """
     # Buscar usuario por nombre de usuario con sus roles y permisos
-    from sqlalchemy.orm import joinedload
-    usuario = db.query(Usuario).options(
-        joinedload(Usuario.roles).joinedload(UsuarioRol.rol).joinedload(Rol.permisos).joinedload(RolPermiso.permiso)
-    ).filter(
-        Usuario.nombre_usuario == login_data.nombre_usuario
-    ).first()
-    
-    # Verificar que el usuario existe
-    if not usuario:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuario o contraseña incorrectos",
-            headers={"WWW-Authenticate": "Bearer"},
+    try:
+        from sqlalchemy.orm import joinedload
+        usuario = db.query(Usuario).options(
+            joinedload(Usuario.roles).joinedload(UsuarioRol.rol).joinedload(Rol.permisos).joinedload(RolPermiso.permiso)
+        ).filter(
+            Usuario.nombre_usuario == login_data.nombre_usuario
+        ).first()
+        
+        # Verificar que el usuario existe
+        if not usuario:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuario o contraseña incorrectos",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Verificar contraseña
+        if not verify_password(login_data.password, usuario.contrasena_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuario o contraseña incorrectos",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Verificar que el usuario esté activo
+        if not usuario.activo:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Usuario inactivo"
+            )
+        
+        # Agregar lista única de códigos de permisos
+        permisos_set = set()
+        for ur in usuario.roles:
+            for rp in ur.rol.permisos:
+                if rp.permiso:
+                    permisos_set.add(rp.permiso.codigo)
+        
+        # Crear token JWT
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(
+            data={"sub": str(usuario.id)},
+            expires_delta=access_token_expires
         )
-    
-    # Verificar contraseña
-    if not verify_password(login_data.password, usuario.contrasena_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuario o contraseña incorrectos",
-            headers={"WWW-Authenticate": "Bearer"},
+        
+        # Preparar datos del usuario para la respuesta
+        usuario_data = {
+            "id": str(usuario.id),
+            "nombre_usuario": usuario.nombre_usuario,
+            "email": usuario.correo_electronico,
+            "nombre_completo": f"{usuario.nombre} {usuario.primer_apellido}",
+            "activo": usuario.activo,
+            "foto_url": usuario.foto_url,
+            "permisos": list(permisos_set)
+        }
+        
+        return TokenResponse(
+            access_token=access_token,
+            token_type="bearer",
+            usuario=usuario_data
         )
-    
-    # Verificar que el usuario esté activo
-    if not usuario.activo:
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Usuario inactivo"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno en login: {str(e)}"
         )
-    
-    # Agregar lista única de códigos de permisos
-    permisos_set = set()
-    for ur in usuario.roles:
-        for rp in ur.rol.permisos:
-            if rp.permiso:
-                permisos_set.add(rp.permiso.codigo)
-    
-    # Crear token JWT
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": str(usuario.id)},
-        expires_delta=access_token_expires
-    )
-    
-    # Preparar datos del usuario para la respuesta
-    usuario_data = {
-        "id": str(usuario.id),
-        "nombre_usuario": usuario.nombre_usuario,
-        "email": usuario.correo_electronico,
-        "nombre_completo": f"{usuario.nombre} {usuario.primer_apellido}",
-        "activo": usuario.activo,
-        "foto_url": usuario.foto_url,
-        "permisos": list(permisos_set)
-    }
-    
-    return TokenResponse(
-        access_token=access_token,
-        token_type="bearer",
-        usuario=usuario_data
-    )
 
 
 @router.get("/me", response_model=UsuarioWithArea)

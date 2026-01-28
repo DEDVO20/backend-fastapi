@@ -11,11 +11,11 @@ from ..schemas.competencia import (
     CompetenciaCreate, CompetenciaUpdate, CompetenciaResponse,
     EvaluacionCompetenciaCreate, EvaluacionCompetenciaUpdate, EvaluacionCompetenciaResponse
 )
-from ..auth import get_current_user
+from .auth import get_current_user
 from ..models.usuario import Usuario
 
 router = APIRouter(
-    prefix="/competencias",
+    prefix="/api/v1/competencias",
     tags=["competencias"],
     responses={404: {"description": "Not found"}},
 )

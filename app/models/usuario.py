@@ -74,6 +74,7 @@ class Usuario(BaseModel):
     tickets_asignados = relationship("Ticket", back_populates="asignado", foreign_keys="[Ticket.asignado_a]")
     notificaciones = relationship("Notificacion", back_populates="usuario")
     asignaciones = relationship("Asignacion", back_populates="usuario")
+    competencias_evaluadas = relationship("EvaluacionCompetencia", back_populates="usuario", foreign_keys="[EvaluacionCompetencia.usuario_id]")
     
     # Índices
     __table_args__ = (

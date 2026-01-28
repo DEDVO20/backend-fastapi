@@ -40,7 +40,7 @@ class EvaluacionCompetencia(BaseModel):
     observaciones = Column(Text, nullable=True)
 
     # Relaciones
-    usuario = relationship("Usuario", back_populates="competencias_evaluadas")
+    usuario = relationship("Usuario", back_populates="competencias_evaluadas", foreign_keys=[usuario_id])
     competencia = relationship("Competencia", back_populates="evaluaciones")
     evaluador = relationship("Usuario", foreign_keys=[evaluador_id])
 
