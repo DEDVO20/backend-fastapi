@@ -6,26 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .api import (
     routes, usuarios, procesos, documentos, 
-    calidad, auditorias, riesgos, capacitaciones, competencias, sistema, auth, migraciones
+    calidad, auditorias, riesgos, capacitaciones, competencias, sistema, auth, migraciones, tickets
 )
 
-# Crear instancia de FastAPI
-app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.APP_VERSION,
-    description="Backend API construido con FastAPI para Sistema de Gestión de Calidad",
-    docs_url="/docs",
-    redoc_url="/redoc"
-)
-
-# Configurar CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ... (omitted)
 
 # Incluir routers
 app.include_router(auth.router)
@@ -40,6 +24,7 @@ app.include_router(capacitaciones.router)
 app.include_router(competencias.router)
 app.include_router(sistema.router)
 app.include_router(migraciones.router, prefix="/api/migraciones", tags=["migraciones"])
+app.include_router(tickets.router, prefix="/api/v1/tickets", tags=["tickets"])
 
 
 @app.on_event("startup")
