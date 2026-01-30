@@ -64,9 +64,11 @@ from .competencia import (
     EvaluacionCompetencia
 )
 
+# Importar modelo de Tickets (separado)
+from .ticket import Ticket
+
 # Importar modelos del sistema
 from .sistema import (
-    Ticket,
     Notificacion,
     Configuracion,
     CampoFormulario,

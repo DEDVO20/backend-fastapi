@@ -7,36 +7,6 @@ from sqlalchemy.orm import relationship
 from .base import BaseModel
 
 
-class Ticket(BaseModel):
-    """Modelo de sistema de tickets/solicitudes"""
-    __tablename__ = "tickets"
-    
-    codigo = Column(String(100), nullable=False, unique=True)
-    titulo = Column(String(200), nullable=False)
-    descripcion = Column(Text, nullable=False)
-    categoria = Column(String(100), nullable=False)
-    prioridad = Column(String(50), nullable=False, default='media')
-    estado = Column(String(50), nullable=False, default='abierto')
-    solicitante_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
-    asignado_a = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
-    fecha_limite = Column(DateTime(timezone=True), nullable=True)
-    fecha_resolucion = Column(DateTime(timezone=True), nullable=True)
-    solucion = Column(Text, nullable=True)
-    tiempo_resolucion = Column(Integer, nullable=True)  # En minutos
-    satisfaccion_cliente = Column(Integer, nullable=True)  # Escala 1-5
-    
-    # Relaciones
-    solicitante = relationship("Usuario", back_populates="tickets_solicitados", foreign_keys=[solicitante_id])
-    asignado = relationship("Usuario", back_populates="tickets_asignados", foreign_keys=[asignado_a])
-    
-    # Índices
-    __table_args__ = (
-        Index('tickets_codigo', 'codigo'),
-        Index('tickets_estado', 'estado'),
-    )
-    
-    def __repr__(self):
-        return f"<Ticket(codigo={self.codigo}, estado={self.estado}, prioridad={self.prioridad})>"
 
 
 class Notificacion(BaseModel):
