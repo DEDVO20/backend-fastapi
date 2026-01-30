@@ -7,7 +7,8 @@ from typing import List
 from uuid import UUID
 
 from ..database import get_db
-from ..models.sistema import Ticket, Notificacion, Configuracion
+from ..models import Ticket
+from ..models.sistema import Notificacion, Configuracion
 from ..schemas.sistema import (
     TicketCreate,
     TicketUpdate,
