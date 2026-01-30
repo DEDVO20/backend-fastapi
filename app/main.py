@@ -9,6 +9,21 @@ from .api import (
     calidad, auditorias, riesgos, capacitaciones, competencias, sistema, auth, migraciones, tickets
 )
 
+app = FastAPI(
+    title="Sistema de Gestión de Calidad",
+    description="API para sistema de gestión de calidad ISO 9001",
+    version="1.0.0"
+)
+
+# Configurar CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # ... (omitted)
 
 # Incluir routers
