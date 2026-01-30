@@ -1,5 +1,5 @@
 """
-Endpoints CRUD para sistema (tickets, notificaciones, configuraciones)
+Endpoints CRUD para sistema (notificaciones, configuraciones)
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -7,12 +7,8 @@ from typing import List
 from uuid import UUID
 
 from ..database import get_db
-from ..models import Ticket
 from ..models.sistema import Notificacion, Configuracion
 from ..schemas.sistema import (
-    TicketCreate,
-    TicketUpdate,
-    TicketResponse,
     NotificacionCreate,
     NotificacionUpdate,
     NotificacionResponse,
@@ -23,102 +19,6 @@ from ..schemas.sistema import (
 
 router = APIRouter(prefix="/api/v1", tags=["sistema"])
 
-
-# ====================
-# Endpoints de Tickets
-# ====================
-
-@router.get("/tickets", response_model=List[TicketResponse])
-def listar_tickets(
-    skip: int = 0,
-    limit: int = 100,
-    estado: str = None,
-    prioridad: str = None,
-    categoria: str = None,
-    asignado_a: UUID = None,
-    db: Session = Depends(get_db)
-):
-    """Listar tickets"""
-    query = db.query(Ticket)
-    
-    if estado:
-        query = query.filter(Ticket.estado == estado)
-    if prioridad:
-        query = query.filter(Ticket.prioridad == prioridad)
-    if categoria:
-        query = query.filter(Ticket.categoria == categoria)
-    if asignado_a:
-        query = query.filter(Ticket.asignado_a == asignado_a)
-    
-    tickets = query.offset(skip).limit(limit).all()
-    return tickets
-
-
-@router.post("/tickets", response_model=TicketResponse, status_code=status.HTTP_201_CREATED)
-def crear_ticket(ticket: TicketCreate, db: Session = Depends(get_db)):
-    """Crear un nuevo ticket"""
-    # Verificar código único
-    db_ticket = db.query(Ticket).filter(Ticket.codigo == ticket.codigo).first()
-    if db_ticket:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El código de ticket ya existe"
-        )
-    
-    nuevo_ticket = Ticket(**ticket.model_dump())
-    db.add(nuevo_ticket)
-    db.commit()
-    db.refresh(nuevo_ticket)
-    return nuevo_ticket
-
-
-@router.get("/tickets/{ticket_id}", response_model=TicketResponse)
-def obtener_ticket(ticket_id: UUID, db: Session = Depends(get_db)):
-    """Obtener un ticket por ID"""
-    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
-    if not ticket:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Ticket no encontrado"
-        )
-    return ticket
-
-
-@router.put("/tickets/{ticket_id}", response_model=TicketResponse)
-def actualizar_ticket(
-    ticket_id: UUID,
-    ticket_update: TicketUpdate,
-    db: Session = Depends(get_db)
-):
-    """Actualizar un ticket"""
-    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
-    if not ticket:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Ticket no encontrado"
-        )
-    
-    update_data = ticket_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(ticket, field, value)
-    
-    db.commit()
-    db.refresh(ticket)
-    return ticket
-
-
-@router.delete("/tickets/{ticket_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_ticket(ticket_id: UUID, db: Session = Depends(get_db)):
-    """Eliminar un ticket"""
-    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
-    if not ticket:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Ticket no encontrado"
-        )
-    
-    db.delete(ticket)
-    db.commit()
 
 # =========================
 # Endpoints de Asignaciones

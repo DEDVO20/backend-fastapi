@@ -1,28 +1,35 @@
 """
 Modelo de Tickets / Mesa de Ayuda
 """
-from sqlalchemy import Column, String, Integer, Text, ForeignKey, Enum
+from sqlalchemy import Column, String, Text, ForeignKey, Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from .base import BaseModel
 import enum
 
+
 class TipoTicket(str, enum.Enum):
+    """Tipos de ticket disponibles"""
     SOPORTE = "soporte"
     CONSULTA = "consulta"
     MEJORA = "mejora"
 
+
 class PrioridadTicket(str, enum.Enum):
+    """Niveles de prioridad"""
     BAJA = "baja"
     MEDIA = "media"
     ALTA = "alta"
     CRITICA = "critica"
 
+
 class EstadoTicket(str, enum.Enum):
+    """Estados del ciclo de vida del ticket"""
     ABIERTO = "abierto"
     EN_PROGRESO = "en_progreso"
     RESUELTO = "resuelto"
     CERRADO = "cerrado"
+
 
 class Ticket(BaseModel):
     """Modelo para tickets de la mesa de ayuda"""
@@ -34,6 +41,7 @@ class Ticket(BaseModel):
     prioridad = Column(String(50), nullable=False, default=PrioridadTicket.MEDIA.value)
     estado = Column(String(50), nullable=False, default=EstadoTicket.ABIERTO.value)
     
+    # Foreign keys
     solicitante_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
     asignado_a = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     
