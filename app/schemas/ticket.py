@@ -35,7 +35,7 @@ class TicketBase(BaseModel):
     """Schema base para Ticket"""
     titulo: str
     descripcion: str
-    tipo: TipoTicket
+    categoria: TipoTicket  # En BD es 'categoria', no 'tipo'
     prioridad: PrioridadTicket
 
 
@@ -48,7 +48,7 @@ class TicketUpdate(BaseModel):
     """Schema para actualizar un ticket"""
     titulo: Optional[str] = None
     descripcion: Optional[str] = None
-    tipo: Optional[TipoTicket] = None
+    categoria: Optional[TipoTicket] = None  # En BD es 'categoria'
     prioridad: Optional[PrioridadTicket] = None
     estado: Optional[EstadoTicket] = None
     asignado_a: Optional[UUID] = None

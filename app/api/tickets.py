@@ -25,7 +25,7 @@ def create_ticket(
     new_ticket = Ticket(
         titulo=ticket.titulo,
         descripcion=ticket.descripcion,
-        tipo=ticket.tipo.value,
+        categoria=ticket.categoria.value,  # En BD es 'categoria'
         prioridad=ticket.prioridad.value,
         solicitante_id=current_user.id
     )

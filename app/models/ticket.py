@@ -1,7 +1,7 @@
 """
 Modelo de Tickets / Mesa de Ayuda
 """
-from sqlalchemy import Column, String, Text, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, String, Text, ForeignKey, Enum as SQLEnum, Integer, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from .base import BaseModel
@@ -35,15 +35,23 @@ class Ticket(BaseModel):
     """Modelo para tickets de la mesa de ayuda"""
     __tablename__ = "tickets"
     
+    codigo = Column(String(100), nullable=True)
     titulo = Column(String(200), nullable=False)
     descripcion = Column(Text, nullable=False)
-    tipo = Column(String(50), nullable=False, default=TipoTicket.SOPORTE.value)
+    categoria = Column(String(50), nullable=False, default=TipoTicket.SOPORTE.value)  # En BD es 'categoria', no 'tipo'
     prioridad = Column(String(50), nullable=False, default=PrioridadTicket.MEDIA.value)
     estado = Column(String(50), nullable=False, default=EstadoTicket.ABIERTO.value)
     
     # Foreign keys
     solicitante_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
     asignado_a = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    
+    # Campos adicionales de la BD
+    fecha_limite = Column(DateTime(timezone=True), nullable=True)
+    fecha_resolucion = Column(DateTime(timezone=True), nullable=True)
+    solucion = Column(Text, nullable=True)
+    tiempo_resolucion = Column(Integer, nullable=True)  # En minutos
+    satisfaccion_cliente = Column(Integer, nullable=True)  # 1-5
     
     # Relaciones
     solicitante = relationship("Usuario", back_populates="tickets_solicitados", foreign_keys=[solicitante_id])
