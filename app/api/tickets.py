@@ -2,8 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from ..database import get_db
-from ..models.ticket import Ticket, EstadoTicket
-from ..models.usuario import Usuario
+from ..models import Ticket, EstadoTicket, Usuario
 from ..schemas.ticket import TicketCreate, TicketUpdate, TicketResponse
 from .auth import get_current_user
 import uuid

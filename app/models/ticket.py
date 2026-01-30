@@ -27,7 +27,6 @@ class EstadoTicket(str, enum.Enum):
 class Ticket(BaseModel):
     """Modelo para tickets de la mesa de ayuda"""
     __tablename__ = "tickets"
-    __table_args__ = {'extend_existing': True}
     
     titulo = Column(String(200), nullable=False)
     descripcion = Column(Text, nullable=False)
