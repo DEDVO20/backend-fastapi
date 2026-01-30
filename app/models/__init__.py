@@ -65,7 +65,7 @@ from .competencia import (
 )
 
 # Importar modelo de Tickets (separado)
-from .ticket import Ticket
+from .ticket import Ticket, EstadoTicket, TipoTicket, PrioridadTicket
 
 # Importar modelos del sistema
 from .sistema import (
@@ -119,6 +119,9 @@ __all__ = [
     "EvaluacionCompetencia",
     # Sistema
     "Ticket",
+    "EstadoTicket",
+    "TipoTicket",
+    "PrioridadTicket",
     "Notificacion",
     "Configuracion",
     "CampoFormulario",
