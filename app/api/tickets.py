@@ -84,7 +84,7 @@ def update_ticket(
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
         
     # Actualizar campos
-    for key, value in ticket_update.dict(exclude_unset=True).items():
+    for key, value in ticket_update.model_dump(exclude_unset=True).items():
         if hasattr(ticket, key):
             # Manejar Enums
             if hasattr(value, 'value'):
