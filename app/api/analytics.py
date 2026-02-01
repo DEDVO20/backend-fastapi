@@ -33,9 +33,13 @@ def get_calidad_metrics(
     # 2. Objetivos de Calidad (Activos vs Total)
     total_objetivos = db.query(func.count(ObjetivoCalidad.id)).scalar()
     
+    # 3. Indicadores
+    total_indicadores = db.query(func.count(Indicador.id)).scalar()
+    
     return {
         "noconformidades": {state: count for state, count in nc_stats},
-        "objetivos_total": total_objetivos
+        "objetivos_total": total_objetivos,
+        "indicadores_total": total_indicadores
     }
 
 @router.get("/riesgos/stats")
