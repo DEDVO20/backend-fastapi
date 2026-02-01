@@ -38,7 +38,6 @@ def listar_procesos(
     limit: int = 100,
     estado: str = None,
     area_id: UUID = None,
-    area_id: UUID = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
