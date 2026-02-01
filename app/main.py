@@ -7,7 +7,7 @@ from .config import settings
 from .api import (
     routes, usuarios, procesos, documentos, 
     calidad, auditorias, riesgos, capacitaciones, competencias, sistema, auth, migraciones, tickets, notificaciones,
-    analytics
+    analytics, reportes
 )
 
 app = FastAPI(
@@ -43,6 +43,7 @@ app.include_router(migraciones.router, prefix="/api/migraciones", tags=["migraci
 app.include_router(tickets.router, prefix="/api/v1/tickets", tags=["tickets"])
 app.include_router(notificaciones.router)
 app.include_router(analytics.router)
+app.include_router(reportes.router)
 
 
 @app.on_event("startup")

@@ -30,3 +30,6 @@ pandas>=2.0.0
 # Supabase y procesamiento de imágenes
 supabase>=2.0.0
 pillow>=10.0.0
+
+# Reportes PDF
+reportlab>=4.0.0
