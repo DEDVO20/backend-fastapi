@@ -256,7 +256,9 @@ def solicitar_revision_documento(
 @router.post("/documentos/{documento_id}/solicitar-aprobacion", status_code=status.HTTP_200_OK)
 def solicitar_aprobacion_documento(
     documento_id: UUID,
-    db: Session = Depends(get_db)
+    documento_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Solicitar aprobación de un documento (al aprobador asignado)"""
     documento = db.query(Documento).filter(Documento.id == documento_id).first()
@@ -286,12 +288,36 @@ def solicitar_aprobacion_documento(
 @router.post("/documentos/{documento_id}/aprobar", status_code=status.HTTP_200_OK)
 def aprobar_documento(
     documento_id: UUID,
-    db: Session = Depends(get_db)
+    documento_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Aprobar un documento"""
     documento = db.query(Documento).filter(Documento.id == documento_id).first()
     if not documento:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
+
+    # 1. Verificar Permiso "documentos.aprobar"
+    # Estructura: Usuario -> UsuarioRol -> Rol -> RolPermiso -> Permiso
+    tiene_permiso = False
+    for usuario_rol in current_user.roles:
+        for rol_permiso in usuario_rol.rol.permisos:
+            if rol_permiso.permiso.codigo == "documentos.aprobar":
+                tiene_permiso = True
+                break
+        if tiene_permiso: break
+    
+    if not tiene_permiso:
+        raise HTTPException(status_code=403, detail="No tienes permiso para aprobar documentos")
+
+    # 2. Verificar Asignación (Solo el aprobador designado)
+    if documento.aprobador_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No eres el aprobador asignado para este documento")
+
+    # 3. Segregación de Funciones (El aprobador NO puede ser el creador)
+    if documento.elaborador_id == current_user.id:
+        raise HTTPException(status_code=400, detail="No puedes aprobar tus propios documentos (Segregación de Funciones)")
+
     
     # Actualizar estado
     documento.estado = "aprobado"

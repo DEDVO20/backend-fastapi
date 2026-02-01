@@ -29,14 +29,41 @@ def crear_areas_iniciales(db: Session):
     print("✅ Áreas iniciales creadas")  
 
 def crear_roles_permisos_iniciales(db: Session):
-    """Crear roles y permisos iniciales"""
-    # Crear permisos básicos
+    """Crear roles y permisos iniciales (Sistema Robusto)"""
+    
+    # 1. Definición de Permisos Granulares
     permisos_data = [
-        {"nombre": "Ver Usuarios", "codigo": "usuarios.ver", "descripcion": "Permiso para ver usuarios"},
-        {"nombre": "Crear Usuarios", "codigo": "usuarios.crear", "descripcion": "Permiso para crear usuarios"},
-        {"nombre": "Editar Usuarios", "codigo": "usuarios.editar", "descripcion": "Permiso para editar usuarios"},
-        {"nombre": "Eliminar Usuarios", "codigo": "usuarios.eliminar", "descripcion": "Permiso para eliminar usuarios"},
-        {"nombre": "Administrar Sistema", "codigo": "sistema.admin", "descripcion": "Acceso completo al sistema"},
+        # --- USUARIOS Y SISTEMA ---
+        {"codigo": "usuarios.gestion", "nombre": "Gestión de Usuarios", "descripcion": "Crear, editar y eliminar usuarios"},
+        {"codigo": "usuarios.ver", "nombre": "Ver Usuarios", "descripcion": "Ver lista y perfiles de usuarios"},
+        {"codigo": "sistema.config", "nombre": "Configuración del Sistema", "descripcion": "Gestionar variables y configuraciones globales"},
+        
+        # --- DOCUMENTOS ---
+        {"codigo": "documentos.ver", "nombre": "Ver Documentos", "descripcion": "Ver documentos vigentes"},
+        {"codigo": "documentos.crear", "nombre": "Crear Documentos", "descripcion": "Crear borradores y solicitar revisiones"},
+        {"codigo": "documentos.revisar", "nombre": "Revisar Documentos", "descripcion": "Revisión técnica de documentos"},
+        {"codigo": "documentos.aprobar", "nombre": "Aprobar Documentos", "descripcion": "Aprobar documentos (Jefatura/Coordinación)"},
+        {"codigo": "documentos.anular", "nombre": "Anular Documentos", "descripcion": "Anular o eliminar documentos obsoletos"},
+        
+        # --- RIESGOS ---
+        {"codigo": "riesgos.ver", "nombre": "Ver Mapa de Riesgos", "descripcion": "Visualizar riesgos y controles"},
+        {"codigo": "riesgos.identificar", "nombre": "Identificar Riesgos", "descripcion": "Reportar nuevos riesgos"},
+        {"codigo": "riesgos.gestion", "nombre": "Gestión de Riesgos", "descripcion": "Analizar riesgos y definir controles"},
+        
+        # --- CALIDAD (No Conformidades e Indicadores) ---
+        {"codigo": "calidad.ver", "nombre": "Ver Tableros de Calidad", "descripcion": "Ver indicadores y reportes"},
+        {"codigo": "noconformidades.reportar", "nombre": "Reportar No Conformidad", "descripcion": "Crear reporte de NC"},
+        {"codigo": "noconformidades.gestion", "nombre": "Gestionar No Conformidades", "descripcion": "Análisis de causa y planes de acción"},
+        {"codigo": "noconformidades.cerrar", "nombre": "Cerrar No Conformidades", "descripcion": "Verificar eficacia y cerrar NC"},
+        
+        # --- AUDITORÍAS ---
+        {"codigo": "auditorias.ver", "nombre": "Ver Auditorías", "descripcion": "Ver programas e informes de auditoría"},
+        {"codigo": "auditorias.planificar", "nombre": "Planificar Auditorías", "descripcion": "Crear programas y asignar auditores"},
+        {"codigo": "auditorias.ejecutar", "nombre": "Ejecutar Auditoría", "descripcion": "Registrar hallazgos (Rol Auditor)"},
+        
+        # --- CAPACITACIONES Y PROCESOS ---
+        {"codigo": "capacitaciones.gestion", "nombre": "Gestión de Capacitaciones", "descripcion": "Crear planes y registrar asistencias"},
+        {"codigo": "procesos.admin", "nombre": "Administrar Procesos", "descripcion": "Modelar mapa de procesos y etapas"}
     ]
     
     permisos = {}
@@ -46,34 +73,74 @@ def crear_roles_permisos_iniciales(db: Session):
             permiso = Permiso(**permiso_data)
             db.add(permiso)
             db.flush()
+            print(f"Permiso creado: {permiso_data['codigo']}")
         permisos[permiso_data["codigo"]] = permiso
     
-    # Crear roles
+    # 2. Definición de Roles Estructurados
     roles_data = [
         {
             "nombre": "Administrador del Sistema",
             "clave": "admin",
-            "descripcion": "Acceso completo al sistema",
-            "permisos": ["sistema.admin", "usuarios.ver", "usuarios.crear", "usuarios.editar", "usuarios.eliminar"]
+            "descripcion": "Superusuario con acceso total",
+            "permisos": list(permisos.keys()) # Todos los permisos
         },
         {
             "nombre": "Gestor de Calidad",
             "clave": "gestor_calidad",
-            "descripcion": "Gestión de procesos de calidad",
-            "permisos": ["usuarios.ver"]
+            "descripcion": "Administrador funcional del SGC",
+            "permisos": [
+                "usuarios.ver", "documentos.ver", "documentos.crear", "documentos.revisar", "documentos.aprobar", "documentos.anular",
+                "riesgos.ver", "riesgos.gestion", 
+                "calidad.ver", "noconformidades.reportar", "noconformidades.gestion", "noconformidades.cerrar",
+                "auditorias.ver", "auditorias.planificar", "auditorias.ejecutar",
+                "capacitaciones.gestion", "procesos.admin"
+            ]
         },
         {
-            "nombre": "Auditor",
+            "nombre": "Coordinador de Área",
+            "clave": "coordinador",
+            "descripcion": "Líder de proceso con capacidad de aprobación",
+            "permisos": [
+                "usuarios.ver", 
+                "documentos.ver", "documentos.crear", "documentos.revisar", "documentos.aprobar", # Puede aprobar
+                "riesgos.ver", "riesgos.identificar", "riesgos.gestion", # Gestiona riesgos de su área
+                "calidad.ver", "noconformidades.reportar", "noconformidades.gestion", # Gestiona NC de su área
+                "auditorias.ver" # Ve auditorías (si es auditado)
+            ]
+        },
+        {
+            "nombre": "Auxiliar / Analista",
+            "clave": "auxiliar",
+            "descripcion": "Rol operativo de soporte",
+            "permisos": [
+                "usuarios.ver",
+                "documentos.ver", "documentos.crear", "documentos.revisar", # No aprueba
+                "riesgos.ver", "riesgos.identificar", # Solo identifica
+                "calidad.ver", "noconformidades.reportar", # Reporta NC
+                "auditorias.ver"
+            ]
+        },
+        {
+            "nombre": "Auditor Interno/Externo",
             "clave": "auditor",
-            "descripcion": "Realización de auditorías",
-            "permisos": ["usuarios.ver"]
+            "descripcion": "Responsable de ejecutar auditorías",
+            "permisos": [
+                "usuarios.ver", "documentos.ver", "procesos.admin", # Necesita ver procesos para auditar
+                "auditorias.ver", "auditorias.ejecutar", # Su función principal
+                "riesgos.ver", "calidad.ver" # Para consultar evidencia
+            ]
         },
         {
-            "nombre": "Usuario Básico",
-            "clave": "usuario",
-            "descripcion": "Usuario del sistema con acceso básico",
-            "permisos": ["usuarios.ver"]
-        },
+            "nombre": "Líder SISO",
+            "clave": "lider_siso",
+            "descripcion": "Especialista en Seguridad y Salud Ocupacional",
+            "permisos": [
+                "usuarios.ver",
+                "riesgos.ver", "riesgos.identificar", "riesgos.gestion", # Fuerte en riesgos
+                "documentos.ver", "documentos.crear",
+                "calidad.ver", "noconformidades.reportar", "noconformidades.gestion"
+            ]
+        }
     ]
     
     roles = {}
@@ -84,17 +151,25 @@ def crear_roles_permisos_iniciales(db: Session):
             rol = Rol(**rol_data)
             db.add(rol)
             db.flush()
-            
-            # Asignar permisos al rol
-            for permiso_codigo in permisos_rol:
-                if permiso_codigo in permisos:
-                    rol_permiso = RolPermiso(rol_id=rol.id, permiso_id=permisos[permiso_codigo].id)
+            print(f"Rol creado: {rol_data['nombre']}")
+        
+        # Actualizar permisos del rol (limpiar y reasignar para asegurar sincronización)
+        # Nota: En un sistema en producción esto se haría con cuidado, aquí re-sincronizamos
+        # db.query(RolPermiso).filter(RolPermiso.rol_id == rol.id).delete()
+        
+        existing_perms = {rp.permiso_id for rp in rol.permisos}
+        
+        for permiso_codigo in permisos_rol:
+            if permiso_codigo in permisos:
+                permiso_obj = permisos[permiso_codigo]
+                if permiso_obj.id not in existing_perms:
+                    rol_permiso = RolPermiso(rol_id=rol.id, permiso_id=permiso_obj.id)
                     db.add(rol_permiso)
         
         roles[rol_data["clave"]] = rol
     
     db.commit()
-    print("✅ Roles y permisos iniciales creados")
+    print("✅ Roles y permisos extendidos actualizados correctamente")
     return roles
 
 

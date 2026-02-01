@@ -56,6 +56,11 @@ def crear_auditoria(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crear una nueva auditoría"""
+    # Verify permission "auditorias.planificar"
+    tiene_permiso = any(p.codigo == "auditorias.planificar" for r in current_user.roles for p in r.permisos)
+    if not tiene_permiso:
+        raise HTTPException(status_code=403, detail="No tienes permiso para planificar auditorías")
+
     # Verificar código único
     db_auditoria = db.query(Auditoria).filter(Auditoria.codigo == auditoria.codigo).first()
     if db_auditoria:
@@ -202,6 +207,11 @@ def crear_hallazgo_auditoria(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crear un nuevo hallazgo de auditoría"""
+    # Verify permission "auditorias.ejecutar"
+    tiene_permiso = any(p.codigo == "auditorias.ejecutar" for r in current_user.roles for p in r.permisos)
+    if not tiene_permiso:
+        raise HTTPException(status_code=403, detail="No tienes permiso para registrar hallazgos")
+
     nuevo_hallazgo = HallazgoAuditoria(**hallazgo.model_dump())
     db.add(nuevo_hallazgo)
     db.commit()

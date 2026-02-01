@@ -178,10 +178,16 @@ def listar_no_conformidades(
 @router.post("/no-conformidades", response_model=NoConformidadResponse, status_code=status.HTTP_201_CREATED)
 def crear_no_conformidad(
     nc: NoConformidadCreate, 
+    nc: NoConformidadCreate, 
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crear una nueva no conformidad"""
+    # Verify permission "noconformidades.reportar"
+    tiene_permiso = any(p.codigo == "noconformidades.reportar" for r in current_user.roles for p in r.permisos)
+    if not tiene_permiso:
+        raise HTTPException(status_code=403, detail="No tienes permiso para reportar no conformidades")
+
     # Verificar código único
     db_nc = db.query(NoConformidad).filter(NoConformidad.codigo == nc.codigo).first()
     if db_nc:
@@ -364,6 +370,11 @@ def verificar_accion_correctiva(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Verificar una acción correctiva"""
+    # Verify permission "noconformidades.cerrar"
+    tiene_permiso = any(p.codigo == "noconformidades.cerrar" for r in current_user.roles for p in r.permisos)
+    if not tiene_permiso:
+        raise HTTPException(status_code=403, detail="No tienes permiso para cerrar no conformidades")
+
     accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.id == accion_id).first()
     if not accion:
         raise HTTPException(

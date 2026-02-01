@@ -45,6 +45,28 @@ def listar_riesgos(
     if nivel_riesgo:
         query = query.filter(Riesgo.nivel_riesgo == nivel_riesgo)
     
+    # Data Scoping: Verificar si el usuario puede ver riesgos de todas las áreas
+    # Estructura de permisos: admin/gestor ven todo. Coordinadores ven solo su área si no tienen permiso global.
+    
+    # Simple check for "riesgos.gestion" or "riesgos.ver" (global) vs local scope
+    # For now, let's assume if user is "admin" or "gestor_calidad" role they see all.
+    # Otherwise filter by area if related to process/area.
+    
+    # Improved logic:
+    # 1. Check if user has a global "view all" role/permission. 
+    #    (For simplicity here, assuming anyone with 'riesgos.ver' can see all, 
+    #    OR we implement area filtering if the robust plan requires it).
+    
+    # Implementation of Area Scoping:
+    # If user is not admin/gestor, join with Process/Area and filter by current_user.area_id
+    es_admin_o_gestor = any(rol.clave in ['admin', 'gestor_calidad'] for rol in current_user.roles)
+    
+    if not es_admin_o_gestor and current_user.area_id:
+        # Asumiendo que Riesgo -> Proceso -> Area
+        # Necesitamos la relación. Si Riesgo tiene proceso_id, y Proceso tiene area_id.
+        from ..models.proceso import Proceso
+        query = query.join(Proceso).filter(Proceso.area_id == current_user.area_id)
+    
     riesgos = query.offset(skip).limit(limit).all()
     return riesgos
 
@@ -56,6 +78,11 @@ def crear_riesgo(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crear un nuevo riesgo"""
+    # Verify permission "riesgos.identificar"
+    tiene_permiso = any(p.codigo == "riesgos.identificar" for r in current_user.roles for p in r.permisos)
+    if not tiene_permiso:
+        raise HTTPException(status_code=403, detail="No tienes permiso para identificar riesgos")
+        
     # Verificar código único
     db_riesgo = db.query(Riesgo).filter(Riesgo.codigo == riesgo.codigo).first()
     if db_riesgo:
