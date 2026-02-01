@@ -32,12 +32,22 @@ def get_calidad_metrics(
     
     # 2. Objetivos de Calidad (Activos vs Total)
     total_objetivos = db.query(func.count(ObjetivoCalidad.id)).scalar()
-    # Asumiendo que existe un campo 'activo' o similar, si no, traemos el total
-    # Si no hay campo activo, solo total.
     
     return {
         "noconformidades": {state: count for state, count in nc_stats},
         "objetivos_total": total_objetivos
+    }
+
+@router.get("/riesgos/stats")
+def get_riesgos_stats(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Estadísticas de Riesgos"""
+    total_riesgos = db.query(func.count(Riesgo.id)).scalar()
+    
+    return {
+        "total_riesgos": total_riesgos
     }
 
 @router.get("/riesgos/heatmap")
@@ -96,6 +106,9 @@ def get_auditorias_stats(
         HallazgoAuditoria.tipo_hallazgo, func.count(HallazgoAuditoria.id)
     ).group_by(HallazgoAuditoria.tipo_hallazgo).all()
     
+    total_auditorias = db.query(func.count(Auditoria.id)).scalar()
+    
     return {
-        "hallazgos_por_tipo": {tipo: count for tipo, count in hallazgos_stats}
+        "hallazgos_por_tipo": {tipo: count for tipo, count in hallazgos_stats},
+        "total_auditorias": total_auditorias
     }
