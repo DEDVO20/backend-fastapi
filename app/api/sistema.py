@@ -1,21 +1,26 @@
 """
-Endpoints CRUD para sistema (notificaciones, configuraciones)
+Endpoints CRUD para sistema (notificaciones, configuraciones, asignaciones)
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import IntegrityError
 from typing import List
 from uuid import UUID
 
 from ..database import get_db
-from ..models.sistema import Notificacion, Configuracion
+from ..models.sistema import Notificacion, Configuracion, Asignacion
 from ..schemas.sistema import (
     NotificacionCreate,
     NotificacionUpdate,
     NotificacionResponse,
     ConfiguracionCreate,
     ConfiguracionUpdate,
-    ConfiguracionResponse
+    ConfiguracionResponse,
+    AsignacionCreate,
+    AsignacionResponse
 )
+from ..api.dependencies import get_current_user
+from ..models.usuario import Usuario
 
 router = APIRouter(prefix="/api/v1", tags=["sistema"])
 
@@ -24,19 +29,14 @@ router = APIRouter(prefix="/api/v1", tags=["sistema"])
 # Endpoints de Asignaciones
 # =========================
 
-from ..models.sistema import Asignacion
-from ..schemas.sistema import AsignacionCreate, AsignacionResponse
-from sqlalchemy.orm import joinedload
-from sqlalchemy.exc import IntegrityError
-
-
 @router.get("/asignaciones", response_model=List[AsignacionResponse])
 def listar_asignaciones(
     skip: int = 0,
     limit: int = 100,
     area_id: UUID = None,
     usuario_id: UUID = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar asignaciones de responsables"""
     query = db.query(Asignacion).options(
@@ -54,7 +54,11 @@ def listar_asignaciones(
 
 
 @router.post("/asignaciones", response_model=AsignacionResponse, status_code=status.HTTP_201_CREATED)
-def crear_asignacion(asignacion: AsignacionCreate, db: Session = Depends(get_db)):
+def crear_asignacion(
+    asignacion: AsignacionCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear una nueva asignación de responsable"""
     # Verificar unicidad
     db_asignacion = db.query(Asignacion).filter(
@@ -86,7 +90,11 @@ def crear_asignacion(asignacion: AsignacionCreate, db: Session = Depends(get_db)
 
 
 @router.delete("/asignaciones/{asignacion_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_asignacion(asignacion_id: UUID, db: Session = Depends(get_db)):
+def eliminar_asignacion(
+    asignacion_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar una asignación"""
     asignacion = db.query(Asignacion).filter(Asignacion.id == asignacion_id).first()
     if not asignacion:
@@ -111,7 +119,8 @@ def listar_notificaciones(
     usuario_id: UUID = None,
     leida: bool = None,
     tipo: str = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar notificaciones"""
     query = db.query(Notificacion)
@@ -128,7 +137,11 @@ def listar_notificaciones(
 
 
 @router.post("/notificaciones", response_model=NotificacionResponse, status_code=status.HTTP_201_CREATED)
-def crear_notificacion(notificacion: NotificacionCreate, db: Session = Depends(get_db)):
+def crear_notificacion(
+    notificacion: NotificacionCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear una nueva notificación"""
     nueva_notificacion = Notificacion(**notificacion.model_dump())
     db.add(nueva_notificacion)
@@ -138,7 +151,11 @@ def crear_notificacion(notificacion: NotificacionCreate, db: Session = Depends(g
 
 
 @router.get("/notificaciones/{notificacion_id}", response_model=NotificacionResponse)
-def obtener_notificacion(notificacion_id: UUID, db: Session = Depends(get_db)):
+def obtener_notificacion(
+    notificacion_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener una notificación por ID"""
     notificacion = db.query(Notificacion).filter(Notificacion.id == notificacion_id).first()
     if not notificacion:
@@ -153,7 +170,8 @@ def obtener_notificacion(notificacion_id: UUID, db: Session = Depends(get_db)):
 def actualizar_notificacion(
     notificacion_id: UUID,
     notificacion_update: NotificacionUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar una notificación (marcar como leída)"""
     notificacion = db.query(Notificacion).filter(Notificacion.id == notificacion_id).first()
@@ -173,7 +191,11 @@ def actualizar_notificacion(
 
 
 @router.delete("/notificaciones/{notificacion_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_notificacion(notificacion_id: UUID, db: Session = Depends(get_db)):
+def eliminar_notificacion(
+    notificacion_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar una notificación"""
     notificacion = db.query(Notificacion).filter(Notificacion.id == notificacion_id).first()
     if not notificacion:
@@ -184,85 +206,6 @@ def eliminar_notificacion(notificacion_id: UUID, db: Session = Depends(get_db)):
     
     db.delete(notificacion)
     db.commit()
-
-# =========================
-# Endpoints de Asignaciones
-# =========================
-
-from ..models.sistema import Asignacion
-from ..schemas.sistema import AsignacionCreate, AsignacionResponse
-from sqlalchemy.orm import joinedload
-from sqlalchemy.exc import IntegrityError
-
-
-@router.get("/asignaciones", response_model=List[AsignacionResponse])
-def listar_asignaciones(
-    skip: int = 0,
-    limit: int = 100,
-    area_id: UUID = None,
-    usuario_id: UUID = None,
-    db: Session = Depends(get_db)
-):
-    """Listar asignaciones de responsables"""
-    query = db.query(Asignacion).options(
-        joinedload(Asignacion.area),
-        joinedload(Asignacion.usuario)
-    )
-    
-    if area_id:
-        query = query.filter(Asignacion.area_id == area_id)
-    if usuario_id:
-        query = query.filter(Asignacion.usuario_id == usuario_id)
-    
-    asignaciones = query.offset(skip).limit(limit).all()
-    return asignaciones
-
-
-@router.post("/asignaciones", response_model=AsignacionResponse, status_code=status.HTTP_201_CREATED)
-def crear_asignacion(asignacion: AsignacionCreate, db: Session = Depends(get_db)):
-    """Crear una nueva asignación de responsable"""
-    # Verificar unicidad
-    db_asignacion = db.query(Asignacion).filter(
-        Asignacion.area_id == asignacion.area_id,
-        Asignacion.usuario_id == asignacion.usuario_id
-    ).first()
-    
-    if db_asignacion:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El usuario ya está asignado a esta área"
-        )
-    
-    nueva_asignacion = Asignacion(**asignacion.model_dump())
-    db.add(nueva_asignacion)
-    
-    try:
-        db.commit()
-        db.refresh(nueva_asignacion)
-        # Recargar relaciones para la respuesta
-        db.refresh(nueva_asignacion, attribute_names=['area', 'usuario'])
-        return nueva_asignacion
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Error de integridad al crear la asignación"
-        )
-
-
-@router.delete("/asignaciones/{asignacion_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_asignacion(asignacion_id: UUID, db: Session = Depends(get_db)):
-    """Eliminar una asignación"""
-    asignacion = db.query(Asignacion).filter(Asignacion.id == asignacion_id).first()
-    if not asignacion:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Asignación no encontrada"
-        )
-    
-    db.delete(asignacion)
-    db.commit()
-    return None
 
 
 # ============================
@@ -275,7 +218,8 @@ def listar_configuraciones(
     limit: int = 100,
     categoria: str = None,
     activa: bool = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar configuraciones del sistema"""
     query = db.query(Configuracion)
@@ -290,7 +234,11 @@ def listar_configuraciones(
 
 
 @router.post("/configuraciones", response_model=ConfiguracionResponse, status_code=status.HTTP_201_CREATED)
-def crear_configuracion(configuracion: ConfiguracionCreate, db: Session = Depends(get_db)):
+def crear_configuracion(
+    configuracion: ConfiguracionCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear una nueva configuración"""
     # Verificar clave única
     db_config = db.query(Configuracion).filter(Configuracion.clave == configuracion.clave).first()
@@ -308,7 +256,11 @@ def crear_configuracion(configuracion: ConfiguracionCreate, db: Session = Depend
 
 
 @router.get("/configuraciones/{clave}", response_model=ConfiguracionResponse)
-def obtener_configuracion(clave: str, db: Session = Depends(get_db)):
+def obtener_configuracion(
+    clave: str, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener una configuración por clave"""
     configuracion = db.query(Configuracion).filter(Configuracion.clave == clave).first()
     if not configuracion:
@@ -323,7 +275,8 @@ def obtener_configuracion(clave: str, db: Session = Depends(get_db)):
 def actualizar_configuracion(
     clave: str,
     configuracion_update: ConfiguracionUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar una configuración"""
     configuracion = db.query(Configuracion).filter(Configuracion.clave == clave).first()
@@ -343,7 +296,11 @@ def actualizar_configuracion(
 
 
 @router.delete("/configuraciones/{clave}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_configuracion(clave: str, db: Session = Depends(get_db)):
+def eliminar_configuracion(
+    clave: str, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar una configuración"""
     configuracion = db.query(Configuracion).filter(Configuracion.clave == clave).first()
     if not configuracion:
@@ -354,82 +311,3 @@ def eliminar_configuracion(clave: str, db: Session = Depends(get_db)):
     
     db.delete(configuracion)
     db.commit()
-
-# =========================
-# Endpoints de Asignaciones
-# =========================
-
-from ..models.sistema import Asignacion
-from ..schemas.sistema import AsignacionCreate, AsignacionResponse
-from sqlalchemy.orm import joinedload
-from sqlalchemy.exc import IntegrityError
-
-
-@router.get("/asignaciones", response_model=List[AsignacionResponse])
-def listar_asignaciones(
-    skip: int = 0,
-    limit: int = 100,
-    area_id: UUID = None,
-    usuario_id: UUID = None,
-    db: Session = Depends(get_db)
-):
-    """Listar asignaciones de responsables"""
-    query = db.query(Asignacion).options(
-        joinedload(Asignacion.area),
-        joinedload(Asignacion.usuario)
-    )
-    
-    if area_id:
-        query = query.filter(Asignacion.area_id == area_id)
-    if usuario_id:
-        query = query.filter(Asignacion.usuario_id == usuario_id)
-    
-    asignaciones = query.offset(skip).limit(limit).all()
-    return asignaciones
-
-
-@router.post("/asignaciones", response_model=AsignacionResponse, status_code=status.HTTP_201_CREATED)
-def crear_asignacion(asignacion: AsignacionCreate, db: Session = Depends(get_db)):
-    """Crear una nueva asignación de responsable"""
-    # Verificar unicidad
-    db_asignacion = db.query(Asignacion).filter(
-        Asignacion.area_id == asignacion.area_id,
-        Asignacion.usuario_id == asignacion.usuario_id
-    ).first()
-    
-    if db_asignacion:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El usuario ya está asignado a esta área"
-        )
-    
-    nueva_asignacion = Asignacion(**asignacion.model_dump())
-    db.add(nueva_asignacion)
-    
-    try:
-        db.commit()
-        db.refresh(nueva_asignacion)
-        # Recargar relaciones para la respuesta
-        db.refresh(nueva_asignacion, attribute_names=['area', 'usuario'])
-        return nueva_asignacion
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Error de integridad al crear la asignación"
-        )
-
-
-@router.delete("/asignaciones/{asignacion_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_asignacion(asignacion_id: UUID, db: Session = Depends(get_db)):
-    """Eliminar una asignación"""
-    asignacion = db.query(Asignacion).filter(Asignacion.id == asignacion_id).first()
-    if not asignacion:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Asignación no encontrada"
-        )
-    
-    db.delete(asignacion)
-    db.commit()
-    return None

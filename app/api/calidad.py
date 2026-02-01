@@ -28,6 +28,8 @@ from ..schemas.calidad import (
     SeguimientoObjetivoUpdate,
     SeguimientoObjetivoResponse
 )
+from ..api.dependencies import get_current_user
+from ..models.usuario import Usuario
 
 router = APIRouter(prefix="/api/v1", tags=["calidad"])
 
@@ -42,7 +44,10 @@ def listar_indicadores(
     limit: int = 100,
     proceso_id: UUID = None,
     activo: bool = None,
-    db: Session = Depends(get_db)
+    proceso_id: UUID = None,
+    activo: bool = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar indicadores de desempeño"""
     query = db.query(Indicador)
@@ -57,7 +62,11 @@ def listar_indicadores(
 
 
 @router.post("/indicadores", response_model=IndicadorResponse, status_code=status.HTTP_201_CREATED)
-def crear_indicador(indicador: IndicadorCreate, db: Session = Depends(get_db)):
+def crear_indicador(
+    indicador: IndicadorCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear un nuevo indicador"""
     # Verificar código único
     db_indicador = db.query(Indicador).filter(Indicador.codigo == indicador.codigo).first()
@@ -75,7 +84,11 @@ def crear_indicador(indicador: IndicadorCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/indicadores/{indicador_id}", response_model=IndicadorResponse)
-def obtener_indicador(indicador_id: UUID, db: Session = Depends(get_db)):
+def obtener_indicador(
+    indicador_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener un indicador por ID"""
     indicador = db.query(Indicador).filter(Indicador.id == indicador_id).first()
     if not indicador:
@@ -90,7 +103,10 @@ def obtener_indicador(indicador_id: UUID, db: Session = Depends(get_db)):
 def actualizar_indicador(
     indicador_id: UUID,
     indicador_update: IndicadorUpdate,
-    db: Session = Depends(get_db)
+    indicador_id: UUID,
+    indicador_update: IndicadorUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar un indicador"""
     indicador = db.query(Indicador).filter(Indicador.id == indicador_id).first()
@@ -110,7 +126,11 @@ def actualizar_indicador(
 
 
 @router.delete("/indicadores/{indicador_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_indicador(indicador_id: UUID, db: Session = Depends(get_db)):
+def eliminar_indicador(
+    indicador_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar un indicador"""
     indicador = db.query(Indicador).filter(Indicador.id == indicador_id).first()
     if not indicador:
@@ -135,7 +155,11 @@ def listar_no_conformidades(
     proceso_id: UUID = None,
     estado: str = None,
     tipo: str = None,
-    db: Session = Depends(get_db)
+    proceso_id: UUID = None,
+    estado: str = None,
+    tipo: str = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar no conformidades"""
     query = db.query(NoConformidad)
@@ -152,7 +176,11 @@ def listar_no_conformidades(
 
 
 @router.post("/no-conformidades", response_model=NoConformidadResponse, status_code=status.HTTP_201_CREATED)
-def crear_no_conformidad(nc: NoConformidadCreate, db: Session = Depends(get_db)):
+def crear_no_conformidad(
+    nc: NoConformidadCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear una nueva no conformidad"""
     # Verificar código único
     db_nc = db.query(NoConformidad).filter(NoConformidad.codigo == nc.codigo).first()
@@ -170,7 +198,11 @@ def crear_no_conformidad(nc: NoConformidadCreate, db: Session = Depends(get_db))
 
 
 @router.get("/no-conformidades/{nc_id}", response_model=NoConformidadResponse)
-def obtener_no_conformidad(nc_id: UUID, db: Session = Depends(get_db)):
+def obtener_no_conformidad(
+    nc_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener una no conformidad por ID"""
     nc = db.query(NoConformidad).filter(NoConformidad.id == nc_id).first()
     if not nc:
@@ -185,7 +217,10 @@ def obtener_no_conformidad(nc_id: UUID, db: Session = Depends(get_db)):
 def actualizar_no_conformidad(
     nc_id: UUID,
     nc_update: NoConformidadUpdate,
-    db: Session = Depends(get_db)
+    nc_id: UUID,
+    nc_update: NoConformidadUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar una no conformidad"""
     nc = db.query(NoConformidad).filter(NoConformidad.id == nc_id).first()
@@ -214,7 +249,11 @@ def listar_acciones_correctivas(
     limit: int = 100,
     no_conformidad_id: UUID = None,
     estado: str = None,
-    db: Session = Depends(get_db)
+    limit: int = 100,
+    no_conformidad_id: UUID = None,
+    estado: str = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar acciones correctivas"""
     query = db.query(AccionCorrectiva)
@@ -229,7 +268,11 @@ def listar_acciones_correctivas(
 
 
 @router.post("/acciones-correctivas", response_model=AccionCorrectivaResponse, status_code=status.HTTP_201_CREATED)
-def crear_accion_correctiva(accion: AccionCorrectivaCreate, db: Session = Depends(get_db)):
+def crear_accion_correctiva(
+    accion: AccionCorrectivaCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear una nueva acción correctiva"""
     # Verificar código único
     db_accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.codigo == accion.codigo).first()
@@ -247,7 +290,11 @@ def crear_accion_correctiva(accion: AccionCorrectivaCreate, db: Session = Depend
 
 
 @router.get("/acciones-correctivas/{accion_id}", response_model=AccionCorrectivaResponse)
-def obtener_accion_correctiva(accion_id: UUID, db: Session = Depends(get_db)):
+def obtener_accion_correctiva(
+    accion_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener una acción correctiva por ID"""
     accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.id == accion_id).first()
     if not accion:
@@ -262,7 +309,10 @@ def obtener_accion_correctiva(accion_id: UUID, db: Session = Depends(get_db)):
 def actualizar_accion_correctiva(
     accion_id: UUID,
     accion_update: AccionCorrectivaUpdate,
-    db: Session = Depends(get_db)
+    accion_id: UUID,
+    accion_update: AccionCorrectivaUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar una acción correctiva"""
     accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.id == accion_id).first()
@@ -285,7 +335,10 @@ def actualizar_accion_correctiva(
 def cambiar_estado_accion_correctiva(
     accion_id: UUID,
     estado_update: AccionCorrectivaEstadoUpdate,
-    db: Session = Depends(get_db)
+    accion_id: UUID,
+    estado_update: AccionCorrectivaEstadoUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Cambiar estado de una acción correctiva"""
     accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.id == accion_id).first()
@@ -305,9 +358,10 @@ def cambiar_estado_accion_correctiva(
 def verificar_accion_correctiva(
     accion_id: UUID,
     verificacion: AccionCorrectivaVerificacion,
-    # TODO: In future, get current user to set verificado_por
-    # current_user: Usuario = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    accion_id: UUID,
+    verificacion: AccionCorrectivaVerificacion,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Verificar una acción correctiva"""
     accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.id == accion_id).first()
@@ -339,7 +393,10 @@ def listar_objetivos_calidad(
     limit: int = 100,
     area_id: UUID = None,
     estado: str = None,
-    db: Session = Depends(get_db)
+    area_id: UUID = None,
+    estado: str = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar objetivos de calidad"""
     query = db.query(ObjetivoCalidad)
@@ -354,7 +411,11 @@ def listar_objetivos_calidad(
 
 
 @router.post("/objetivos-calidad", response_model=ObjetivoCalidadResponse, status_code=status.HTTP_201_CREATED)
-def crear_objetivo_calidad(objetivo: ObjetivoCalidadCreate, db: Session = Depends(get_db)):
+def crear_objetivo_calidad(
+    objetivo: ObjetivoCalidadCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear un nuevo objetivo de calidad"""
     # Verificar código único
     db_objetivo = db.query(ObjetivoCalidad).filter(ObjetivoCalidad.codigo == objetivo.codigo).first()
@@ -372,7 +433,11 @@ def crear_objetivo_calidad(objetivo: ObjetivoCalidadCreate, db: Session = Depend
 
 
 @router.get("/objetivos-calidad/{objetivo_id}", response_model=ObjetivoCalidadResponse)
-def obtener_objetivo_calidad(objetivo_id: UUID, db: Session = Depends(get_db)):
+def obtener_objetivo_calidad(
+    objetivo_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener un objetivo de calidad por ID"""
     objetivo = db.query(ObjetivoCalidad).filter(ObjetivoCalidad.id == objetivo_id).first()
     if not objetivo:
@@ -387,7 +452,10 @@ def obtener_objetivo_calidad(objetivo_id: UUID, db: Session = Depends(get_db)):
 def actualizar_objetivo_calidad(
     objetivo_id: UUID,
     objetivo_update: ObjetivoCalidadUpdate,
-    db: Session = Depends(get_db)
+    objetivo_id: UUID,
+    objetivo_update: ObjetivoCalidadUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar un objetivo de calidad"""
     objetivo = db.query(ObjetivoCalidad).filter(ObjetivoCalidad.id == objetivo_id).first()
@@ -407,7 +475,11 @@ def actualizar_objetivo_calidad(
 
 
 @router.delete("/objetivos-calidad/{objetivo_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_objetivo_calidad(objetivo_id: UUID, db: Session = Depends(get_db)):
+def eliminar_objetivo_calidad(
+    objetivo_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar un objetivo de calidad"""
     objetivo = db.query(ObjetivoCalidad).filter(ObjetivoCalidad.id == objetivo_id).first()
     if not objetivo:
@@ -432,7 +504,11 @@ def listar_seguimientos_objetivo(
     limit: int = 100,
     objetivo_id: UUID = None,
     # TODO: filtrar por fecha?
-    db: Session = Depends(get_db)
+    limit: int = 100,
+    objetivo_id: UUID = None,
+    # TODO: filtrar por fecha?
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar seguimientos de objetivos"""
     query = db.query(SeguimientoObjetivo)
@@ -448,7 +524,11 @@ def listar_seguimientos_objetivo(
 
 
 @router.post("/seguimientos-objetivo", response_model=SeguimientoObjetivoResponse, status_code=status.HTTP_201_CREATED)
-def crear_seguimiento_objetivo(seguimiento: SeguimientoObjetivoCreate, db: Session = Depends(get_db)):
+def crear_seguimiento_objetivo(
+    seguimiento: SeguimientoObjetivoCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear un nuevo seguimiento de objetivo"""
     # Verificar que el objetivo existe
     objetivo = db.query(ObjetivoCalidad).filter(ObjetivoCalidad.id == seguimiento.objetivo_calidad_id).first()
@@ -473,7 +553,10 @@ def crear_seguimiento_objetivo(seguimiento: SeguimientoObjetivoCreate, db: Sessi
 def actualizar_seguimiento_objetivo(
     seguimiento_id: UUID,
     seguimiento_update: SeguimientoObjetivoUpdate,
-    db: Session = Depends(get_db)
+    seguimiento_id: UUID,
+    seguimiento_update: SeguimientoObjetivoUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar un seguimiento de objetivo"""
     seguimiento = db.query(SeguimientoObjetivo).filter(SeguimientoObjetivo.id == seguimiento_id).first()
@@ -493,7 +576,11 @@ def actualizar_seguimiento_objetivo(
 
 
 @router.delete("/seguimientos-objetivo/{seguimiento_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_seguimiento_objetivo(seguimiento_id: UUID, db: Session = Depends(get_db)):
+def eliminar_seguimiento_objetivo(
+    seguimiento_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar un seguimiento de objetivo"""
     seguimiento = db.query(SeguimientoObjetivo).filter(SeguimientoObjetivo.id == seguimiento_id).first()
     if not seguimiento:

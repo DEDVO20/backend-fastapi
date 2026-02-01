@@ -16,6 +16,8 @@ from ..schemas.capacitacion import (
     AsistenciaCapacitacionUpdate,
     AsistenciaCapacitacionResponse
 )
+from ..api.dependencies import get_current_user
+from ..models.usuario import Usuario
 
 router = APIRouter(prefix="/api/v1", tags=["capacitaciones"])
 
@@ -48,7 +50,11 @@ def listar_capacitaciones(
 
 
 @router.post("/capacitaciones", response_model=CapacitacionResponse, status_code=status.HTTP_201_CREATED)
-def crear_capacitacion(capacitacion: CapacitacionCreate, db: Session = Depends(get_db)):
+def crear_capacitacion(
+    capacitacion: CapacitacionCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear una nueva capacitación"""
     # Verificar código único
     db_capacitacion = db.query(Capacitacion).filter(Capacitacion.codigo == capacitacion.codigo).first()
@@ -66,7 +72,11 @@ def crear_capacitacion(capacitacion: CapacitacionCreate, db: Session = Depends(g
 
 
 @router.get("/capacitaciones/{capacitacion_id}", response_model=CapacitacionResponse)
-def obtener_capacitacion(capacitacion_id: UUID, db: Session = Depends(get_db)):
+def obtener_capacitacion(
+    capacitacion_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener una capacitación por ID"""
     capacitacion = db.query(Capacitacion).filter(Capacitacion.id == capacitacion_id).first()
     if not capacitacion:
@@ -101,7 +111,11 @@ def actualizar_capacitacion(
 
 
 @router.delete("/capacitaciones/{capacitacion_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_capacitacion(capacitacion_id: UUID, db: Session = Depends(get_db)):
+def eliminar_capacitacion(
+    capacitacion_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar una capacitación"""
     capacitacion = db.query(Capacitacion).filter(Capacitacion.id == capacitacion_id).first()
     if not capacitacion:
@@ -120,7 +134,11 @@ def eliminar_capacitacion(capacitacion_id: UUID, db: Session = Depends(get_db)):
 # ===================================
 
 @router.get("/capacitaciones/{capacitacion_id}/asistencias", response_model=List[AsistenciaCapacitacionResponse])
-def listar_asistencias_capacitacion(capacitacion_id: UUID, db: Session = Depends(get_db)):
+def listar_asistencias_capacitacion(
+    capacitacion_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Listar asistencias de una capacitación"""
     asistencias = db.query(AsistenciaCapacitacion).filter(
         AsistenciaCapacitacion.capacitacion_id == capacitacion_id
@@ -149,7 +167,11 @@ def listar_asistencias(
 
 
 @router.post("/asistencias-capacitacion", response_model=AsistenciaCapacitacionResponse, status_code=status.HTTP_201_CREATED)
-def crear_asistencia_capacitacion(asistencia: AsistenciaCapacitacionCreate, db: Session = Depends(get_db)):
+def crear_asistencia_capacitacion(
+    asistencia: AsistenciaCapacitacionCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Registrar asistencia a una capacitación"""
     # Verificar si ya existe la asistencia
     db_asistencia = db.query(AsistenciaCapacitacion).filter(
@@ -170,7 +192,11 @@ def crear_asistencia_capacitacion(asistencia: AsistenciaCapacitacionCreate, db: 
 
 
 @router.get("/asistencias-capacitacion/{asistencia_id}", response_model=AsistenciaCapacitacionResponse)
-def obtener_asistencia_capacitacion(asistencia_id: UUID, db: Session = Depends(get_db)):
+def obtener_asistencia_capacitacion(
+    asistencia_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener una asistencia por ID"""
     asistencia = db.query(AsistenciaCapacitacion).filter(AsistenciaCapacitacion.id == asistencia_id).first()
     if not asistencia:

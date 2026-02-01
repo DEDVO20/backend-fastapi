@@ -16,6 +16,8 @@ from ..schemas.riesgo import (
     ControlRiesgoUpdate,
     ControlRiesgoResponse
 )
+from ..api.dependencies import get_current_user
+from ..models.usuario import Usuario
 
 router = APIRouter(prefix="/api/v1", tags=["riesgos"])
 
@@ -48,7 +50,11 @@ def listar_riesgos(
 
 
 @router.post("/riesgos", response_model=RiesgoResponse, status_code=status.HTTP_201_CREATED)
-def crear_riesgo(riesgo: RiesgoCreate, db: Session = Depends(get_db)):
+def crear_riesgo(
+    riesgo: RiesgoCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear un nuevo riesgo"""
     # Verificar código único
     db_riesgo = db.query(Riesgo).filter(Riesgo.codigo == riesgo.codigo).first()
@@ -66,7 +72,11 @@ def crear_riesgo(riesgo: RiesgoCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/riesgos/{riesgo_id}", response_model=RiesgoResponse)
-def obtener_riesgo(riesgo_id: UUID, db: Session = Depends(get_db)):
+def obtener_riesgo(
+    riesgo_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener un riesgo por ID"""
     riesgo = db.query(Riesgo).filter(Riesgo.id == riesgo_id).first()
     if not riesgo:
@@ -81,7 +91,8 @@ def obtener_riesgo(riesgo_id: UUID, db: Session = Depends(get_db)):
 def actualizar_riesgo(
     riesgo_id: UUID,
     riesgo_update: RiesgoUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar un riesgo"""
     riesgo = db.query(Riesgo).filter(Riesgo.id == riesgo_id).first()
@@ -101,7 +112,11 @@ def actualizar_riesgo(
 
 
 @router.delete("/riesgos/{riesgo_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_riesgo(riesgo_id: UUID, db: Session = Depends(get_db)):
+def eliminar_riesgo(
+    riesgo_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar un riesgo"""
     riesgo = db.query(Riesgo).filter(Riesgo.id == riesgo_id).first()
     if not riesgo:
@@ -120,7 +135,11 @@ def eliminar_riesgo(riesgo_id: UUID, db: Session = Depends(get_db)):
 # ============================
 
 @router.get("/riesgos/{riesgo_id}/controles", response_model=List[ControlRiesgoResponse])
-def listar_controles_riesgo(riesgo_id: UUID, db: Session = Depends(get_db)):
+def listar_controles_riesgo(
+    riesgo_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Listar controles de un riesgo"""
     controles = db.query(ControlRiesgo).filter(
         ControlRiesgo.riesgo_id == riesgo_id
@@ -132,9 +151,10 @@ def listar_controles_riesgo(riesgo_id: UUID, db: Session = Depends(get_db)):
 def listar_controles(
     skip: int = 0,
     limit: int = 100,
-    activo: bool = None,
+    active: bool = None,
     tipo_control: str = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar todos los controles de riesgo"""
     query = db.query(ControlRiesgo)
@@ -149,7 +169,11 @@ def listar_controles(
 
 
 @router.post("/controles-riesgo", response_model=ControlRiesgoResponse, status_code=status.HTTP_201_CREATED)
-def crear_control_riesgo(control: ControlRiesgoCreate, db: Session = Depends(get_db)):
+def crear_control_riesgo(
+    control: ControlRiesgoCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear un nuevo control de riesgo"""
     nuevo_control = ControlRiesgo(**control.model_dump())
     db.add(nuevo_control)
@@ -159,7 +183,11 @@ def crear_control_riesgo(control: ControlRiesgoCreate, db: Session = Depends(get
 
 
 @router.get("/controles-riesgo/{control_id}", response_model=ControlRiesgoResponse)
-def obtener_control_riesgo(control_id: UUID, db: Session = Depends(get_db)):
+def obtener_control_riesgo(
+    control_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener un control de riesgo por ID"""
     control = db.query(ControlRiesgo).filter(ControlRiesgo.id == control_id).first()
     if not control:
@@ -174,7 +202,8 @@ def obtener_control_riesgo(control_id: UUID, db: Session = Depends(get_db)):
 def actualizar_control_riesgo(
     control_id: UUID,
     control_update: ControlRiesgoUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar un control de riesgo"""
     control = db.query(ControlRiesgo).filter(ControlRiesgo.id == control_id).first()
@@ -194,7 +223,11 @@ def actualizar_control_riesgo(
 
 
 @router.delete("/controles-riesgo/{control_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_control_riesgo(control_id: UUID, db: Session = Depends(get_db)):
+def eliminar_control_riesgo(
+    control_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar un control de riesgo"""
     control = db.query(ControlRiesgo).filter(ControlRiesgo.id == control_id).first()
     if not control:

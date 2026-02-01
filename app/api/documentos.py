@@ -24,6 +24,8 @@ from ..utils.notification_service import (
     crear_notificacion_asignacion
 )
 from ..models.sistema import Notificacion
+from ..api.dependencies import get_current_user
+from ..models.usuario import Usuario
 
 router = APIRouter(prefix="/api/v1", tags=["documentos"])
 
@@ -38,7 +40,8 @@ def listar_documentos(
     limit: int = 100,
     estado: str = None,
     tipo_documento: str = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar todos los documentos"""
     query = db.query(Documento).options(
@@ -57,7 +60,11 @@ def listar_documentos(
 
 
 @router.post("/documentos", response_model=DocumentoResponse, status_code=status.HTTP_201_CREATED)
-def crear_documento(documento: DocumentoCreate, db: Session = Depends(get_db)):
+def crear_documento(
+    documento: DocumentoCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear un nuevo documento"""
     # Verificar código único
     db_documento = db.query(Documento).filter(Documento.codigo == documento.codigo).first()
@@ -75,7 +82,11 @@ def crear_documento(documento: DocumentoCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/documentos/{documento_id}", response_model=DocumentoResponse)
-def obtener_documento(documento_id: UUID, db: Session = Depends(get_db)):
+def obtener_documento(
+    documento_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener un documento por ID"""
     documento = db.query(Documento).options(
         joinedload(Documento.creador),
@@ -95,7 +106,8 @@ def obtener_documento(documento_id: UUID, db: Session = Depends(get_db)):
 def actualizar_documento(
     documento_id: UUID,
     documento_update: DocumentoUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar un documento"""
     documento = db.query(Documento).filter(Documento.id == documento_id).first()
@@ -115,7 +127,11 @@ def actualizar_documento(
 
 
 @router.delete("/documentos/{documento_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_documento(documento_id: UUID, db: Session = Depends(get_db)):
+def eliminar_documento(
+    documento_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar un documento"""
     documento = db.query(Documento).filter(Documento.id == documento_id).first()
     if not documento:
@@ -134,7 +150,11 @@ def eliminar_documento(documento_id: UUID, db: Session = Depends(get_db)):
 # ===============================
 
 @router.get("/documentos/{documento_id}/versiones", response_model=List[VersionDocumentoResponse])
-def listar_versiones_documento(documento_id: UUID, db: Session = Depends(get_db)):
+def listar_versiones_documento(
+    documento_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Listar versiones de un documento"""
     versiones = db.query(VersionDocumento).options(
         joinedload(VersionDocumento.creador)
@@ -145,7 +165,11 @@ def listar_versiones_documento(documento_id: UUID, db: Session = Depends(get_db)
 
 
 @router.post("/versiones-documentos", response_model=VersionDocumentoResponse, status_code=status.HTTP_201_CREATED)
-def crear_version_documento(version: VersionDocumentoCreate, db: Session = Depends(get_db)):
+def crear_version_documento(
+    version: VersionDocumentoCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear una nueva versión de documento"""
     nueva_version = VersionDocumento(**version.model_dump())
     db.add(nueva_version)
@@ -159,7 +183,11 @@ def crear_version_documento(version: VersionDocumentoCreate, db: Session = Depen
 # =================================
 
 @router.get("/documentos/{documento_id}/procesos", response_model=List[DocumentoProcesoResponse])
-def listar_procesos_documento(documento_id: UUID, db: Session = Depends(get_db)):
+def listar_procesos_documento(
+    documento_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Listar procesos asociados a un documento"""
     relaciones = db.query(DocumentoProceso).filter(
         DocumentoProceso.documento_id == documento_id
@@ -168,7 +196,11 @@ def listar_procesos_documento(documento_id: UUID, db: Session = Depends(get_db))
 
 
 @router.post("/documentos-procesos", response_model=DocumentoProcesoResponse, status_code=status.HTTP_201_CREATED)
-def asociar_documento_proceso(relacion: DocumentoProcesoCreate, db: Session = Depends(get_db)):
+def asociar_documento_proceso(
+    relacion: DocumentoProcesoCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Asociar un documento con un proceso"""
     # Verificar que no exista la relación
     db_relacion = db.query(DocumentoProceso).filter(
@@ -196,7 +228,8 @@ def asociar_documento_proceso(relacion: DocumentoProcesoCreate, db: Session = De
 def solicitar_revision_documento(
     documento_id: UUID,
     revisor_id: UUID, # ID del usuario que revisará
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Solicitar revisión de un documento"""
     documento = db.query(Documento).filter(Documento.id == documento_id).first()
@@ -285,7 +318,8 @@ def aprobar_documento(
 def rechazar_documento(
     documento_id: UUID,
     motivo: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Rechazar un documento"""
     documento = db.query(Documento).filter(Documento.id == documento_id).first()

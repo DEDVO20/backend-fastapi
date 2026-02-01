@@ -23,6 +23,7 @@ from ..schemas.usuario import (
     RolPermisoCreate
 )
 from passlib.context import CryptContext
+from ..api.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/v1", tags=["usuarios"])
 
@@ -43,7 +44,8 @@ def hash_password(password: str) -> str:
 def listar_areas(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar todas las áreas"""
     areas = db.query(Area).offset(skip).limit(limit).all()
@@ -51,7 +53,11 @@ def listar_areas(
 
 
 @router.post("/areas", response_model=AreaResponse, status_code=status.HTTP_201_CREATED)
-def crear_area(area: AreaCreate, db: Session = Depends(get_db)):
+def crear_area(
+    area: AreaCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear una nueva área"""
     # Verificar si el código ya existe
     db_area = db.query(Area).filter(Area.codigo == area.codigo).first()
@@ -70,7 +76,11 @@ def crear_area(area: AreaCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/areas/{area_id}", response_model=AreaResponse)
-def obtener_area(area_id: UUID, db: Session = Depends(get_db)):
+def obtener_area(
+    area_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener un área por ID"""
     area = db.query(Area).filter(Area.id == area_id).first()
     if not area:
@@ -82,7 +92,12 @@ def obtener_area(area_id: UUID, db: Session = Depends(get_db)):
 
 
 @router.put("/areas/{area_id}", response_model=AreaResponse)
-def actualizar_area(area_id: UUID, area_update: AreaUpdate, db: Session = Depends(get_db)):
+def actualizar_area(
+    area_id: UUID, 
+    area_update: AreaUpdate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Actualizar un área"""
     area = db.query(Area).filter(Area.id == area_id).first()
     if not area:
@@ -102,7 +117,11 @@ def actualizar_area(area_id: UUID, area_update: AreaUpdate, db: Session = Depend
 
 
 @router.delete("/areas/{area_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_area(area_id: UUID, db: Session = Depends(get_db)):
+def eliminar_area(
+    area_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar un área"""
     area = db.query(Area).filter(Area.id == area_id).first()
     if not area:
@@ -124,7 +143,8 @@ def eliminar_area(area_id: UUID, db: Session = Depends(get_db)):
 def listar_roles(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar todos los roles"""
     from sqlalchemy.orm import joinedload
@@ -135,7 +155,11 @@ def listar_roles(
 
 
 @router.post("/roles", response_model=RolResponse, status_code=status.HTTP_201_CREATED)
-def crear_rol(rol: RolCreate, db: Session = Depends(get_db)):
+def crear_rol(
+    rol: RolCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear un nuevo rol"""
     # Verificar si la clave ya existe
     db_rol = db.query(Rol).filter(Rol.clave == rol.clave).first()
@@ -153,7 +177,11 @@ def crear_rol(rol: RolCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/roles/{rol_id}", response_model=RolResponse)
-def obtener_rol(rol_id: UUID, db: Session = Depends(get_db)):
+def obtener_rol(
+    rol_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener un rol por ID"""
     from sqlalchemy.orm import joinedload
     rol = db.query(Rol).options(joinedload(Rol.permisos)).filter(Rol.id == rol_id).first()
@@ -167,7 +195,12 @@ def obtener_rol(rol_id: UUID, db: Session = Depends(get_db)):
 
 
 @router.put("/roles/{rol_id}", response_model=RolResponse)
-def actualizar_rol(rol_id: UUID, rol_update: RolUpdate, db: Session = Depends(get_db)):
+def actualizar_rol(
+    rol_id: UUID, 
+    rol_update: RolUpdate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Actualizar un rol"""
     rol = db.query(Rol).filter(Rol.id == rol_id).first()
     if not rol:
@@ -186,7 +219,11 @@ def actualizar_rol(rol_id: UUID, rol_update: RolUpdate, db: Session = Depends(ge
 
 
 @router.delete("/roles/{rol_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_rol(rol_id: UUID, db: Session = Depends(get_db)):
+def eliminar_rol(
+    rol_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar un rol"""
     rol = db.query(Rol).filter(Rol.id == rol_id).first()
     if not rol:
@@ -204,7 +241,9 @@ def eliminar_rol(rol_id: UUID, db: Session = Depends(get_db)):
 def listar_permisos(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db)
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar todos los permisos"""
     permisos = db.query(Permiso).offset(skip).limit(limit).all()
@@ -215,7 +254,8 @@ def listar_permisos(
 def asignar_permisos_rol(
     rol_id: UUID, 
     permisos_data: dict,  # Espera {"permisoIds": ["id1", "id2"]}
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Asignar permisos a un rol (reemplaza los existentes)"""
     rol = db.query(Rol).filter(Rol.id == rol_id).first()
@@ -264,7 +304,11 @@ def listar_usuarios(
 
 
 @router.post("/usuarios", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
-def crear_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
+def crear_usuario(
+    usuario: UsuarioCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear un nuevo usuario"""
     # Verificar si el documento ya existe
     db_usuario_doc = db.query(Usuario).filter(Usuario.documento == usuario.documento).first()
@@ -304,7 +348,11 @@ def crear_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/usuarios/{usuario_id}", response_model=UsuarioWithArea)
-def obtener_usuario(usuario_id: UUID, db: Session = Depends(get_db)):
+def obtener_usuario(
+    usuario_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener un usuario por ID con sus permisos"""
     from sqlalchemy.orm import joinedload
     from ..models.usuario import UsuarioRol, Rol, RolPermiso
@@ -326,7 +374,12 @@ def obtener_usuario(usuario_id: UUID, db: Session = Depends(get_db)):
 
 
 @router.put("/usuarios/{usuario_id}", response_model=UsuarioResponse)
-def actualizar_usuario(usuario_id: UUID, usuario_update: UsuarioUpdate, db: Session = Depends(get_db)):
+def actualizar_usuario(
+    usuario_id: UUID, 
+    usuario_update: UsuarioUpdate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Actualizar un usuario"""
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
@@ -363,7 +416,11 @@ def actualizar_usuario(usuario_id: UUID, usuario_update: UsuarioUpdate, db: Sess
 
 
 @router.delete("/usuarios/{usuario_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_usuario(usuario_id: UUID, db: Session = Depends(get_db)):
+def eliminar_usuario(
+    usuario_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar un usuario (eliminación suave - marcar como inactivo)"""
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
@@ -385,7 +442,8 @@ def eliminar_usuario(usuario_id: UUID, db: Session = Depends(get_db)):
 @router.post("/usuarios/carga-masiva", response_model=dict)
 async def carga_masiva_usuarios(
     file: UploadFile,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """
     Carga masiva de usuarios desde archivo Excel o CSV
@@ -504,7 +562,8 @@ async def carga_masiva_usuarios(
 async def subir_foto_perfil(
     usuario_id: UUID,
     file: UploadFile,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Subir o actualizar foto de perfil del usuario"""
     from fastapi import UploadFile
@@ -556,7 +615,11 @@ async def subir_foto_perfil(
 
 
 @router.delete("/usuarios/{usuario_id}/foto-perfil")
-def eliminar_foto_perfil(usuario_id: UUID, db: Session = Depends(get_db)):
+def eliminar_foto_perfil(
+    usuario_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar foto de perfil del usuario"""
     from ..utils.supabase_client import delete_avatar, get_file_name_from_url
     

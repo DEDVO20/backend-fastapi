@@ -18,6 +18,8 @@ from ..schemas.auditoria import (
     HallazgoAuditoriaResponse
 )
 from ..utils.notification_service import crear_notificacion_asignacion
+from ..api.dependencies import get_current_user
+from ..models.usuario import Usuario
 
 router = APIRouter(prefix="/api/v1", tags=["auditorias"])
 
@@ -32,7 +34,8 @@ def listar_auditorias(
     limit: int = 100,
     estado: str = None,
     tipo: str = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar auditorías"""
     query = db.query(Auditoria)
@@ -47,7 +50,11 @@ def listar_auditorias(
 
 
 @router.post("/auditorias", response_model=AuditoriaResponse, status_code=status.HTTP_201_CREATED)
-def crear_auditoria(auditoria: AuditoriaCreate, db: Session = Depends(get_db)):
+def crear_auditoria(
+    auditoria: AuditoriaCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear una nueva auditoría"""
     # Verificar código único
     db_auditoria = db.query(Auditoria).filter(Auditoria.codigo == auditoria.codigo).first()
@@ -77,7 +84,11 @@ def crear_auditoria(auditoria: AuditoriaCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/auditorias/{auditoria_id}", response_model=AuditoriaResponse)
-def obtener_auditoria(auditoria_id: UUID, db: Session = Depends(get_db)):
+def obtener_auditoria(
+    auditoria_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener una auditoría por ID"""
     auditoria = db.query(Auditoria).filter(Auditoria.id == auditoria_id).first()
     if not auditoria:
@@ -92,7 +103,8 @@ def obtener_auditoria(auditoria_id: UUID, db: Session = Depends(get_db)):
 def actualizar_auditoria(
     auditoria_id: UUID,
     auditoria_update: AuditoriaUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar una auditoría"""
     auditoria = db.query(Auditoria).filter(Auditoria.id == auditoria_id).first()
@@ -127,7 +139,11 @@ def actualizar_auditoria(
 
 
 @router.delete("/auditorias/{auditoria_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_auditoria(auditoria_id: UUID, db: Session = Depends(get_db)):
+def eliminar_auditoria(
+    auditoria_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar una auditoría"""
     auditoria = db.query(Auditoria).filter(Auditoria.id == auditoria_id).first()
     if not auditoria:
@@ -146,7 +162,11 @@ def eliminar_auditoria(auditoria_id: UUID, db: Session = Depends(get_db)):
 # ================================
 
 @router.get("/auditorias/{auditoria_id}/hallazgos", response_model=List[HallazgoAuditoriaResponse])
-def listar_hallazgos_auditoria(auditoria_id: UUID, db: Session = Depends(get_db)):
+def listar_hallazgos_auditoria(
+    auditoria_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Listar hallazgos de una auditoría"""
     hallazgos = db.query(HallazgoAuditoria).filter(
         HallazgoAuditoria.auditoria_id == auditoria_id
@@ -160,7 +180,8 @@ def listar_hallazgos(
     limit: int = 100,
     estado: str = None,
     tipo_hallazgo: str = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar todos los hallazgos"""
     query = db.query(HallazgoAuditoria)
@@ -175,7 +196,11 @@ def listar_hallazgos(
 
 
 @router.post("/hallazgos-auditoria", response_model=HallazgoAuditoriaResponse, status_code=status.HTTP_201_CREATED)
-def crear_hallazgo_auditoria(hallazgo: HallazgoAuditoriaCreate, db: Session = Depends(get_db)):
+def crear_hallazgo_auditoria(
+    hallazgo: HallazgoAuditoriaCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear un nuevo hallazgo de auditoría"""
     nuevo_hallazgo = HallazgoAuditoria(**hallazgo.model_dump())
     db.add(nuevo_hallazgo)
@@ -185,7 +210,11 @@ def crear_hallazgo_auditoria(hallazgo: HallazgoAuditoriaCreate, db: Session = De
 
 
 @router.get("/hallazgos-auditoria/{hallazgo_id}", response_model=HallazgoAuditoriaResponse)
-def obtener_hallazgo_auditoria(hallazgo_id: UUID, db: Session = Depends(get_db)):
+def obtener_hallazgo_auditoria(
+    hallazgo_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener un hallazgo por ID"""
     hallazgo = db.query(HallazgoAuditoria).filter(HallazgoAuditoria.id == hallazgo_id).first()
     if not hallazgo:
@@ -200,7 +229,8 @@ def obtener_hallazgo_auditoria(hallazgo_id: UUID, db: Session = Depends(get_db))
 def actualizar_hallazgo_auditoria(
     hallazgo_id: UUID,
     hallazgo_update: HallazgoAuditoriaUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar un hallazgo de auditoría"""
     hallazgo = db.query(HallazgoAuditoria).filter(HallazgoAuditoria.id == hallazgo_id).first()
@@ -220,7 +250,11 @@ def actualizar_hallazgo_auditoria(
 
 
 @router.delete("/hallazgos-auditoria/{hallazgo_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_hallazgo_auditoria(hallazgo_id: UUID, db: Session = Depends(get_db)):
+def eliminar_hallazgo_auditoria(
+    hallazgo_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar un hallazgo"""
     hallazgo = db.query(HallazgoAuditoria).filter(HallazgoAuditoria.id == hallazgo_id).first()
     if not hallazgo:

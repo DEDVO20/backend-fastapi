@@ -22,6 +22,8 @@ from ..schemas.proceso import (
     AccionProcesoUpdate,
     AccionProcesoResponse
 )
+from ..api.dependencies import get_current_user
+from ..models.usuario import Usuario
 
 router = APIRouter(prefix="/api/v1", tags=["procesos"])
 
@@ -36,7 +38,9 @@ def listar_procesos(
     limit: int = 100,
     estado: str = None,
     area_id: UUID = None,
-    db: Session = Depends(get_db)
+    area_id: UUID = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar todos los procesos"""
     query = db.query(Proceso)
@@ -51,7 +55,11 @@ def listar_procesos(
 
 
 @router.post("/procesos", response_model=ProcesoResponse, status_code=status.HTTP_201_CREATED)
-def crear_proceso(proceso: ProcesoCreate, db: Session = Depends(get_db)):
+def crear_proceso(
+    proceso: ProcesoCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear un nuevo proceso"""
     # Verificar si el código ya existe
     db_proceso = db.query(Proceso).filter(Proceso.codigo == proceso.codigo).first()
@@ -69,7 +77,11 @@ def crear_proceso(proceso: ProcesoCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/procesos/{proceso_id}", response_model=ProcesoResponse)
-def obtener_proceso(proceso_id: UUID, db: Session = Depends(get_db)):
+def obtener_proceso(
+    proceso_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Obtener un proceso por ID"""
     proceso = db.query(Proceso).filter(Proceso.id == proceso_id).first()
     if not proceso:
@@ -84,7 +96,10 @@ def obtener_proceso(proceso_id: UUID, db: Session = Depends(get_db)):
 def actualizar_proceso(
     proceso_id: UUID,
     proceso_update: ProcesoUpdate,
-    db: Session = Depends(get_db)
+    proceso_id: UUID,
+    proceso_update: ProcesoUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar un proceso"""
     proceso = db.query(Proceso).filter(Proceso.id == proceso_id).first()
@@ -104,7 +119,11 @@ def actualizar_proceso(
 
 
 @router.delete("/procesos/{proceso_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_proceso(proceso_id: UUID, db: Session = Depends(get_db)):
+def eliminar_proceso(
+    proceso_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Eliminar un proceso"""
     proceso = db.query(Proceso).filter(Proceso.id == proceso_id).first()
     if not proceso:
@@ -123,7 +142,11 @@ def eliminar_proceso(proceso_id: UUID, db: Session = Depends(get_db)):
 # ===============================
 
 @router.get("/procesos/{proceso_id}/etapas", response_model=List[EtapaProcesoResponse])
-def listar_etapas_proceso(proceso_id: UUID, db: Session = Depends(get_db)):
+def listar_etapas_proceso(
+    proceso_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Listar etapas de un proceso"""
     etapas = db.query(EtapaProceso).filter(
         EtapaProceso.proceso_id == proceso_id
@@ -132,7 +155,11 @@ def listar_etapas_proceso(proceso_id: UUID, db: Session = Depends(get_db)):
 
 
 @router.post("/etapas", response_model=EtapaProcesoResponse, status_code=status.HTTP_201_CREATED)
-def crear_etapa_proceso(etapa: EtapaProcesoCreate, db: Session = Depends(get_db)):
+def crear_etapa_proceso(
+    etapa: EtapaProcesoCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear una nueva etapa de proceso"""
     nueva_etapa = EtapaProceso(**etapa.model_dump())
     db.add(nueva_etapa)
@@ -145,7 +172,10 @@ def crear_etapa_proceso(etapa: EtapaProcesoCreate, db: Session = Depends(get_db)
 def actualizar_etapa_proceso(
     etapa_id: UUID,
     etapa_update: EtapaProcesoUpdate,
-    db: Session = Depends(get_db)
+    etapa_id: UUID,
+    etapa_update: EtapaProcesoUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar una etapa de proceso"""
     etapa = db.query(EtapaProceso).filter(EtapaProceso.id == etapa_id).first()
@@ -174,7 +204,10 @@ def listar_instancias(
     limit: int = 100,
     proceso_id: UUID = None,
     estado: str = None,
-    db: Session = Depends(get_db)
+    proceso_id: UUID = None,
+    estado: str = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar instancias de procesos"""
     query = db.query(InstanciaProceso)
@@ -189,7 +222,11 @@ def listar_instancias(
 
 
 @router.post("/instancias", response_model=InstanciaProcesoResponse, status_code=status.HTTP_201_CREATED)
-def crear_instancia_proceso(instancia: InstanciaProcesoCreate, db: Session = Depends(get_db)):
+def crear_instancia_proceso(
+    instancia: InstanciaProcesoCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear una nueva instancia de proceso"""
     # Verificar código único
     db_instancia = db.query(InstanciaProceso).filter(
@@ -218,7 +255,10 @@ def listar_acciones_proceso(
     limit: int = 100,
     proceso_id: UUID = None,
     estado: str = None,
-    db: Session = Depends(get_db)
+    proceso_id: UUID = None,
+    estado: str = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Listar acciones de proceso"""
     query = db.query(AccionProceso)
@@ -233,7 +273,11 @@ def listar_acciones_proceso(
 
 
 @router.post("/acciones-proceso", response_model=AccionProcesoResponse, status_code=status.HTTP_201_CREATED)
-def crear_accion_proceso(accion: AccionProcesoCreate, db: Session = Depends(get_db)):
+def crear_accion_proceso(
+    accion: AccionProcesoCreate, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
     """Crear una nueva acción de proceso"""
     # Verificar código único
     db_accion = db.query(AccionProceso).filter(AccionProceso.codigo == accion.codigo).first()
@@ -254,7 +298,10 @@ def crear_accion_proceso(accion: AccionProcesoCreate, db: Session = Depends(get_
 def actualizar_accion_proceso(
     accion_id: UUID,
     accion_update: AccionProcesoUpdate,
-    db: Session = Depends(get_db)
+    accion_id: UUID,
+    accion_update: AccionProcesoUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar una acción de proceso"""
     accion = db.query(AccionProceso).filter(AccionProceso.id == accion_id).first()
