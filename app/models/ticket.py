@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from .base import BaseModel
 import enum
+from datetime import datetime
 
 
 class TipoTicket(str, enum.Enum):
@@ -31,11 +32,17 @@ class EstadoTicket(str, enum.Enum):
     CERRADO = "cerrado"
 
 
+def _generar_codigo_ticket():
+    """Genera un código único para el ticket basado en timestamp"""
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    return f"TKT-{timestamp}"
+
+
 class Ticket(BaseModel):
     """Modelo para tickets de la mesa de ayuda"""
     __tablename__ = "tickets"
     
-    codigo = Column(String(100), nullable=True)
+    codigo = Column(String(100), nullable=False, default=_generar_codigo_ticket)
     titulo = Column(String(200), nullable=False)
     descripcion = Column(Text, nullable=False)
     categoria = Column(String(50), nullable=False, default=TipoTicket.SOPORTE.value)  # En BD es 'categoria', no 'tipo'
