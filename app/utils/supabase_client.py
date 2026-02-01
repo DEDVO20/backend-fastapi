@@ -22,7 +22,7 @@ if SUPABASE_URL and SUPABASE_KEY:
 
 def upload_avatar(file_path: str, file_name: str) -> Tuple[bool, str]:
     """
-    Sube un avatar a Supabase Storage
+    Sube un avatar a Supabase Storage usando la API REST directamente
     
     Args:
         file_path: Ruta del archivo a subir
@@ -31,34 +31,65 @@ def upload_avatar(file_path: str, file_name: str) -> Tuple[bool, str]:
     Returns:
         Tuple[bool, str]: (éxito, url_o_mensaje_error)
     """
-    if not supabase:
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        print("❌ ERROR: Supabase no está configurado")
         return False, "Supabase no está configurado"
     
     try:
+        import requests
+        
+        print(f"📤 Subiendo imagen: {file_name} desde {file_path}")
+        print(f"🪣 Bucket: {SUPABASE_BUCKET}")
+        
         with open(file_path, 'rb') as f:
             file_data = f.read()
         
-        # Intentar eliminar el archivo existente si existe (para sobrescribir)
-        try:
-            supabase.storage.from_(SUPABASE_BUCKET).remove([file_name])
-        except:
-            # Si el archivo no existe, continuar normalmente
-            pass
+        print(f"📦 Tamaño del archivo: {len(file_data)} bytes")
         
-        # Subir archivo
-        # El file_name puede incluir carpetas usando "/" (ej: "usuario_id/avatar.webp")
-        response = supabase.storage.from_(SUPABASE_BUCKET).upload(
-            path=file_name,
-            file=file_data,
-            file_options={"content-type": "image/webp"}
+        # URL de la API de Supabase Storage
+        upload_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{file_name}"
+        
+        print(f"🌐 URL de subida: {upload_url}")
+        
+        # Headers para la petición
+        headers = {
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "image/webp",
+            "x-upsert": "true"  # Sobrescribir si existe
+        }
+        
+        # Subir archivo usando POST
+        print(f"⬆️ Subiendo a Supabase via REST API...")
+        response = requests.post(
+            upload_url,
+            data=file_data,
+            headers=headers
         )
         
-        # Obtener URL pública
-        public_url = supabase.storage.from_(SUPABASE_BUCKET).get_public_url(file_name)
+        print(f"📊 Status code: {response.status_code}")
+        print(f"📄 Respuesta: {response.text[:500]}")
+        
+        if response.status_code not in [200, 201]:
+            error_msg = f"Error HTTP {response.status_code}: {response.text}"
+            print(f"❌ {error_msg}")
+            return False, error_msg
+        
+        # Construir URL pública
+        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{file_name}"
+        
+        print(f"✅ Archivo subido exitosamente")
+        print(f"🔗 URL pública: {public_url}")
+        
+        # Verificar que el archivo existe
+        verify_response = requests.head(public_url)
+        print(f"🔍 Verificación (HEAD): {verify_response.status_code}")
         
         return True, public_url
         
     except Exception as e:
+        print(f"❌ ERROR subiendo imagen: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return False, str(e)
 
 
