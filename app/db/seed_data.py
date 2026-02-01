@@ -36,6 +36,16 @@ def crear_roles_permisos_iniciales(db: Session):
         {"nombre": "Crear Usuarios", "codigo": "usuarios.crear", "descripcion": "Permiso para crear usuarios"},
         {"nombre": "Editar Usuarios", "codigo": "usuarios.editar", "descripcion": "Permiso para editar usuarios"},
         {"nombre": "Eliminar Usuarios", "codigo": "usuarios.eliminar", "descripcion": "Permiso para eliminar usuarios"},
+        # Auditorías
+        {"nombre": "Planificar Auditorías", "codigo": "auditorias.planificar", "descripcion": "Permiso para planificar auditorías"},
+        {"nombre": "Ejecutar Auditorías", "codigo": "auditorias.ejecutar", "descripcion": "Permiso para ejecutar y reportar auditorías"},
+        # No Conformidades y Acciones Correctivas
+        {"nombre": "Gestionar No Conformidades", "codigo": "no_conformidades.gestionar", "descripcion": "Permiso para gestionar no conformidades"},
+        {"nombre": "Gestionar Acciones Correctivas", "codigo": "acciones_correctivas.gestionar", "descripcion": "Permiso para gestionar acciones correctivas"},
+        # Otros módulos
+        {"nombre": "Administrar Riesgos", "codigo": "riesgos.administrar", "descripcion": "Permiso para administrar riesgos"},
+        {"nombre": "Seguimiento de Objetivos", "codigo": "objetivos.seguimiento", "descripcion": "Permiso para seguimiento de objetivos de calidad"},
+        {"nombre": "Gestionar Capacitaciones", "codigo": "capacitaciones.gestionar", "descripcion": "Permiso para gestionar capacitaciones"},
         {"nombre": "Administrar Sistema", "codigo": "sistema.admin", "descripcion": "Acceso completo al sistema"},
     ]
     
@@ -54,19 +64,28 @@ def crear_roles_permisos_iniciales(db: Session):
             "nombre": "Administrador del Sistema",
             "clave": "admin",
             "descripcion": "Acceso completo al sistema",
-            "permisos": ["sistema.admin", "usuarios.ver", "usuarios.crear", "usuarios.editar", "usuarios.eliminar"]
+            "permisos": [
+                "sistema.admin", "usuarios.ver", "usuarios.crear", "usuarios.editar", "usuarios.eliminar",
+                "auditorias.planificar", "auditorias.ejecutar", "no_conformidades.gestionar", 
+                "acciones_correctivas.gestionar", "riesgos.administrar", "objetivos.seguimiento", 
+                "capacitaciones.gestionar"
+            ]
         },
         {
             "nombre": "Gestor de Calidad",
             "clave": "gestor_calidad",
             "descripcion": "Gestión de procesos de calidad",
-            "permisos": ["usuarios.ver"]
+            "permisos": [
+                "usuarios.ver", "auditorias.planificar", "auditorias.ejecutar", 
+                "no_conformidades.gestionar", "acciones_correctivas.gestionar", 
+                "riesgos.administrar", "objetivos.seguimiento", "capacitaciones.gestionar"
+            ]
         },
         {
             "nombre": "Auditor",
             "clave": "auditor",
             "descripcion": "Realización de auditorías",
-            "permisos": ["usuarios.ver"]
+            "permisos": ["usuarios.ver", "auditorias.ejecutar", "no_conformidades.gestionar"]
         },
         {
             "nombre": "Usuario Básico",

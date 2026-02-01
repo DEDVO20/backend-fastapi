@@ -11,7 +11,7 @@ from ..schemas.competencia import (
     CompetenciaCreate, CompetenciaUpdate, CompetenciaResponse,
     EvaluacionCompetenciaCreate, EvaluacionCompetenciaUpdate, EvaluacionCompetenciaResponse
 )
-from .auth import get_current_user
+from .dependencies import get_current_user
 from ..models.usuario import Usuario
 
 router = APIRouter(

@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
 from ..database import get_db
-from ..models.ticket import Ticket, EstadoTicket
+from ..models import Ticket
 from ..models.usuario import Usuario
 from ..schemas.ticket import TicketCreate, TicketUpdate, TicketResponse
-from .auth import get_current_user
+from .dependencies import get_current_user
 import uuid
 
 router = APIRouter()
@@ -88,3 +88,21 @@ def update_ticket(
     db.commit()
     db.refresh(ticket)
     return ticket
+
+@router.delete("/{ticket_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_ticket(
+    ticket_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+        
+    # Solo el solicitante o un admin puede eliminar (simplificado)
+    if ticket.solicitante_id != current_user.id:
+         raise HTTPException(status_code=403, detail="Not authorized to delete this ticket")
+         
+    db.delete(ticket)
+    db.commit()
+    return None
