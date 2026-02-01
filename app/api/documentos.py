@@ -15,8 +15,15 @@ from ..schemas.documento import (
     VersionDocumentoCreate,
     VersionDocumentoResponse,
     DocumentoProcesoCreate,
+    DocumentoProcesoCreate,
     DocumentoProcesoResponse
 )
+from ..utils.notification_service import (
+    crear_notificacion_revision, 
+    crear_notificacion_aprobacion,
+    crear_notificacion_asignacion
+)
+from ..models.sistema import Notificacion
 
 router = APIRouter(prefix="/api/v1", tags=["documentos"])
 
@@ -179,3 +186,127 @@ def asociar_documento_proceso(relacion: DocumentoProcesoCreate, db: Session = De
     db.commit()
     db.refresh(nueva_relacion)
     return nueva_relacion
+
+
+# =================================
+# Endpoints de Flujo de Trabajo (Workflow)
+# =================================
+
+@router.post("/documentos/{documento_id}/solicitar-revision", status_code=status.HTTP_200_OK)
+def solicitar_revision_documento(
+    documento_id: UUID,
+    revisor_id: UUID, # ID del usuario que revisará
+    db: Session = Depends(get_db)
+):
+    """Solicitar revisión de un documento"""
+    documento = db.query(Documento).filter(Documento.id == documento_id).first()
+    if not documento:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    
+    # Actualizar estado (opcional, dependiendo del flujo)
+    documento.estado = "en_revision"
+    
+    # Crear notificación
+    crear_notificacion_revision(
+        db=db,
+        usuario_id=revisor_id,
+        titulo="Revisión de Documento Asignada",
+        mensaje=f"Se te ha asignado la revisión del documento: {documento.titulo} ({documento.codigo})",
+        referencia_tipo="documento",
+        referencia_id=documento.id
+    )
+    
+    db.commit()
+    return {"message": "Solicitud de revisión enviada correctamente"}
+
+
+@router.post("/documentos/{documento_id}/solicitar-aprobacion", status_code=status.HTTP_200_OK)
+def solicitar_aprobacion_documento(
+    documento_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """Solicitar aprobación de un documento (al aprobador asignado)"""
+    documento = db.query(Documento).filter(Documento.id == documento_id).first()
+    if not documento:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    
+    if not documento.aprobador_id:
+        raise HTTPException(status_code=400, detail="El documento no tiene un aprobador asignado")
+    
+    # Actualizar estado
+    documento.estado = "pendiente_aprobacion"
+    
+    # Crear notificación
+    crear_notificacion_aprobacion(
+        db=db,
+        usuario_id=documento.aprobador_id,
+        titulo="Documento para Aprobación",
+        mensaje=f"El documento {documento.codigo} requiere tu aprobación",
+        referencia_tipo="documento",
+        referencia_id=documento.id
+    )
+    
+    db.commit()
+    return {"message": "Solicitud de aprobación enviada correctamente"}
+
+
+@router.post("/documentos/{documento_id}/aprobar", status_code=status.HTTP_200_OK)
+def aprobar_documento(
+    documento_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """Aprobar un documento"""
+    documento = db.query(Documento).filter(Documento.id == documento_id).first()
+    if not documento:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    
+    # Actualizar estado
+    documento.estado = "aprobado"
+    
+    # Notificar al creador/responsable
+    if documento.elaborador_id:
+        # Usa el helper genérico o crea uno específico de "info"
+        notificacion = Notificacion(
+            usuario_id=documento.elaborador_id,
+            titulo="Documento Aprobado",
+            mensaje=f"El documento {documento.codigo} ha sido aprobado.",
+            tipo="aprobacion",
+            referencia_tipo="documento",
+            referencia_id=documento.id,
+            leida=False
+        )
+        db.add(notificacion)
+    
+    db.commit()
+    return {"message": "Documento aprobado correctamente"}
+
+
+@router.post("/documentos/{documento_id}/rechazar", status_code=status.HTTP_200_OK)
+def rechazar_documento(
+    documento_id: UUID,
+    motivo: str,
+    db: Session = Depends(get_db)
+):
+    """Rechazar un documento"""
+    documento = db.query(Documento).filter(Documento.id == documento_id).first()
+    if not documento:
+        raise HTTPException(status_code=404, detail="Documento no encontrado")
+    
+    # Actualizar estado
+    documento.estado = "rechazado"
+    
+    # Notificar al creador/responsable
+    if documento.elaborador_id:
+        notificacion = Notificacion(
+            usuario_id=documento.elaborador_id,
+            titulo="Documento Rechazado",
+            mensaje=f"El documento {documento.codigo} ha sido rechazado. Motivo: {motivo}",
+            tipo="asignacion", # Usamos tipo genérico o uno de 'rechazo' si existiera
+            referencia_tipo="documento",
+            referencia_id=documento.id,
+            leida=False
+        )
+        db.add(notificacion)
+    
+    db.commit()
+    return {"message": "Documento rechazado correctamente"}

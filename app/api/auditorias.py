@@ -14,8 +14,10 @@ from ..schemas.auditoria import (
     AuditoriaResponse,
     HallazgoAuditoriaCreate,
     HallazgoAuditoriaUpdate,
+    HallazgoAuditoriaUpdate,
     HallazgoAuditoriaResponse
 )
+from ..utils.notification_service import crear_notificacion_asignacion
 
 router = APIRouter(prefix="/api/v1", tags=["auditorias"])
 
@@ -59,6 +61,18 @@ def crear_auditoria(auditoria: AuditoriaCreate, db: Session = Depends(get_db)):
     db.add(nueva_auditoria)
     db.commit()
     db.refresh(nueva_auditoria)
+    
+    # Notificar al auditor líder asignado
+    if nueva_auditoria.auditor_lider_id:
+        crear_notificacion_asignacion(
+            db=db,
+            usuario_id=nueva_auditoria.auditor_lider_id,
+            titulo="Auditoría Asignada",
+            mensaje=f"Se te ha asignado como Auditor Líder para la auditoría: {nueva_auditoria.codigo}",
+            referencia_tipo="auditoria",
+            referencia_id=nueva_auditoria.id
+        )
+        
     return nueva_auditoria
 
 
@@ -88,12 +102,27 @@ def actualizar_auditoria(
             detail="Auditoría no encontrada"
         )
     
+    # Verificar cambio de auditor líder
+    previous_auditor_lider = auditoria.auditor_lider_id
+    
     update_data = auditoria_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(auditoria, field, value)
     
     db.commit()
     db.refresh(auditoria)
+    
+    # Notificar si cambió el auditor líder
+    if auditoria.auditor_lider_id and auditoria.auditor_lider_id != previous_auditor_lider:
+        crear_notificacion_asignacion(
+            db=db,
+            usuario_id=auditoria.auditor_lider_id,
+            titulo="Auditoría Asignada",
+            mensaje=f"Se te ha asignado como Auditor Líder para la auditoría: {auditoria.codigo}",
+            referencia_tipo="auditoria",
+            referencia_id=auditoria.id
+        )
+        
     return auditoria
 
 
