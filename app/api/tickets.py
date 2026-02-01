@@ -25,8 +25,8 @@ def create_ticket(
     new_ticket = Ticket(
         titulo=ticket.titulo,
         descripcion=ticket.descripcion,
-        categoria=ticket.categoria.value,  # En BD es 'categoria'
-        prioridad=ticket.prioridad.value,
+        categoria=ticket.categoria,  # Ya es string
+        prioridad=ticket.prioridad,  # Ya es string
         solicitante_id=current_user.id
     )
     db.add(new_ticket)
@@ -85,12 +85,8 @@ def update_ticket(
         
     # Actualizar campos
     for key, value in ticket_update.model_dump(exclude_unset=True).items():
-        if hasattr(ticket, key):
-            # Manejar Enums
-            if hasattr(value, 'value'):
-                setattr(ticket, key, value.value)
-            else:
-                setattr(ticket, key, value)
+        if hasattr(ticket, key) and value is not None:
+            setattr(ticket, key, value)
             
     db.commit()
     db.refresh(ticket)

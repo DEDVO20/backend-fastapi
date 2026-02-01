@@ -35,8 +35,8 @@ class TicketBase(BaseModel):
     """Schema base para Ticket"""
     titulo: str
     descripcion: str
-    categoria: TipoTicket  # En BD es 'categoria', no 'tipo'
-    prioridad: PrioridadTicket
+    categoria: str  # Aceptar string directamente desde el frontend
+    prioridad: str  # Aceptar string directamente desde el frontend
 
 
 class TicketCreate(TicketBase):
@@ -48,16 +48,16 @@ class TicketUpdate(BaseModel):
     """Schema para actualizar un ticket"""
     titulo: Optional[str] = None
     descripcion: Optional[str] = None
-    categoria: Optional[TipoTicket] = None  # En BD es 'categoria'
-    prioridad: Optional[PrioridadTicket] = None
-    estado: Optional[EstadoTicket] = None
+    categoria: Optional[str] = None  # Aceptar string directamente
+    prioridad: Optional[str] = None  # Aceptar string directamente
+    estado: Optional[str] = None  # Aceptar string directamente
     asignado_a: Optional[UUID] = None
 
 
 class TicketResponse(TicketBase):
     """Schema para respuesta de ticket"""
     id: UUID
-    estado: EstadoTicket
+    estado: str  # Devolver string directamente
     solicitante_id: UUID
     asignado_a: Optional[UUID] = None
     creado_en: datetime
