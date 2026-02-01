@@ -44,8 +44,6 @@ def listar_indicadores(
     limit: int = 100,
     proceso_id: UUID = None,
     activo: bool = None,
-    proceso_id: UUID = None,
-    activo: bool = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -103,8 +101,6 @@ def obtener_indicador(
 def actualizar_indicador(
     indicador_id: UUID,
     indicador_update: IndicadorUpdate,
-    indicador_id: UUID,
-    indicador_update: IndicadorUpdate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -155,9 +151,6 @@ def listar_no_conformidades(
     proceso_id: UUID = None,
     estado: str = None,
     tipo: str = None,
-    proceso_id: UUID = None,
-    estado: str = None,
-    tipo: str = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -177,7 +170,6 @@ def listar_no_conformidades(
 
 @router.post("/no-conformidades", response_model=NoConformidadResponse, status_code=status.HTTP_201_CREATED)
 def crear_no_conformidad(
-    nc: NoConformidadCreate, 
     nc: NoConformidadCreate, 
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
@@ -223,8 +215,6 @@ def obtener_no_conformidad(
 def actualizar_no_conformidad(
     nc_id: UUID,
     nc_update: NoConformidadUpdate,
-    nc_id: UUID,
-    nc_update: NoConformidadUpdate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -252,9 +242,6 @@ def actualizar_no_conformidad(
 @router.get("/acciones-correctivas", response_model=List[AccionCorrectivaResponse])
 def listar_acciones_correctivas(
     skip: int = 0,
-    limit: int = 100,
-    no_conformidad_id: UUID = None,
-    estado: str = None,
     limit: int = 100,
     no_conformidad_id: UUID = None,
     estado: str = None,
@@ -315,8 +302,6 @@ def obtener_accion_correctiva(
 def actualizar_accion_correctiva(
     accion_id: UUID,
     accion_update: AccionCorrectivaUpdate,
-    accion_id: UUID,
-    accion_update: AccionCorrectivaUpdate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -341,8 +326,6 @@ def actualizar_accion_correctiva(
 def cambiar_estado_accion_correctiva(
     accion_id: UUID,
     estado_update: AccionCorrectivaEstadoUpdate,
-    accion_id: UUID,
-    estado_update: AccionCorrectivaEstadoUpdate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -362,8 +345,6 @@ def cambiar_estado_accion_correctiva(
 
 @router.patch("/acciones-correctivas/{accion_id}/verificar", response_model=AccionCorrectivaResponse)
 def verificar_accion_correctiva(
-    accion_id: UUID,
-    verificacion: AccionCorrectivaVerificacion,
     accion_id: UUID,
     verificacion: AccionCorrectivaVerificacion,
     db: Session = Depends(get_db),
@@ -402,8 +383,6 @@ def verificar_accion_correctiva(
 def listar_objetivos_calidad(
     skip: int = 0,
     limit: int = 100,
-    area_id: UUID = None,
-    estado: str = None,
     area_id: UUID = None,
     estado: str = None,
     db: Session = Depends(get_db),
@@ -463,8 +442,6 @@ def obtener_objetivo_calidad(
 def actualizar_objetivo_calidad(
     objetivo_id: UUID,
     objetivo_update: ObjetivoCalidadUpdate,
-    objetivo_id: UUID,
-    objetivo_update: ObjetivoCalidadUpdate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -515,9 +492,6 @@ def listar_seguimientos_objetivo(
     limit: int = 100,
     objetivo_id: UUID = None,
     # TODO: filtrar por fecha?
-    limit: int = 100,
-    objetivo_id: UUID = None,
-    # TODO: filtrar por fecha?
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -562,8 +536,6 @@ def crear_seguimiento_objetivo(
 
 @router.put("/seguimientos-objetivo/{seguimiento_id}", response_model=SeguimientoObjetivoResponse)
 def actualizar_seguimiento_objetivo(
-    seguimiento_id: UUID,
-    seguimiento_update: SeguimientoObjetivoUpdate,
     seguimiento_id: UUID,
     seguimiento_update: SeguimientoObjetivoUpdate,
     db: Session = Depends(get_db),
