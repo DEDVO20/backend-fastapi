@@ -241,7 +241,6 @@ def eliminar_rol(
 def listar_permisos(
     skip: int = 0,
     limit: int = 100,
-    limit: int = 100,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
