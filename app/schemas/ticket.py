@@ -35,8 +35,10 @@ class TicketBase(BaseModel):
     """Schema base para Ticket"""
     titulo: str
     descripcion: str
-    categoria: str  # Aceptar string directamente desde el frontend
-    prioridad: str  # Aceptar string directamente desde el frontend
+    tipo: str  # Frontend usa 'tipo', se mapea a 'categoria' en BD
+    prioridad: str
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class TicketCreate(TicketBase):
@@ -48,19 +50,25 @@ class TicketUpdate(BaseModel):
     """Schema para actualizar un ticket"""
     titulo: Optional[str] = None
     descripcion: Optional[str] = None
-    categoria: Optional[str] = None  # Aceptar string directamente
-    prioridad: Optional[str] = None  # Aceptar string directamente
-    estado: Optional[str] = None  # Aceptar string directamente
+    tipo: Optional[str] = None  # Frontend usa 'tipo'
+    prioridad: Optional[str] = None
+    estado: Optional[str] = None
     asignado_a: Optional[UUID] = None
 
+    model_config = ConfigDict(populate_by_name=True)
 
-class TicketResponse(TicketBase):
+
+class TicketResponse(BaseModel):
     """Schema para respuesta de ticket"""
     id: UUID
-    estado: str  # Devolver string directamente
+    titulo: str
+    descripcion: str
+    tipo: str  # Devolver como 'tipo' al frontend
+    prioridad: str
+    estado: str
     solicitante_id: UUID
     asignado_a: Optional[UUID] = None
     creado_en: datetime
     actualizado_en: datetime
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)

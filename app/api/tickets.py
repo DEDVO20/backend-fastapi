@@ -25,14 +25,27 @@ def create_ticket(
     new_ticket = Ticket(
         titulo=ticket.titulo,
         descripcion=ticket.descripcion,
-        categoria=ticket.categoria,  # Ya es string
-        prioridad=ticket.prioridad,  # Ya es string
+        categoria=ticket.tipo,  # Mapear 'tipo' del frontend a 'categoria' en BD
+        prioridad=ticket.prioridad,
         solicitante_id=current_user.id
     )
     db.add(new_ticket)
     db.commit()
     db.refresh(new_ticket)
-    return new_ticket
+    
+    # Convertir categoria a tipo para la respuesta
+    return TicketResponse(
+        id=new_ticket.id,
+        titulo=new_ticket.titulo,
+        descripcion=new_ticket.descripcion,
+        tipo=new_ticket.categoria,  # Mapear 'categoria' de BD a 'tipo' para frontend
+        prioridad=new_ticket.prioridad,
+        estado=new_ticket.estado,
+        solicitante_id=new_ticket.solicitante_id,
+        asignado_a=new_ticket.asignado_a,
+        creado_en=new_ticket.creado_en,
+        actualizado_en=new_ticket.actualizado_en
+    )
 
 
 @router.get("/", response_model=List[TicketResponse])
@@ -50,7 +63,23 @@ def list_tickets(
         query = query.filter(Ticket.estado == estado)
         
     tickets = query.offset(skip).limit(limit).all()
-    return tickets
+    
+    # Convertir categoria a tipo para cada ticket
+    return [
+        TicketResponse(
+            id=t.id,
+            titulo=t.titulo,
+            descripcion=t.descripcion,
+            tipo=t.categoria,  # Mapear categoria de BD a tipo para frontend
+            prioridad=t.prioridad,
+            estado=t.estado,
+            solicitante_id=t.solicitante_id,
+            asignado_a=t.asignado_a,
+            creado_en=t.creado_en,
+            actualizado_en=t.actualizado_en
+        )
+        for t in tickets
+    ]
 
 
 @router.get("/{ticket_id}", response_model=TicketResponse)
@@ -67,8 +96,20 @@ def get_ticket(
     # Verificar acceso
     if ticket.solicitante_id != current_user.id:
         raise HTTPException(status_code=403, detail="No autorizado para ver este ticket")
-          
-    return ticket
+    
+    # Convertir categoria a tipo
+    return TicketResponse(
+        id=ticket.id,
+        titulo=ticket.titulo,
+        descripcion=ticket.descripcion,
+        tipo=ticket.categoria,
+        prioridad=ticket.prioridad,
+        estado=ticket.estado,
+        solicitante_id=ticket.solicitante_id,
+        asignado_a=ticket.asignado_a,
+        creado_en=ticket.creado_en,
+        actualizado_en=ticket.actualizado_en
+    )
 
 
 @router.put("/{ticket_id}", response_model=TicketResponse)
@@ -82,12 +123,31 @@ def update_ticket(
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
-        
+    
     # Actualizar campos
-    for key, value in ticket_update.model_dump(exclude_unset=True).items():
+    update_data = ticket_update.model_dump(exclude_unset=True)
+    
+    # Mapear 'tipo' a 'categoria' si está presente
+    if 'tipo' in update_data:
+        update_data['categoria'] = update_data.pop('tipo')
+    
+    for key, value in update_data.items():
         if hasattr(ticket, key) and value is not None:
             setattr(ticket, key, value)
             
     db.commit()
     db.refresh(ticket)
-    return ticket
+    
+    # Convertir categoria a tipo para la respuesta
+    return TicketResponse(
+        id=ticket.id,
+        titulo=ticket.titulo,
+        descripcion=ticket.descripcion,
+        tipo=ticket.categoria,
+        prioridad=ticket.prioridad,
+        estado=ticket.estado,
+        solicitante_id=ticket.solicitante_id,
+        asignado_a=ticket.asignado_a,
+        creado_en=ticket.creado_en,
+        actualizado_en=ticket.actualizado_en
+    )
