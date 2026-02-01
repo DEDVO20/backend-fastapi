@@ -121,3 +121,29 @@ def crear_notificacion_aprobacion(
     db.refresh(notificacion)
     
     return notificacion
+
+
+def crear_notificacion_ticket_resuelto(
+    db: Session,
+    usuario_id: UUID,  # Solicitante original
+    titulo_ticket: str,
+    referencia_id: UUID
+) -> Notificacion:
+    """
+    Crear notificación cuando se resuelve un ticket
+    """
+    notificacion = Notificacion(
+        usuario_id=usuario_id,
+        titulo="Ticket Resuelto",
+        mensaje=f"Tu ticket '{titulo_ticket}' ha sido marcado como resuelto. Por favor verifica la solución.",
+        tipo="info",  # o un tipo 'resolucion' si lo agregamos
+        referencia_tipo="ticket",
+        referencia_id=referencia_id,
+        leida=False
+    )
+    
+    db.add(notificacion)
+    db.commit()
+    db.refresh(notificacion)
+    
+    return notificacion

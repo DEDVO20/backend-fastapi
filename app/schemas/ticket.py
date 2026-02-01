@@ -54,12 +54,24 @@ class TicketUpdate(BaseModel):
     asignado_a: Optional[UUID] = None
 
 
+class TicketResolver(BaseModel):
+    """Schema para resolver un ticket"""
+    solucion: str
+    satisfaccion_cliente: Optional[int] = None
+
+
 class TicketResponse(TicketBase):
     """Schema para respuesta de ticket"""
     id: UUID
     estado: str
     solicitante_id: UUID
     asignado_a: Optional[UUID] = None
+    
+    # Campos de resolución
+    solucion: Optional[str] = None
+    fecha_resolucion: Optional[datetime] = None
+    satisfaccion_cliente: Optional[int] = None
+    
     creado_en: datetime
     actualizado_en: datetime
 

@@ -9,9 +9,10 @@ from uuid import UUID
 from ..database import get_db
 from ..models.ticket import Ticket, EstadoTicket
 from ..models.usuario import Usuario
-from ..schemas.ticket import TicketCreate, TicketUpdate, TicketResponse
+from ..schemas.ticket import TicketCreate, TicketUpdate, TicketResponse, TicketResolver
 from .auth import get_current_user
-from ..utils.notification_service import crear_notificacion_asignacion
+from ..utils.notification_service import crear_notificacion_asignacion, crear_notificacion_ticket_resuelto
+from datetime import datetime
 
 router = APIRouter()
 
@@ -106,4 +107,37 @@ def update_ticket(
             referencia_id=ticket.id
         )
         
+    return ticket
+
+
+@router.post("/{ticket_id}/resolver", response_model=TicketResponse)
+def resolver_ticket(
+    ticket_id: UUID,
+    resolucion: TicketResolver,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Resolver un ticket"""
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    
+    # Actualizar estado y solución
+    ticket.estado = "resuelto"
+    ticket.solucion = resolucion.solucion
+    ticket.fecha_resolucion = datetime.now()
+    if resolucion.satisfaccion_cliente:
+        ticket.satisfaccion_cliente = resolucion.satisfaccion_cliente
+            
+    db.commit()
+    db.refresh(ticket)
+    
+    # Notificar al solicitante
+    crear_notificacion_ticket_resuelto(
+        db=db,
+        usuario_id=ticket.solicitante_id,
+        titulo_ticket=ticket.titulo,
+        referencia_id=ticket.id
+    )
+    
     return ticket
