@@ -11,6 +11,7 @@ from ..models.ticket import Ticket, EstadoTicket
 from ..models.usuario import Usuario
 from ..schemas.ticket import TicketCreate, TicketUpdate, TicketResponse
 from .auth import get_current_user
+from ..utils.notification_service import crear_notificacion_asignacion
 
 router = APIRouter()
 
@@ -83,6 +84,9 @@ def update_ticket(
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
     
+    # Verificar si cambió la asignación
+    previous_asignado_a = ticket.asignado_a
+    
     # Actualizar campos
     for key, value in ticket_update.model_dump(exclude_unset=True).items():
         if hasattr(ticket, key) and value is not None:
@@ -90,4 +94,16 @@ def update_ticket(
             
     db.commit()
     db.refresh(ticket)
+    
+    # Enviar notificación si hubo nueva asignación
+    if ticket.asignado_a and ticket.asignado_a != previous_asignado_a:
+        crear_notificacion_asignacion(
+            db=db,
+            usuario_id=ticket.asignado_a,
+            titulo="Nuevo Ticket Asignado",
+            mensaje=f"Se te ha asignado el ticket: {ticket.titulo}",
+            referencia_tipo="ticket",
+            referencia_id=ticket.id
+        )
+        
     return ticket
