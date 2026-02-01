@@ -256,7 +256,6 @@ def solicitar_revision_documento(
 @router.post("/documentos/{documento_id}/solicitar-aprobacion", status_code=status.HTTP_200_OK)
 def solicitar_aprobacion_documento(
     documento_id: UUID,
-    documento_id: UUID,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -287,7 +286,6 @@ def solicitar_aprobacion_documento(
 
 @router.post("/documentos/{documento_id}/aprobar", status_code=status.HTTP_200_OK)
 def aprobar_documento(
-    documento_id: UUID,
     documento_id: UUID,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)

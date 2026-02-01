@@ -95,8 +95,6 @@ def obtener_proceso(
 def actualizar_proceso(
     proceso_id: UUID,
     proceso_update: ProcesoUpdate,
-    proceso_id: UUID,
-    proceso_update: ProcesoUpdate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -171,8 +169,6 @@ def crear_etapa_proceso(
 def actualizar_etapa_proceso(
     etapa_id: UUID,
     etapa_update: EtapaProcesoUpdate,
-    etapa_id: UUID,
-    etapa_update: EtapaProcesoUpdate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -201,8 +197,6 @@ def actualizar_etapa_proceso(
 def listar_instancias(
     skip: int = 0,
     limit: int = 100,
-    proceso_id: UUID = None,
-    estado: str = None,
     proceso_id: UUID = None,
     estado: str = None,
     db: Session = Depends(get_db),
@@ -254,8 +248,6 @@ def listar_acciones_proceso(
     limit: int = 100,
     proceso_id: UUID = None,
     estado: str = None,
-    proceso_id: UUID = None,
-    estado: str = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -295,8 +287,6 @@ def crear_accion_proceso(
 
 @router.put("/acciones-proceso/{accion_id}", response_model=AccionProcesoResponse)
 def actualizar_accion_proceso(
-    accion_id: UUID,
-    accion_update: AccionProcesoUpdate,
     accion_id: UUID,
     accion_update: AccionProcesoUpdate,
     db: Session = Depends(get_db),
