@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .api import (
     routes, usuarios, procesos, documentos, 
-    calidad, auditorias, riesgos, capacitaciones, competencias, sistema, auth, migraciones, tickets, notificaciones
+    calidad, auditorias, riesgos, capacitaciones, competencias, sistema, auth, migraciones, tickets, notificaciones,
+    analytics
 )
 
 app = FastAPI(
@@ -41,6 +42,7 @@ app.include_router(sistema.router)
 app.include_router(migraciones.router, prefix="/api/migraciones", tags=["migraciones"])
 app.include_router(tickets.router, prefix="/api/v1/tickets", tags=["tickets"])
 app.include_router(notificaciones.router)
+app.include_router(analytics.router)
 
 
 @app.on_event("startup")
