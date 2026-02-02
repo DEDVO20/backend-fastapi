@@ -24,32 +24,37 @@ def list_available_reports(
     
     reports = []
     
-    # 1. Auditorías Completadas (o todas)
-    auditorias = db.query(Auditoria).order_by(Auditoria.fecha_programada.desc()).limit(10).all()
-    for aud in auditorias:
+    try:
+        # 1. Auditorías Completadas (o todas)
+        auditorias = db.query(Auditoria).order_by(Auditoria.fecha_programada.desc().nullslast()).limit(10).all()
+        for aud in auditorias:
+            reports.append({
+                "id": str(aud.id),
+                "codigo": aud.codigo or f"AUD-{str(aud.id)[:8]}",
+                "title": f"Reporte de Auditoría: {aud.codigo or 'Sin código'}",
+                "category": "auditorias",
+                "date": aud.fecha_programada.isoformat() if aud.fecha_programada else datetime.now().isoformat(),
+                "status": aud.estado or "completado",
+                "format": "PDF",
+                "description": f"Auditoría de {aud.objetivo or 'gestión'}"
+            })
+            
+        # 2. No Conformidades (Global)
+        # Agregamos un item "metareporte" global
         reports.append({
-            "id": str(aud.id),
-            "codigo": aud.codigo,
-            "title": f"Reporte de Auditoría: {aud.codigo}",
-            "category": "auditorias",
-            "date": aud.fecha_programada.isoformat() if aud.fecha_programada else None,
-            "status": aud.estado,
+            "id": "global-nc",
+            "codigo": "REP-NC-2024",
+            "title": "Reporte Global de No Conformidades",
+            "category": "noconformidades",
+            "date": datetime.now().isoformat(),
+            "status": "completado",
             "format": "PDF",
-            "description": f"Auditoría de {aud.objetivo or 'gestión'}"
+            "description": "Listado completo de hallazgos no conformes"
         })
-        
-    # 2. No Conformidades (Global)
-    # Agregamos un item "metareporte" global
-    reports.append({
-        "id": "global-nc",
-        "codigo": "REP-NC-2024",
-        "title": "Reporte Global de No Conformidades",
-        "category": "noconformidades",
-        "date": datetime.now().isoformat(),
-        "status": "completado",
-        "format": "PDF",
-        "description": "Listado completo de hallazgos no conformes"
-    })
+    except Exception as e:
+        # Log error and return empty list instead of crashing
+        print(f"Error generating reports list: {e}")
+        reports = []
     
     return reports
 

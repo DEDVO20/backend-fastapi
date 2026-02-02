@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "development"
     
     # CORS
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173,https://front-react-puce-three.vercel.app"
     
     # Supabase Storage
     SUPABASE_URL: Optional[str] = None
