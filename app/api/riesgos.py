@@ -59,7 +59,7 @@ def listar_riesgos(
     
     # Implementation of Area Scoping:
     # If user is not admin/gestor, join with Process/Area and filter by current_user.area_id
-    es_admin_o_gestor = any(rol.clave in ['admin', 'gestor_calidad'] for rol in current_user.roles)
+    es_admin_o_gestor = any(ur.rol.clave in ['admin', 'gestor_calidad'] for ur in current_user.roles)
     
     if not es_admin_o_gestor and current_user.area_id:
         # Asumiendo que Riesgo -> Proceso -> Area
@@ -79,7 +79,12 @@ def crear_riesgo(
 ):
     """Crear un nuevo riesgo"""
     # Verify permission "riesgos.identificar"
-    tiene_permiso = any(p.codigo == "riesgos.identificar" for r in current_user.roles for p in r.permisos)
+    tiene_permiso = any(
+        rp.permiso.codigo == "riesgos.identificar" 
+        for ur in current_user.roles 
+        for rp in ur.rol.permisos
+        if rp.permiso
+    )
     if not tiene_permiso:
         raise HTTPException(status_code=403, detail="No tienes permiso para identificar riesgos")
         

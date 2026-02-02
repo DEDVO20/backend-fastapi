@@ -176,7 +176,12 @@ def crear_no_conformidad(
 ):
     """Crear una nueva no conformidad"""
     # Verify permission "noconformidades.reportar"
-    tiene_permiso = any(p.codigo == "noconformidades.reportar" for r in current_user.roles for p in r.permisos)
+    tiene_permiso = any(
+        rp.permiso.codigo == "noconformidades.reportar" 
+        for ur in current_user.roles 
+        for rp in ur.rol.permisos
+        if rp.permiso
+    )
     if not tiene_permiso:
         raise HTTPException(status_code=403, detail="No tienes permiso para reportar no conformidades")
 
@@ -352,7 +357,12 @@ def verificar_accion_correctiva(
 ):
     """Verificar una acción correctiva"""
     # Verify permission "noconformidades.cerrar"
-    tiene_permiso = any(p.codigo == "noconformidades.cerrar" for r in current_user.roles for p in r.permisos)
+    tiene_permiso = any(
+        rp.permiso.codigo == "noconformidades.cerrar" 
+        for ur in current_user.roles 
+        for rp in ur.rol.permisos
+        if rp.permiso
+    )
     if not tiene_permiso:
         raise HTTPException(status_code=403, detail="No tienes permiso para cerrar no conformidades")
 

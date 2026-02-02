@@ -57,7 +57,12 @@ def crear_auditoria(
 ):
     """Crear una nueva auditoría"""
     # Verify permission "auditorias.planificar"
-    tiene_permiso = any(p.codigo == "auditorias.planificar" for r in current_user.roles for p in r.permisos)
+    tiene_permiso = any(
+        rp.permiso.codigo == "auditorias.planificar" 
+        for ur in current_user.roles 
+        for rp in ur.rol.permisos
+        if rp.permiso
+    )
     if not tiene_permiso:
         raise HTTPException(status_code=403, detail="No tienes permiso para planificar auditorías")
 
@@ -208,7 +213,12 @@ def crear_hallazgo_auditoria(
 ):
     """Crear un nuevo hallazgo de auditoría"""
     # Verify permission "auditorias.ejecutar"
-    tiene_permiso = any(p.codigo == "auditorias.ejecutar" for r in current_user.roles for p in r.permisos)
+    tiene_permiso = any(
+        rp.permiso.codigo == "auditorias.ejecutar" 
+        for ur in current_user.roles 
+        for rp in ur.rol.permisos
+        if rp.permiso
+    )
     if not tiene_permiso:
         raise HTTPException(status_code=403, detail="No tienes permiso para registrar hallazgos")
 
