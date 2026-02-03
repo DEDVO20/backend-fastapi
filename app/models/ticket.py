@@ -52,6 +52,7 @@ class Ticket(BaseModel):
     # Foreign keys
     solicitante_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
     asignado_a = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    area_destino_id = Column(UUID(as_uuid=True), ForeignKey("areas.id"), nullable=True)
     
     # Campos adicionales de la BD
     fecha_limite = Column(DateTime(timezone=True), nullable=True)
@@ -63,6 +64,7 @@ class Ticket(BaseModel):
     # Relaciones
     solicitante = relationship("Usuario", back_populates="tickets_solicitados", foreign_keys=[solicitante_id])
     asignado = relationship("Usuario", back_populates="tickets_asignados", foreign_keys=[asignado_a])
+    area_destino = relationship("Area", foreign_keys=[area_destino_id])
     
     def __repr__(self):
         return f"<Ticket(titulo={self.titulo}, estado={self.estado})>"

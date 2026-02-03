@@ -41,7 +41,7 @@ class TicketBase(BaseModel):
 
 class TicketCreate(TicketBase):
     """Schema para crear un ticket"""
-    pass
+    area_destino_id: Optional[UUID] = None
 
 
 class TicketUpdate(BaseModel):
@@ -52,6 +52,7 @@ class TicketUpdate(BaseModel):
     prioridad: Optional[str] = None
     estado: Optional[str] = None
     asignado_a: Optional[UUID] = None
+    area_destino_id: Optional[UUID] = None
 
 
 class TicketResolver(BaseModel):
@@ -66,6 +67,7 @@ class TicketResponse(TicketBase):
     estado: str
     solicitante_id: UUID
     asignado_a: Optional[UUID] = None
+    area_destino_id: Optional[UUID] = None
     
     # Campos de resolución
     solucion: Optional[str] = None
