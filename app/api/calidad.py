@@ -240,6 +240,25 @@ def actualizar_no_conformidad(
     return nc
 
 
+@router.delete("/no-conformidades/{nc_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_no_conformidad(
+    nc_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Eliminar una no conformidad"""
+    nc = db.query(NoConformidad).filter(NoConformidad.id == nc_id).first()
+    if not nc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No conformidad no encontrada"
+        )
+    
+    db.delete(nc)
+    db.commit()
+    return None
+
+
 # ================================
 # Endpoints de Acciones Correctivas
 # ================================
