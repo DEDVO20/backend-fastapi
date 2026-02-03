@@ -58,6 +58,7 @@ def list_tickets(
 ):
     """Listar tickets según el rol y área del usuario"""
     from sqlalchemy import or_
+    from sqlalchemy.orm import joinedload
     
     # Verificar si el usuario es admin o gestor de calidad
     es_admin_o_gestor = any(
@@ -65,8 +66,11 @@ def list_tickets(
         for ur in current_user.roles
     )
     
-    # Construir query base
-    query = db.query(Ticket)
+    # Construir query base con eager loading de relaciones
+    query = db.query(Ticket).options(
+        joinedload(Ticket.solicitante),
+        joinedload(Ticket.asignado)
+    )
     
     # Aplicar filtros de visibilidad según rol
     if not es_admin_o_gestor:
@@ -101,7 +105,12 @@ def get_ticket(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtener un ticket por ID"""
-    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    from sqlalchemy.orm import joinedload
+    
+    ticket = db.query(Ticket).options(
+        joinedload(Ticket.solicitante),
+        joinedload(Ticket.asignado)
+    ).filter(Ticket.id == ticket_id).first()
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
     

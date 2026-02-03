@@ -8,6 +8,25 @@ from datetime import datetime
 from uuid import UUID
 
 
+class UsuarioBasic(BaseModel):
+    """Schema básico de usuario para relaciones anidadas"""
+    id: UUID
+    nombre: str
+    primer_apellido: str
+    segundo_apellido: Optional[str] = None
+    correo_electronico: str
+    
+    model_config = ConfigDict(from_attributes=True)
+    
+    @property
+    def nombre_completo(self) -> str:
+        """Retorna el nombre completo del usuario"""
+        apellidos = [self.primer_apellido]
+        if self.segundo_apellido:
+            apellidos.append(self.segundo_apellido)
+        return f"{self.nombre} {' '.join(apellidos)}"
+
+
 class TipoTicket(str, Enum):
     """Tipos de ticket disponibles"""
     SOPORTE = "soporte"
@@ -68,6 +87,10 @@ class TicketResponse(TicketBase):
     solicitante_id: UUID
     asignado_a: Optional[UUID] = None
     area_destino_id: Optional[UUID] = None
+    
+    # Información de usuarios (nested)
+    solicitante: Optional[UsuarioBasic] = None
+    asignado: Optional[UsuarioBasic] = None
     
     # Campos de resolución
     solucion: Optional[str] = None
