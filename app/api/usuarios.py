@@ -47,8 +47,13 @@ def listar_areas(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    """Listar todas las áreas"""
-    areas = db.query(Area).offset(skip).limit(limit).all()
+    """Listar todas las áreas con sus responsables asignados"""
+    from sqlalchemy.orm import joinedload
+    from ..models.sistema import Asignacion
+    
+    areas = db.query(Area).options(
+        joinedload(Area.asignaciones).joinedload(Asignacion.usuario)
+    ).offset(skip).limit(limit).all()
     return areas
 
 
