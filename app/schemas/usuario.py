@@ -23,11 +23,27 @@ class AreaUpdate(BaseModel):
     nombre: Optional[str] = Field(None, max_length=255)
     descripcion: Optional[str] = None
 
+class UsuarioMinimo(BaseModel):
+    id: UUID
+    nombre: str
+    primer_apellido: str
+    correo_electronico: str
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class AsignacionResponse(BaseModel):
+    id: UUID
+    usuario_id: UUID
+    es_principal: bool
+    usuario: UsuarioMinimo
+    
+    model_config = ConfigDict(from_attributes=True)
 
 class AreaResponse(AreaBase):
     id: UUID
     creado_en: datetime
     actualizado_en: datetime
+    asignaciones: List['AsignacionResponse'] = []
     
     model_config = ConfigDict(from_attributes=True)
 
