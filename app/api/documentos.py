@@ -74,7 +74,11 @@ def crear_documento(
             detail="El código de documento ya existe"
         )
     
-    nuevo_documento = Documento(**documento.model_dump())
+    # Crear el documento y asignar el creador automáticamente
+    documento_data = documento.model_dump()
+    documento_data['creado_por'] = current_user.id
+    
+    nuevo_documento = Documento(**documento_data)
     db.add(nuevo_documento)
     db.commit()
     db.refresh(nuevo_documento)
@@ -171,7 +175,11 @@ def crear_version_documento(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crear una nueva versión de documento"""
-    nueva_version = VersionDocumento(**version.model_dump())
+    # Asignar el creador automáticamente
+    version_data = version.model_dump()
+    version_data['creado_por'] = current_user.id
+    
+    nueva_version = VersionDocumento(**version_data)
     db.add(nueva_version)
     db.commit()
     db.refresh(nueva_version)
