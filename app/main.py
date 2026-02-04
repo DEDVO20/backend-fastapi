@@ -7,8 +7,10 @@ from .config import settings
 from .api import (
     routes, usuarios, procesos, documentos, 
     calidad, auditorias, riesgos, capacitaciones, competencias, sistema, auth, migraciones, tickets, notificaciones,
-    analytics, reportes
+    analytics, reportes, uploads
 )
+
+
 
 app = FastAPI(
     title="Sistema de Gestión de Calidad",
@@ -44,6 +46,7 @@ app.include_router(tickets.router, prefix="/api/v1/tickets", tags=["tickets"])
 app.include_router(notificaciones.router)
 app.include_router(analytics.router)
 app.include_router(reportes.router)
+app.include_router(uploads.router)
 
 
 @app.on_event("startup")

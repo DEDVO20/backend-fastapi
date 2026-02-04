@@ -4,143 +4,95 @@ Cliente de Supabase para gestión de archivos
 import os
 from typing import Optional, Tuple
 from supabase import create_client, Client
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# Configuración de Supabase
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-SUPABASE_BUCKET = os.getenv("SUPABASE_BUCKET", "avatars")
+from ..core.config import settings
 
 # Inicializar cliente
 supabase: Optional[Client] = None
 
-if SUPABASE_URL and SUPABASE_KEY:
-    supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+if settings.SUPABASE_URL and settings.SUPABASE_KEY:
+    supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
 
 
-def upload_avatar(file_path: str, file_name: str) -> Tuple[bool, str]:
+def upload_file_bytes(file_content: bytes, file_name: str, content_type: str = "application/octet-stream", bucket: str = None) -> Tuple[bool, str]:
     """
-    Sube un avatar a Supabase Storage usando la API REST directamente
-    
-    Args:
-        file_path: Ruta del archivo a subir
-        file_name: Ruta del archivo en el bucket (puede incluir carpetas, ej: "usuario_id/avatar.webp")
-        
-    Returns:
-        Tuple[bool, str]: (éxito, url_o_mensaje_error)
+    Sube un archivo (bytes) a Supabase Storage
     """
-    if not SUPABASE_URL or not SUPABASE_KEY:
+    if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
         print("❌ ERROR: Supabase no está configurado")
         return False, "Supabase no está configurado"
+    
+    target_bucket = bucket or settings.SUPABASE_BUCKET
     
     try:
         import requests
         
-        print(f"📤 Subiendo imagen: {file_name} desde {file_path}")
-        print(f"🪣 Bucket: {SUPABASE_BUCKET}")
-        
-        with open(file_path, 'rb') as f:
-            file_data = f.read()
-        
-        print(f"📦 Tamaño del archivo: {len(file_data)} bytes")
-        
         # URL de la API de Supabase Storage
-        upload_url = f"{SUPABASE_URL}/storage/v1/object/{SUPABASE_BUCKET}/{file_name}"
-        
-        print(f"🌐 URL de subida: {upload_url}")
+        upload_url = f"{settings.SUPABASE_URL}/storage/v1/object/{target_bucket}/{file_name}"
         
         # Headers para la petición
         headers = {
-            "Authorization": f"Bearer {SUPABASE_KEY}",
-            "Content-Type": "image/webp",
-            "x-upsert": "true"  # Sobrescribir si existe
+            "Authorization": f"Bearer {settings.SUPABASE_KEY}",
+            "Content-Type": content_type,
+            "x-upsert": "true"
         }
         
-        # Subir archivo usando POST
-        print(f"⬆️ Subiendo a Supabase via REST API...")
         response = requests.post(
             upload_url,
-            data=file_data,
+            data=file_content,
             headers=headers
         )
         
-        print(f"📊 Status code: {response.status_code}")
-        print(f"📄 Respuesta: {response.text[:500]}")
-        
         if response.status_code not in [200, 201]:
-            error_msg = f"Error HTTP {response.status_code}: {response.text}"
-            print(f"❌ {error_msg}")
-            return False, error_msg
+            return False, f"Error subiendo a Supabase: {response.text}"
         
         # Construir URL pública
-        public_url = f"{SUPABASE_URL}/storage/v1/object/public/{SUPABASE_BUCKET}/{file_name}"
-        
-        print(f"✅ Archivo subido exitosamente")
-        print(f"🔗 URL pública: {public_url}")
-        
-        # Verificar que el archivo existe
-        verify_response = requests.head(public_url)
-        print(f"🔍 Verificación (HEAD): {verify_response.status_code}")
-        
+        public_url = f"{settings.SUPABASE_URL}/storage/v1/object/public/{target_bucket}/{file_name}"
         return True, public_url
         
     except Exception as e:
-        print(f"❌ ERROR subiendo imagen: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ ERROR subiendo archivo: {str(e)}")
         return False, str(e)
 
-
-def delete_avatar(file_name: str) -> Tuple[bool, str]:
+def upload_avatar(file_path: str, file_name: str) -> Tuple[bool, str]:
     """
-    Elimina un avatar de Supabase Storage
-    
-    Args:
-        file_name: Nombre del archivo a eliminar
-        
-    Returns:
-        Tuple[bool, str]: (éxito, mensaje)
+    Sube un avatar desde path local (Legacy wrapper)
+    """
+    try:
+        with open(file_path, 'rb') as f:
+            file_data = f.read()
+        return upload_file_bytes(file_data, file_name, "image/webp", bucket="avatars") # Forzar bucket avatars para legacy path
+    except Exception as e:
+        return False, str(e)
+
+def delete_file(file_name: str, bucket: str = None) -> Tuple[bool, str]:
+    """
+    Elimina un archivo de Supabase Storage
     """
     if not supabase:
         return False, "Supabase no está configurado"
     
+    target_bucket = bucket or settings.SUPABASE_BUCKET
     try:
-        supabase.storage.from_(SUPABASE_BUCKET).remove([file_name])
+        supabase.storage.from_(target_bucket).remove([file_name])
         return True, "Archivo eliminado correctamente"
-        
     except Exception as e:
         return False, str(e)
 
+# Alias para compatibilidad
+delete_avatar = delete_file
 
 def get_file_name_from_url(url: str) -> Optional[str]:
     """
     Extrae la ruta del archivo de una URL de Supabase
-    
-    Args:
-        url: URL completa del archivo
-        
-    Returns:
-        Ruta del archivo (ej: "usuario_id/avatar.webp") o None
     """
-    if not url:
-        return None
-    
+    if not url: return None
     try:
-        # URL format: https://project.supabase.co/storage/v1/object/public/bucket/path/to/file
-        # Necesitamos extraer todo después del nombre del bucket
         parts = url.split('/')
-        
-        # Buscar el índice del bucket en la URL
         if 'public' in parts:
             public_idx = parts.index('public')
-            # Todo después de 'public/bucket_name/' es la ruta del archivo
             if len(parts) > public_idx + 2:
-                # Unir todas las partes después del bucket
-                file_path = '/'.join(parts[public_idx + 2:])
-                return file_path
-        
+                return '/'.join(parts[public_idx + 2:])
         return None
     except:
         return None
+
