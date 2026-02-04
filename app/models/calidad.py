@@ -97,6 +97,7 @@ class AccionCorrectiva(BaseModel):
     responsable = relationship("Usuario", back_populates="acciones_correctivas", foreign_keys=[responsable_id])
     implementador = relationship("Usuario", back_populates="acciones_implementadas", foreign_keys=[implementado_por])
     verificador = relationship("Usuario", back_populates="acciones_verificadas", foreign_keys=[verificado_por])
+    comentarios = relationship("AccionCorrectivaComentario", back_populates="accion_correctiva", cascade="all, delete-orphan")
     
     def __repr__(self):
         return f"<AccionCorrectiva(codigo={self.codigo}, estado={self.estado})>"
@@ -146,3 +147,19 @@ class SeguimientoObjetivo(BaseModel):
     # Nota: solo tiene creado_en
     def __repr__(self):
         return f"<SeguimientoObjetivo(objetivo_id={self.objetivo_calidad_id}, fecha={self.fecha_seguimiento})>"
+
+
+class AccionCorrectivaComentario(BaseModel):
+    """Modelo de comentarios para acciones correctivas"""
+    __tablename__ = "acciones_correctivas_comentarios"
+    
+    accion_correctiva_id = Column(UUID(as_uuid=True), ForeignKey("acciones_correctivas.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False)
+    usuario_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False)
+    comentario = Column(Text, nullable=False)
+    
+    # Relaciones
+    accion_correctiva = relationship("AccionCorrectiva", back_populates="comentarios")
+    usuario = relationship("Usuario")
+    
+    def __repr__(self):
+        return f"<AccionCorrectivaComentario(id={self.id}, accion_id={self.accion_correctiva_id})>"

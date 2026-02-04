@@ -165,6 +165,22 @@ class AccionCorrectivaUpdate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class AccionCorrectivaComentarioBase(BaseModel):
+    comentario: str = Field(..., min_length=1)
+
+class AccionCorrectivaComentarioCreate(AccionCorrectivaComentarioBase):
+    pass
+
+class AccionCorrectivaComentarioResponse(AccionCorrectivaComentarioBase):
+    id: UUID
+    accion_correctiva_id: UUID
+    usuario_id: UUID
+    usuario: Optional[UsuarioNested] = None
+    creadoEn: datetime = Field(..., validation_alias="creado_en")
+    
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
 class AccionCorrectivaResponse(AccionCorrectivaBase):
     id: UUID
     creadoEn: datetime = Field(..., validation_alias="creado_en")
@@ -174,6 +190,9 @@ class AccionCorrectivaResponse(AccionCorrectivaBase):
     responsable: Optional[UsuarioNested] = None
     implementador: Optional[UsuarioNested] = None
     verificador: Optional[UsuarioNested] = None
+    
+    # Comentarios
+    comentarios: Optional[list[AccionCorrectivaComentarioResponse]] = []
     
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 

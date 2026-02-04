@@ -7,7 +7,7 @@ from typing import List
 from uuid import UUID
 
 from ..database import get_db
-from ..models.calidad import Indicador, NoConformidad, AccionCorrectiva, ObjetivoCalidad, SeguimientoObjetivo
+from ..models.calidad import Indicador, NoConformidad, AccionCorrectiva, ObjetivoCalidad, SeguimientoObjetivo, AccionCorrectivaComentario
 from ..schemas.calidad import (
     IndicadorCreate,
     IndicadorUpdate,
@@ -21,6 +21,8 @@ from ..schemas.calidad import (
     AccionCorrectivaEstadoUpdate,
     AccionCorrectivaVerificacion,
     AccionCorrectivaImplementacion,
+    AccionCorrectivaComentarioCreate,
+    AccionCorrectivaComentarioResponse,
     ObjetivoCalidadCreate,
     ObjetivoCalidadUpdate,
 
@@ -277,7 +279,8 @@ def listar_acciones_correctivas(
     query = db.query(AccionCorrectiva).options(
         joinedload(AccionCorrectiva.responsable),
         joinedload(AccionCorrectiva.implementador),
-        joinedload(AccionCorrectiva.verificador)
+        joinedload(AccionCorrectiva.verificador),
+        joinedload(AccionCorrectiva.comentarios).joinedload(AccionCorrectivaComentario.usuario)
     )
     
     if no_conformidad_id:
@@ -321,7 +324,8 @@ def obtener_accion_correctiva(
     accion = db.query(AccionCorrectiva).options(
         joinedload(AccionCorrectiva.responsable),
         joinedload(AccionCorrectiva.implementador),
-        joinedload(AccionCorrectiva.verificador)
+        joinedload(AccionCorrectiva.verificador),
+        joinedload(AccionCorrectiva.comentarios).joinedload(AccionCorrectivaComentario.usuario)
     ).filter(AccionCorrectiva.id == accion_id).first()
     if not accion:
         raise HTTPException(
@@ -418,7 +422,8 @@ def implementar_accion_correctiva(
     accion = db.query(AccionCorrectiva).options(
         joinedload(AccionCorrectiva.responsable),
         joinedload(AccionCorrectiva.implementador),
-        joinedload(AccionCorrectiva.verificador)
+        joinedload(AccionCorrectiva.verificador),
+        joinedload(AccionCorrectiva.comentarios).joinedload(AccionCorrectivaComentario.usuario)
     ).filter(AccionCorrectiva.id == accion_id).first()
     
     return accion
@@ -468,10 +473,44 @@ def verificar_accion_correctiva(
     accion = db.query(AccionCorrectiva).options(
         joinedload(AccionCorrectiva.responsable),
         joinedload(AccionCorrectiva.implementador),
-        joinedload(AccionCorrectiva.verificador)
+        joinedload(AccionCorrectiva.verificador),
+        joinedload(AccionCorrectiva.comentarios).joinedload(AccionCorrectivaComentario.usuario)
     ).filter(AccionCorrectiva.id == accion_id).first()
     
     return accion
+
+
+@router.post("/acciones-correctivas/{accion_id}/comentarios", response_model=AccionCorrectivaComentarioResponse)
+def crear_comentario_accion(
+    accion_id: UUID,
+    comentario: AccionCorrectivaComentarioCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Agregar un comentario a una acción correctiva"""
+    # Verificar que la acción existe
+    accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.id == accion_id).first()
+    if not accion:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Acción correctiva no encontrada"
+        )
+    
+    nuevo_comentario = AccionCorrectivaComentario(
+        accion_correctiva_id=accion_id,
+        usuario_id=current_user.id,
+        comentario=comentario.comentario
+    )
+    
+    db.add(nuevo_comentario)
+    db.commit()
+    db.refresh(nuevo_comentario)
+    
+    comentario_completo = db.query(AccionCorrectivaComentario).options(
+        joinedload(AccionCorrectivaComentario.usuario)
+    ).filter(AccionCorrectivaComentario.id == nuevo_comentario.id).first()
+    
+    return comentario_completo
 
 
 # ================================
