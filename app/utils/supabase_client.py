@@ -4,7 +4,7 @@ Cliente de Supabase para gestión de archivos
 import os
 from typing import Optional, Tuple
 from supabase import create_client, Client
-from ..core.config import settings
+from ..config import settings
 
 # Inicializar cliente
 supabase: Optional[Client] = None

@@ -3,7 +3,7 @@ from typing import Optional
 import uuid
 import mimetypes
 from ..utils.supabase_client import upload_file_bytes
-from ..dependencies import get_current_user
+from .dependencies import get_current_user
 from ..models.usuario import Usuario
 
 router = APIRouter(
