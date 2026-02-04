@@ -480,16 +480,23 @@ def verificar_accion_correctiva(
     return accion
 
 
+from ..services.email import email_service
+
 @router.post("/acciones-correctivas/{accion_id}/comentarios", response_model=AccionCorrectivaComentarioResponse)
-def crear_comentario_accion(
+async def crear_comentario_accion(
     accion_id: UUID,
     comentario: AccionCorrectivaComentarioCreate,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Agregar un comentario a una acción correctiva"""
-    # Verificar que la acción existe
-    accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.id == accion_id).first()
+    # Verificar que la acción existe con sus responsables cargados
+    accion = db.query(AccionCorrectiva).options(
+        joinedload(AccionCorrectiva.responsable),
+        joinedload(AccionCorrectiva.implementador),
+        joinedload(AccionCorrectiva.verificador)
+    ).filter(AccionCorrectiva.id == accion_id).first()
+    
     if not accion:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -506,6 +513,15 @@ def crear_comentario_accion(
     db.commit()
     db.refresh(nuevo_comentario)
     
+    # Notificar a los involucrados (background task idealmente, pero await aquí por simplicidad del stub)
+    involucrados = []
+    if accion.responsable: involucrados.append(accion.responsable)
+    if accion.implementador: involucrados.append(accion.implementador)
+    if accion.verificador: involucrados.append(accion.verificador)
+    
+    # Filtrar duplicados se hace en el servicio
+    await email_service.notificar_nuevo_comentario(accion, current_user, comentario.comentario, involucrados)
+
     comentario_completo = db.query(AccionCorrectivaComentario).options(
         joinedload(AccionCorrectivaComentario.usuario)
     ).filter(AccionCorrectivaComentario.id == nuevo_comentario.id).first()
