@@ -58,6 +58,7 @@ class Usuario(BaseModel):
     no_conformidades_detectadas = relationship("NoConformidad", back_populates="detector", foreign_keys="[NoConformidad.detectado_por]")
     no_conformidades_responsable = relationship("NoConformidad", back_populates="responsable", foreign_keys="[NoConformidad.responsable_id]")
     acciones_correctivas = relationship("AccionCorrectiva", back_populates="responsable", foreign_keys="[AccionCorrectiva.responsable_id]")
+    acciones_implementadas = relationship("AccionCorrectiva", back_populates="implementador", foreign_keys="[AccionCorrectiva.implementado_por]")
     acciones_verificadas = relationship("AccionCorrectiva", back_populates="verificador", foreign_keys="[AccionCorrectiva.verificado_por]")
     auditorias_lider = relationship("Auditoria", back_populates="auditor_lider", foreign_keys="[Auditoria.auditor_lider_id]")
     auditorias_creadas = relationship("Auditoria", back_populates="creador", foreign_keys="[Auditoria.creado_por]")

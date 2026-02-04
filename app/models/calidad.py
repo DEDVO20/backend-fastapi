@@ -84,15 +84,18 @@ class AccionCorrectiva(BaseModel):
     responsable_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     fecha_compromiso = Column(Date, nullable=True)
     fecha_implementacion = Column(Date, nullable=True)
+    implementado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     estado = Column(String(50), nullable=True)
     eficacia_verificada = Column(Integer, nullable=True)
     verificado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     fecha_verificacion = Column(Date, nullable=True)
     observacion = Column(Text, nullable=True)
+    evidencias = Column(Text, nullable=True)  # JSON string con URLs o descripciones de evidencias
     
     # Relaciones
     no_conformidad = relationship("NoConformidad", back_populates="acciones_correctivas")
     responsable = relationship("Usuario", back_populates="acciones_correctivas", foreign_keys=[responsable_id])
+    implementador = relationship("Usuario", back_populates="acciones_implementadas", foreign_keys=[implementado_por])
     verificador = relationship("Usuario", back_populates="acciones_verificadas", foreign_keys=[verificado_por])
     
     def __repr__(self):

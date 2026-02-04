@@ -87,22 +87,38 @@ class NoConformidadResponse(NoConformidadBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+# Schema para usuarios anidados
+class UsuarioNested(BaseModel):
+    """Schema para mostrar información básica de usuarios en relaciones"""
+    id: UUID
+    nombre: str
+    primerApellido: Optional[str] = Field(None, validation_alias="primer_apellido")
+    segundoApellido: Optional[str] = Field(None, validation_alias="segundo_apellido")
+    correoElectronico: Optional[str] = Field(None, validation_alias="correo_electronico")
+    
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
 # AccionCorrectiva Schemas
 class AccionCorrectivaBase(BaseModel):
-    no_conformidad_id: UUID
+    no_conformidad_id: UUID = Field(..., validation_alias="noConformidadId")
     codigo: str = Field(..., max_length=50)
     tipo: Optional[str] = Field(None, max_length=50)
     descripcion: Optional[str] = None
-    analisis_causa_raiz: Optional[str] = None
-    plan_accion: Optional[str] = None
-    responsable_id: Optional[UUID] = None
-    fecha_compromiso: Optional[date] = None
-    fecha_implementacion: Optional[date] = None
+    analisis_causa_raiz: Optional[str] = Field(None, validation_alias="analisisCausaRaiz")
+    plan_accion: Optional[str] = Field(None, validation_alias="planAccion")
+    responsable_id: Optional[UUID] = Field(None, validation_alias="responsableId")
+    fecha_compromiso: Optional[date] = Field(None, validation_alias="fechaCompromiso")
+    fecha_implementacion: Optional[date] = Field(None, validation_alias="fechaImplementacion")
+    implementado_por: Optional[UUID] = Field(None, validation_alias="implementadoPor")
     estado: Optional[str] = Field(None, max_length=50)
-    eficacia_verificada: Optional[bool] = None
-    verificado_por: Optional[UUID] = None
-    fecha_verificacion: Optional[date] = None
+    eficacia_verificada: Optional[int] = Field(None, validation_alias="eficaciaVerificada")
+    verificado_por: Optional[UUID] = Field(None, validation_alias="verificadoPor")
+    fecha_verificacion: Optional[date] = Field(None, validation_alias="fechaVerificacion")
     observacion: Optional[str] = None
+    evidencias: Optional[str] = None  # JSON string con URLs o descripciones
+    
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class AccionCorrectivaEstadoUpdate(BaseModel):
@@ -111,6 +127,19 @@ class AccionCorrectivaEstadoUpdate(BaseModel):
 
 class AccionCorrectivaVerificacion(BaseModel):
     observaciones: Optional[str] = None
+    eficacia_verificada: Optional[int] = Field(None, validation_alias="eficaciaVerificada")
+    
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class AccionCorrectivaImplementacion(BaseModel):
+    """Schema para implementar una acción correctiva"""
+    fechaImplementacion: Optional[date] = Field(None, validation_alias="fecha_implementacion")
+    observacion: Optional[str] = None
+    evidencias: Optional[str] = None
+    estado: Optional[str] = None
+    
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class AccionCorrectivaCreate(AccionCorrectivaBase):
@@ -120,24 +149,33 @@ class AccionCorrectivaCreate(AccionCorrectivaBase):
 class AccionCorrectivaUpdate(BaseModel):
     tipo: Optional[str] = Field(None, max_length=50)
     descripcion: Optional[str] = None
-    analisis_causa_raiz: Optional[str] = None
-    plan_accion: Optional[str] = None
-    responsable_id: Optional[UUID] = None
-    fecha_compromiso: Optional[date] = None
-    fecha_implementacion: Optional[date] = None
+    analisis_causa_raiz: Optional[str] = Field(None, validation_alias="analisisCausaRaiz")
+    plan_accion: Optional[str] = Field(None, validation_alias="planAccion")
+    responsable_id: Optional[UUID] = Field(None, validation_alias="responsableId")
+    fecha_compromiso: Optional[date] = Field(None, validation_alias="fechaCompromiso")
+    fecha_implementacion: Optional[date] = Field(None, validation_alias="fechaImplementacion")
+    implementado_por: Optional[UUID] = Field(None, validation_alias="implementadoPor")
     estado: Optional[str] = Field(None, max_length=50)
-    eficacia_verificada: Optional[bool] = None
-    verificado_por: Optional[UUID] = None
-    fecha_verificacion: Optional[date] = None
+    eficacia_verificada: Optional[int] = Field(None, validation_alias="eficaciaVerificada")
+    verificado_por: Optional[UUID] = Field(None, validation_alias="verificadoPor")
+    fecha_verificacion: Optional[date] = Field(None, validation_alias="fechaVerificacion")
     observacion: Optional[str] = None
+    evidencias: Optional[str] = None
+    
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class AccionCorrectivaResponse(AccionCorrectivaBase):
     id: UUID
-    creado_en: datetime
-    actualizado_en: datetime
+    creadoEn: datetime = Field(..., validation_alias="creado_en")
+    actualizadoEn: datetime = Field(..., validation_alias="actualizado_en")
     
-    model_config = ConfigDict(from_attributes=True)
+    # Relaciones con usuarios
+    responsable: Optional[UsuarioNested] = None
+    implementador: Optional[UsuarioNested] = None
+    verificador: Optional[UsuarioNested] = None
+    
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 # ObjetivoCalidad Schemas

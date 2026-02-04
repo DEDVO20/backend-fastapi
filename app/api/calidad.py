@@ -2,7 +2,7 @@
 Endpoints CRUD para gestión de calidad
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 from uuid import UUID
 
@@ -20,6 +20,7 @@ from ..schemas.calidad import (
     AccionCorrectivaResponse,
     AccionCorrectivaEstadoUpdate,
     AccionCorrectivaVerificacion,
+    AccionCorrectivaImplementacion,
     ObjetivoCalidadCreate,
     ObjetivoCalidadUpdate,
 
@@ -273,7 +274,11 @@ def listar_acciones_correctivas(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Listar acciones correctivas"""
-    query = db.query(AccionCorrectiva)
+    query = db.query(AccionCorrectiva).options(
+        joinedload(AccionCorrectiva.responsable),
+        joinedload(AccionCorrectiva.implementador),
+        joinedload(AccionCorrectiva.verificador)
+    )
     
     if no_conformidad_id:
         query = query.filter(AccionCorrectiva.no_conformidad_id == no_conformidad_id)
@@ -313,7 +318,11 @@ def obtener_accion_correctiva(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtener una acción correctiva por ID"""
-    accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.id == accion_id).first()
+    accion = db.query(AccionCorrectiva).options(
+        joinedload(AccionCorrectiva.responsable),
+        joinedload(AccionCorrectiva.implementador),
+        joinedload(AccionCorrectiva.verificador)
+    ).filter(AccionCorrectiva.id == accion_id).first()
     if not accion:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -367,6 +376,54 @@ def cambiar_estado_accion_correctiva(
     return accion
 
 
+@router.patch("/acciones-correctivas/{accion_id}/implementar", response_model=AccionCorrectivaResponse)
+def implementar_accion_correctiva(
+    accion_id: UUID,
+    implementacion: AccionCorrectivaImplementacion,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Implementar una acción correctiva"""
+    accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.id == accion_id).first()
+    if not accion:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Acción correctiva no encontrada"
+        )
+    
+    from datetime import date
+    # Asignar quien implementó la acción
+    accion.implementado_por = current_user.id
+    
+    # Si no se proporciona fecha de implementación, usar la fecha actual
+    if implementacion.fechaImplementacion:
+        accion.fecha_implementacion = implementacion.fechaImplementacion
+    else:
+        accion.fecha_implementacion = date.today()
+    
+    # Actualizar otros campos si se proporcionan
+    if implementacion.observacion:
+        accion.observacion = implementacion.observacion
+    if implementacion.evidencias:
+        accion.evidencias = implementacion.evidencias
+    if implementacion.estado:
+        accion.estado = implementacion.estado
+    else:
+        accion.estado = "implementada"
+    
+    db.commit()
+    db.refresh(accion)
+    
+    # Cargar relaciones para la respuesta
+    accion = db.query(AccionCorrectiva).options(
+        joinedload(AccionCorrectiva.responsable),
+        joinedload(AccionCorrectiva.implementador),
+        joinedload(AccionCorrectiva.verificador)
+    ).filter(AccionCorrectiva.id == accion_id).first()
+    
+    return accion
+
+
 @router.patch("/acciones-correctivas/{accion_id}/verificar", response_model=AccionCorrectivaResponse)
 def verificar_accion_correctiva(
     accion_id: UUID,
@@ -394,13 +451,26 @@ def verificar_accion_correctiva(
     
     from datetime import date
     accion.fecha_verificacion = date.today()
+    accion.verificado_por = current_user.id  # Asignar quien verificó
+    
     if verificacion.observaciones:
         accion.observacion = verificacion.observaciones
+    if verificacion.eficacia_verificada is not None:
+        accion.eficacia_verificada = verificacion.eficacia_verificada
     
-    # Logic for closure or state change could go here
+    # Cambiar estado a verificada
+    accion.estado = "verificada"
     
     db.commit()
     db.refresh(accion)
+    
+    # Cargar relaciones para la respuesta
+    accion = db.query(AccionCorrectiva).options(
+        joinedload(AccionCorrectiva.responsable),
+        joinedload(AccionCorrectiva.implementador),
+        joinedload(AccionCorrectiva.verificador)
+    ).filter(AccionCorrectiva.id == accion_id).first()
+    
     return accion
 
 
