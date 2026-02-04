@@ -12,11 +12,11 @@ class UsuarioNested(BaseModel):
     """Schema anidado para información básica de usuario"""
     id: UUID
     nombre: str
-    primerApellido: Optional[str] = None
-    segundoApellido: Optional[str] = None
-    correoElectronico: Optional[str] = None
+    primerApellido: Optional[str] = Field(None, validation_alias="primer_apellido")
+    segundoApellido: Optional[str] = Field(None, validation_alias="segundo_apellido")
+    correoElectronico: Optional[str] = Field(None, validation_alias="correo_electronico")
     
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 # Documento Schemas
