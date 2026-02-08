@@ -1,7 +1,7 @@
 """
 Endpoints CRUD para gestión de calidad
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session, joinedload
 from typing import List
 from uuid import UUID
@@ -527,6 +527,46 @@ async def crear_comentario_accion(
     ).filter(AccionCorrectivaComentario.id == nuevo_comentario.id).first()
     
     return comentario_completo
+
+
+@router.patch("/acciones-correctivas/{accion_id}/estado", response_model=AccionCorrectivaResponse)
+def actualizar_estado_accion(
+    accion_id: UUID,
+    estado: str = Body(..., embed=True),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Actualizar manualmente el estado de una acción correctiva (ej. cerrar)"""
+    # Verificar permisos (se podría refinar, por ahora cualquiera con acceso al modulo)
+    
+    accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.id == accion_id).first()
+    if not accion:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Acción correctiva no encontrada"
+        )
+    
+    # Validar transiciones permitidas
+    if estado == "cerrada" and accion.estado != "verificada":
+         raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Solo se pueden cerrar acciones verificadas"
+        )
+        
+    accion.estado = estado
+    
+    db.commit()
+    db.refresh(accion)
+    
+    # Cargar relaciones
+    accion = db.query(AccionCorrectiva).options(
+        joinedload(AccionCorrectiva.responsable),
+        joinedload(AccionCorrectiva.implementador),
+        joinedload(AccionCorrectiva.verificador),
+        joinedload(AccionCorrectiva.comentarios).joinedload(AccionCorrectivaComentario.usuario)
+    ).filter(AccionCorrectiva.id == accion_id).first()
+
+    return accion
 
 
 # ================================
