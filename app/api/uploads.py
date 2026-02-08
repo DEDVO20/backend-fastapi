@@ -58,3 +58,42 @@ async def upload_evidencia(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/logo", response_model=dict)
+async def upload_logo(
+    file: UploadFile = File(...),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """
+    Sube el logo del sistema (solo admin).
+    """
+    # Verificar si es admin
+    permisos = [p.permiso.nombre for rol in current_user.roles for p in rol.rol.permisos]
+    if "sistema.admin" not in permisos:
+        raise HTTPException(status_code=403, detail="No tienes permisos para realizar esta acción")
+
+    # Validar que sea imagen
+    if not file.content_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="El archivo debe ser una imagen")
+
+    try:
+        content = await file.read()
+        
+        # Nombre fijo o dinámico? Mejor único para evitar cache agresivo
+        file_ext = mimetypes.guess_extension(file.content_type) or ""
+        if not file_ext and file.filename:
+            file_ext = "." + file.filename.split(".")[-1]
+            
+        filename = f"system/logo_{uuid.uuid4()}{file_ext}"
+        
+        # Subir al bucket "imagenes"
+        success, result = upload_file_bytes(content, filename, file.content_type, bucket="imagenes")
+        
+        if not success:
+            raise HTTPException(status_code=500, detail=f"Error subiendo logo: {result}")
+            
+        return {"url": result}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
