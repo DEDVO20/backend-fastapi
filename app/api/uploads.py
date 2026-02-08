@@ -68,16 +68,21 @@ async def upload_logo(
     """
     Sube el logo del sistema (solo admin).
     """
-    # Verificar si es admin o tiene permisos de configuración
+    # Verificar permisos de administrador
     permisos = [p.permiso.nombre for rol in current_user.roles for p in rol.rol.permisos]
-    print(f"DEBUG - Usuario: {current_user.correo_electronico}")
-    print(f"DEBUG - Permisos del usuario: {permisos}")
     
-    permisos_permitidos = ["sistema.admin", "sistema.config"]
+    # Lista de permisos que permiten subir el logo del sistema
+    permisos_permitidos = [
+        "sistema.admin",           # Administrador del sistema
+        "sistema.configurar",      # Configuración del sistema
+        "sistema.config",          # Alias de configuración
+    ]
     
-    # Temporalmente permitir a todos los usuarios autenticados (REMOVER EN PRODUCCIÓN)
-    # if not any(permiso in permisos for permiso in permisos_permitidos):
-    #     raise HTTPException(status_code=403, detail="No tienes permisos para realizar esta acción")
+    if not any(permiso in permisos for permiso in permisos_permitidos):
+        raise HTTPException(
+            status_code=403, 
+            detail=f"No tienes permisos para realizar esta acción. Permisos requeridos: {', '.join(permisos_permitidos)}"
+        )
 
     # Validar que sea imagen
     if not file.content_type.startswith("image/"):
