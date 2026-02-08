@@ -55,15 +55,22 @@ def marcar_como_leida(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Marcar una notificación como leída"""
+    # Primero verificar si la notificación existe
     notificacion = db.query(Notificacion).filter(
-        Notificacion.id == notificacion_id,
-        Notificacion.usuario_id == current_user.id
+        Notificacion.id == notificacion_id
     ).first()
     
     if not notificacion:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Notificación no encontrada"
+            detail=f"Notificación {notificacion_id} no encontrada"
+        )
+    
+    # Verificar que pertenece al usuario actual
+    if notificacion.usuario_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para marcar esta notificación"
         )
     
     notificacion.leida = True
