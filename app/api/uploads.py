@@ -7,7 +7,7 @@ from .dependencies import get_current_user
 from ..models.usuario import Usuario
 
 router = APIRouter(
-    prefix="/api/uploads",
+    prefix="/api/v1/uploads",
     tags=["Uploads"],
     responses={404: {"description": "Not found"}},
 )
