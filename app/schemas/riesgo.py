@@ -3,7 +3,7 @@ Schemas Pydantic para riesgos
 """
 from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 from uuid import UUID
 
 
@@ -21,6 +21,9 @@ class RiesgoBase(BaseModel):
     consecuencias: Optional[str] = None
     responsable_id: Optional[UUID] = None
     estado: str = Field(default='activo', max_length=50)
+    fecha_identificacion: Optional[date] = None
+    fecha_revision: Optional[date] = None
+    tratamiento: Optional[str] = None
 
 
 class RiesgoCreate(RiesgoBase):
@@ -38,6 +41,9 @@ class RiesgoUpdate(BaseModel):
     consecuencias: Optional[str] = None
     responsable_id: Optional[UUID] = None
     estado: Optional[str] = Field(None, max_length=50)
+    fecha_identificacion: Optional[date] = None
+    fecha_revision: Optional[date] = None
+    tratamiento: Optional[str] = None
 
 
 class RiesgoResponse(RiesgoBase):

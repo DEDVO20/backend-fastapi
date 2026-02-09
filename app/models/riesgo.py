@@ -1,7 +1,7 @@
 """
 Modelos de gestión de riesgos y controles
 """
-from sqlalchemy import Column, String, Text, Integer, Boolean, ForeignKey, Index
+from sqlalchemy import Column, String, Text, Integer, Boolean, ForeignKey, Index, Date
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from .base import BaseModel
@@ -23,6 +23,9 @@ class Riesgo(BaseModel):
     consecuencias = Column(Text, nullable=True)
     responsable_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     estado = Column(String(50), nullable=False, default='activo')
+    fecha_identificacion = Column(Date, nullable=True)  # Fecha en que se identificó el riesgo
+    fecha_revision = Column(Date, nullable=True)  # Fecha de última revisión del riesgo
+    tratamiento = Column(Text, nullable=True)  # Plan de tratamiento/mitigación del riesgo
     
     # Relaciones
     proceso = relationship("Proceso", back_populates="riesgos")
