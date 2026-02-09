@@ -27,6 +27,13 @@ class Proceso(BaseModel):
     fecha_aprobacion = Column(Date, nullable=True)
     proxima_revision = Column(Date, nullable=True)
     
+    # Campos adicionales ISO 9001:2015
+    entradas = Column(Text, nullable=True)  # Entradas del proceso
+    salidas = Column(Text, nullable=True)  # Salidas/productos del proceso
+    recursos_necesarios = Column(Text, nullable=True)  # Recursos requeridos
+    criterios_desempeno = Column(Text, nullable=True)  # Criterios y métodos de medición
+    riesgos_oportunidades = Column(Text, nullable=True)  # Riesgos y oportunidades
+    
     # Relaciones
     area = relationship("Area", back_populates="procesos")
     creador = relationship("Usuario", back_populates="procesos_creados", foreign_keys=[creado_por])
@@ -63,6 +70,10 @@ class EtapaProceso(BaseModel):
     responsable_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     tiempo_estimado = Column(Integer, nullable=True)  # En minutos u horas
     activa = Column(Boolean, nullable=False, default=True)
+    
+    # Campos adicionales ISO 9001
+    criterios_aceptacion = Column(Text, nullable=True)  # Criterios para completar la etapa
+    documentos_requeridos = Column(Text, nullable=True)  # Documentos necesarios
     
     # Relaciones
     proceso = relationship("Proceso", back_populates="etapas")
