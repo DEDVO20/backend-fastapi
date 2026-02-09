@@ -1,7 +1,7 @@
 """add_iso9001_fields_to_procesos
 
 Revision ID: add_iso9001_fields
-Revises: 
+Revises: 960576ac6530
 Create Date: 2026-02-09
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_iso9001_fields'
-down_revision = None
+down_revision = '960576ac6530'
 branch_labels = None
 depends_on = None
 
