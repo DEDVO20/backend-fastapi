@@ -20,9 +20,15 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    pass
+    # Add fecha_identificacion, fecha_revision, and tratamiento columns to riesgos table
+    op.add_column('riesgos', sa.Column('fecha_identificacion', sa.Date(), nullable=True))
+    op.add_column('riesgos', sa.Column('fecha_revision', sa.Date(), nullable=True))
+    op.add_column('riesgos', sa.Column('tratamiento', sa.Text(), nullable=True))
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    pass
+    # Remove the columns
+    op.drop_column('riesgos', 'tratamiento')
+    op.drop_column('riesgos', 'fecha_revision')
+    op.drop_column('riesgos', 'fecha_identificacion')
