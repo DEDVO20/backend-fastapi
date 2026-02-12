@@ -32,7 +32,14 @@ def listar_notificaciones(
             query = query.filter(Notificacion.leida == False)
         
         notificaciones = query.order_by(Notificacion.creado_en.desc()).offset(skip).limit(limit).all()
-        return notificaciones
+        
+        # Verificación adicional de seguridad
+        notificaciones_filtradas = [n for n in notificaciones if str(n.usuario_id) == str(current_user.id)]
+        
+        if len(notificaciones) != len(notificaciones_filtradas):
+            print(f"WARN: Se filtraron {len(notificaciones) - len(notificaciones_filtradas)} notificaciones que no pertenecían al usuario {current_user.id}")
+        
+        return notificaciones_filtradas
     except Exception as e:
         print(f"ERROR al listar notificaciones para usuario {current_user.id}: {str(e)}")
         # Retornar lista vacía en lugar de fallar
@@ -65,30 +72,42 @@ def marcar_como_leida(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Marcar una notificación como leída"""
-    # Primero verificar si la notificación existe
-    notificacion = db.query(Notificacion).filter(
-        Notificacion.id == notificacion_id
-    ).first()
-    
-    if not notificacion:
+    try:
+        # Primero verificar si la notificación existe
+        notificacion = db.query(Notificacion).filter(
+            Notificacion.id == notificacion_id
+        ).first()
+        
+        if not notificacion:
+            print(f"WARN: Notificación {notificacion_id} no encontrada")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Notificación {notificacion_id} no encontrada"
+            )
+        
+        # Verificar que pertenece al usuario actual
+        if str(notificacion.usuario_id) != str(current_user.id):
+            print(f"WARN: Usuario {current_user.id} intentó marcar notificación {notificacion_id} que pertenece a {notificacion.usuario_id}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permiso para marcar esta notificación"
+            )
+        
+        notificacion.leida = True
+        notificacion.fecha_lectura = datetime.now()
+        db.commit()
+        db.refresh(notificacion)
+        
+        return notificacion
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"ERROR al marcar notificación {notificacion_id} como leída: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Notificación {notificacion_id} no encontrada"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al marcar la notificación como leída"
         )
-    
-    # Verificar que pertenece al usuario actual
-    if notificacion.usuario_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permiso para marcar esta notificación"
-        )
-    
-    notificacion.leida = True
-    notificacion.fecha_lectura = datetime.now()
-    db.commit()
-    db.refresh(notificacion)
-    
-    return notificacion
 
 
 @router.put("/marcar-todas-leidas", response_model=dict)

@@ -127,7 +127,7 @@ def eliminar_area(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    """Eliminar un área"""
+    """Eliminar un área y sus relaciones"""
     area = db.query(Area).filter(Area.id == area_id).first()
     if not area:
         raise HTTPException(
@@ -135,9 +135,54 @@ def eliminar_area(
             detail="Área no encontrada"
         )
     
-    db.delete(area)
-    db.commit()
-    return None
+    try:
+        # Verificar si hay usuarios asignados a esta área
+        from ..models.usuario import Usuario
+        usuarios_count = db.query(Usuario).filter(Usuario.area_id == area_id).count()
+        if usuarios_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No se puede eliminar el área porque tiene {usuarios_count} usuario(s) asignado(s). Primero reasigne o elimine los usuarios."
+            )
+        
+        # Verificar si hay procesos asignados a esta área
+        from ..models.proceso import Proceso
+        procesos_count = db.query(Proceso).filter(Proceso.area_id == area_id).count()
+        if procesos_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No se puede eliminar el área porque tiene {procesos_count} proceso(s) asignado(s). Primero reasigne o elimine los procesos."
+            )
+        
+        # Verificar si hay objetivos de calidad asignados a esta área
+        from ..models.calidad import ObjetivoCalidad
+        objetivos_count = db.query(ObjetivoCalidad).filter(ObjetivoCalidad.area_id == area_id).count()
+        if objetivos_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No se puede eliminar el área porque tiene {objetivos_count} objetivo(s) de calidad asignado(s). Primero reasigne o elimine los objetivos."
+            )
+        
+        # Eliminar asignaciones del área
+        from ..models.sistema import Asignacion
+        db.query(Asignacion).filter(Asignacion.area_id == area_id).delete(synchronize_session=False)
+        db.flush()
+        
+        # Eliminar el área
+        db.delete(area)
+        db.commit()
+        return None
+        
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"ERROR al eliminar área {area_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al eliminar el área: {str(e)}"
+        )
 
 
 # ======================
