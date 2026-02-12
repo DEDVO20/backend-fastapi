@@ -136,7 +136,7 @@ def eliminar_documento(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    """Eliminar un documento"""
+    """Eliminar un documento y sus relaciones"""
     documento = db.query(Documento).filter(Documento.id == documento_id).first()
     if not documento:
         raise HTTPException(
@@ -144,9 +144,40 @@ def eliminar_documento(
             detail="Documento no encontrado"
         )
     
-    db.delete(documento)
-    db.commit()
-    return None
+    try:
+        # Eliminar versiones del documento
+        db.query(VersionDocumento).filter(
+            VersionDocumento.documento_id == documento_id
+        ).delete(synchronize_session=False)
+        
+        # Eliminar relaciones con procesos
+        db.query(DocumentoProceso).filter(
+            DocumentoProceso.documento_id == documento_id
+        ).delete(synchronize_session=False)
+        
+        # Eliminar notificaciones relacionadas
+        db.query(Notificacion).filter(
+            Notificacion.referencia_tipo == "documento",
+            Notificacion.referencia_id == documento_id
+        ).delete(synchronize_session=False)
+        
+        db.flush()
+        
+        # Eliminar el documento
+        db.delete(documento)
+        db.commit()
+        return None
+        
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"ERROR al eliminar documento {documento_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al eliminar el documento: {str(e)}"
+        )
 
 
 # ===============================
