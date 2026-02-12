@@ -229,7 +229,7 @@ def eliminar_rol(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    """Eliminar un rol"""
+    """Eliminar un rol y sus relaciones"""
     rol = db.query(Rol).filter(Rol.id == rol_id).first()
     if not rol:
         raise HTTPException(
@@ -237,9 +237,34 @@ def eliminar_rol(
             detail="Rol no encontrado"
         )
     
-    db.delete(rol)
-    db.commit()
-    return None
+    try:
+        # Verificar si hay usuarios asignados a este rol
+        usuarios_count = db.query(UsuarioRol).filter(UsuarioRol.rol_id == rol_id).count()
+        if usuarios_count > 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"No se puede eliminar el rol porque tiene {usuarios_count} usuario(s) asignado(s). Primero reasigne o elimine los usuarios."
+            )
+        
+        # Eliminar permisos asociados al rol
+        db.query(RolPermiso).filter(RolPermiso.rol_id == rol_id).delete(synchronize_session=False)
+        db.flush()
+        
+        # Eliminar el rol
+        db.delete(rol)
+        db.commit()
+        return None
+        
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        print(f"ERROR al eliminar rol {rol_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al eliminar el rol: {str(e)}"
+        )
 
 
 @router.get("/permisos", response_model=List[PermisoResponse])
