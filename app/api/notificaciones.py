@@ -25,13 +25,18 @@ def listar_notificaciones(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Listar notificaciones del usuario actual"""
-    query = db.query(Notificacion).filter(Notificacion.usuario_id == current_user.id)
-    
-    if solo_no_leidas:
-        query = query.filter(Notificacion.leida == False)
-    
-    notificaciones = query.order_by(Notificacion.creado_en.desc()).offset(skip).limit(limit).all()
-    return notificaciones
+    try:
+        query = db.query(Notificacion).filter(Notificacion.usuario_id == current_user.id)
+        
+        if solo_no_leidas:
+            query = query.filter(Notificacion.leida == False)
+        
+        notificaciones = query.order_by(Notificacion.creado_en.desc()).offset(skip).limit(limit).all()
+        return notificaciones
+    except Exception as e:
+        print(f"ERROR al listar notificaciones para usuario {current_user.id}: {str(e)}")
+        # Retornar lista vacía en lugar de fallar
+        return []
 
 
 @router.get("/no-leidas/count", response_model=dict)
@@ -40,12 +45,17 @@ def contar_no_leidas(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Contar notificaciones no leídas del usuario actual"""
-    count = db.query(Notificacion).filter(
-        Notificacion.usuario_id == current_user.id,
-        Notificacion.leida == False
-    ).count()
-    
-    return {"count": count}
+    try:
+        count = db.query(Notificacion).filter(
+            Notificacion.usuario_id == current_user.id,
+            Notificacion.leida == False
+        ).count()
+        
+        return {"count": count}
+    except Exception as e:
+        print(f"ERROR al contar notificaciones no leídas para usuario {current_user.id}: {str(e)}")
+        # Retornar 0 en lugar de fallar
+        return {"count": 0}
 
 
 @router.put("/{notificacion_id}/marcar-leida", response_model=NotificacionResponse)

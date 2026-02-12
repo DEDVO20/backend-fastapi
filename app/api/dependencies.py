@@ -37,34 +37,47 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
-    # Extraer token
-    token = credentials.credentials
-    
-    # Decodificar token
-    usuario_id = decode_access_token(token)
-    
-    if usuario_id is None:
-        raise credentials_exception
-    
-    # Buscar usuario en base de datos
-    # Pre-cargar relación con área, roles y permisos para el RBAC
-    from sqlalchemy.orm import joinedload
-    from ..models.usuario import UsuarioRol, Rol, RolPermiso
-    usuario = db.query(Usuario).options(
-        joinedload(Usuario.area),
-        joinedload(Usuario.roles).joinedload(UsuarioRol.rol).joinedload(Rol.permisos).joinedload(RolPermiso.permiso)
-    ).filter(Usuario.id == usuario_id).first()
-    
-    if usuario is None:
-        raise credentials_exception
-    
-    if not usuario.activo:
+    try:
+        # Extraer token
+        token = credentials.credentials
+        
+        # Decodificar token
+        usuario_id = decode_access_token(token)
+        
+        if usuario_id is None:
+            raise credentials_exception
+        
+        # Buscar usuario en base de datos
+        # Pre-cargar relación con área, roles y permisos para el RBAC
+        from sqlalchemy.orm import joinedload
+        from ..models.usuario import UsuarioRol, Rol, RolPermiso
+        
+        usuario = db.query(Usuario).options(
+            joinedload(Usuario.area),
+            joinedload(Usuario.roles).joinedload(UsuarioRol.rol).joinedload(Rol.permisos).joinedload(RolPermiso.permiso)
+        ).filter(Usuario.id == usuario_id).first()
+        
+        if usuario is None:
+            raise credentials_exception
+        
+        if not usuario.activo:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Usuario inactivo"
+            )
+        
+        return usuario
+        
+    except HTTPException:
+        # Re-lanzar excepciones HTTP
+        raise
+    except Exception as e:
+        # Capturar errores de base de datos u otros errores inesperados
+        print(f"ERROR en get_current_user: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Usuario inactivo"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al validar credenciales"
         )
-    
-    return usuario
 
 
 async def get_current_active_user(
