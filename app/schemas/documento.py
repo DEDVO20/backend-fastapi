@@ -1,7 +1,7 @@
 """
 Schemas Pydantic para documentos
 """
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
@@ -36,7 +36,12 @@ class DocumentoBase(BaseModel):
 
 
 class DocumentoCreate(DocumentoBase):
-    pass
+    @field_validator('creado_por', 'aprobado_por', 'revisado_por', mode='before')
+    @classmethod
+    def empty_string_to_none(cls, v):
+        if v == "":
+            return None
+        return v
 
 
 class DocumentoUpdate(BaseModel):
@@ -51,6 +56,13 @@ class DocumentoUpdate(BaseModel):
     fecha_vigencia: Optional[datetime] = None
     aprobado_por: Optional[UUID] = None
     revisado_por: Optional[UUID] = None
+
+    @field_validator('aprobado_por', 'revisado_por', mode='before')
+    @classmethod
+    def empty_string_to_none(cls, v):
+        if v == "":
+            return None
+        return v
 
 
 # VersionDocumento Schemas
