@@ -8,6 +8,9 @@ from uuid import UUID
 from decimal import Decimal
 
 
+from .proceso import ProcesoResponse
+from .usuario import UsuarioResponse # Or similar if needed. But UsuarioNested is defined inside.
+
 # Indicador Schemas
 class IndicadorBase(BaseModel):
     proceso_id: UUID
@@ -84,6 +87,11 @@ class NoConformidadResponse(NoConformidadBase):
     creado_en: datetime
     actualizado_en: datetime
     
+    # Nested objects
+    proceso: Optional[ProcesoResponse] = None
+    detector: Optional[UsuarioNested] = None
+    responsable: Optional[UsuarioNested] = None
+
     model_config = ConfigDict(from_attributes=True)
 
 
