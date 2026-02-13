@@ -40,10 +40,13 @@ def listar_documentos(
     limit: int = 100,
     estado: str = None,
     tipo_documento: str = None,
+    aprobado_por: UUID = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Listar todos los documentos"""
+    print(f"DEBUG: listar_documentos - filters: estado={estado}, aprobado_por={aprobado_por}")
+    
     query = db.query(Documento).options(
         joinedload(Documento.creador),
         joinedload(Documento.aprobador),
@@ -54,8 +57,11 @@ def listar_documentos(
         query = query.filter(Documento.estado == estado)
     if tipo_documento:
         query = query.filter(Documento.tipo_documento == tipo_documento)
+    if aprobado_por:
+        query = query.filter(Documento.aprobado_por == aprobado_por)
     
     documentos = query.offset(skip).limit(limit).all()
+    print(f"DEBUG: Found {len(documentos)} documents")
     return documentos
 
 
