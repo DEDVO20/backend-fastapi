@@ -12,6 +12,7 @@ class UsuarioNested(BaseModel):
     """Schema anidado para información básica de usuario"""
     id: UUID
     nombre: str
+    segundoNombre: Optional[str] = Field(None, validation_alias="segundo_nombre")
     primerApellido: Optional[str] = Field(None, validation_alias="primer_apellido")
     segundoApellido: Optional[str] = Field(None, validation_alias="segundo_apellido")
     correoElectronico: Optional[str] = Field(None, validation_alias="correo_electronico")
