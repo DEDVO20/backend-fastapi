@@ -71,6 +71,7 @@ class NoConformidadBase(BaseModel):
     estado: str = Field(default='abierta', max_length=50)
     analisis_causa: Optional[str] = None
     plan_accion: Optional[str] = None
+    evidencias: Optional[str] = None # JSON string
     fecha_cierre: Optional[datetime] = None
     responsable_id: Optional[UUID] = None
 
