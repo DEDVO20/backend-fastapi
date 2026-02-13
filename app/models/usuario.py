@@ -49,6 +49,7 @@ class Usuario(BaseModel):
     procesos_creados = relationship("Proceso", back_populates="creador", foreign_keys="[Proceso.creado_por]")
     procesos_responsable = relationship("Proceso", back_populates="responsable", foreign_keys="[Proceso.responsable_id]")
     documentos_creados = relationship("Documento", back_populates="creador", foreign_keys="[Documento.creado_por]")
+    documentos_revisados = relationship("Documento", back_populates="revisor", foreign_keys="[Documento.revisado_por]")
     documentos_aprobados = relationship("Documento", back_populates="aprobador", foreign_keys="[Documento.aprobado_por]")
     versiones_documentos = relationship("VersionDocumento", back_populates="creador")
     etapas_responsable = relationship("EtapaProceso", back_populates="responsable")

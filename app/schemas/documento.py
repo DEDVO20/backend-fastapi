@@ -32,6 +32,7 @@ class DocumentoBase(BaseModel):
     fecha_vigencia: Optional[datetime] = None
     creado_por: Optional[UUID] = None
     aprobado_por: Optional[UUID] = None
+    revisado_por: Optional[UUID] = None
 
 
 class DocumentoCreate(DocumentoBase):
@@ -49,6 +50,7 @@ class DocumentoUpdate(BaseModel):
     fecha_aprobacion: Optional[datetime] = None
     fecha_vigencia: Optional[datetime] = None
     aprobado_por: Optional[UUID] = None
+    revisado_por: Optional[UUID] = None
 
 
 # VersionDocumento Schemas
@@ -77,6 +79,7 @@ class DocumentoResponse(DocumentoBase):
     creado_en: datetime
     actualizado_en: datetime
     creador: Optional[UsuarioNested] = None
+    revisor: Optional[UsuarioNested] = None
     aprobador: Optional[UsuarioNested] = None
     versiones: Optional[list[VersionDocumentoResponse]] = []
     

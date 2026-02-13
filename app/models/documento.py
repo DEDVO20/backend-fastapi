@@ -21,10 +21,12 @@ class Documento(BaseModel):
     fecha_aprobacion = Column(DateTime(timezone=True), nullable=True)
     fecha_vigencia = Column(DateTime(timezone=True), nullable=True)
     creado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    revisado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     aprobado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     
     # Relaciones
     creador = relationship("Usuario", back_populates="documentos_creados", foreign_keys=[creado_por])
+    revisor = relationship("Usuario", back_populates="documentos_revisados", foreign_keys=[revisado_por])
     aprobador = relationship("Usuario", back_populates="documentos_aprobados", foreign_keys=[aprobado_por])
     versiones = relationship("VersionDocumento", back_populates="documento")
     procesos = relationship("DocumentoProceso", back_populates="documento")

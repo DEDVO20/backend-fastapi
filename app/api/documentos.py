@@ -50,6 +50,7 @@ def listar_documentos(
     query = db.query(Documento).options(
         joinedload(Documento.creador),
         joinedload(Documento.aprobador),
+        joinedload(Documento.revisor),
         joinedload(Documento.versiones).joinedload(VersionDocumento.creador)
     )
     
@@ -101,6 +102,7 @@ def obtener_documento(
     documento = db.query(Documento).options(
         joinedload(Documento.creador),
         joinedload(Documento.aprobador),
+        joinedload(Documento.revisor),
         joinedload(Documento.versiones).joinedload(VersionDocumento.creador)
     ).filter(Documento.id == documento_id).first()
     
@@ -150,6 +152,25 @@ def actualizar_documento(
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Solo el creador del documento o un administrador puede asignar el aprobador"
+                )
+
+    # PROTECCIÓN: Solo el creador o admin puede cambiar el revisor
+    if 'revisado_por' in update_data:
+        if documento.creado_por != current_user.id:
+            # Verificar si tiene permiso de admin
+            tiene_permiso_admin = False
+            for usuario_rol in current_user.roles:
+                for rol_permiso in usuario_rol.rol.permisos:
+                    if rol_permiso.permiso.codigo in ["documentos.administrar", "admin.all"]:
+                        tiene_permiso_admin = True
+                        break
+                if tiene_permiso_admin:
+                    break
+            
+            if not tiene_permiso_admin:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Solo el creador del documento o un administrador puede asignar el revisor"
                 )
     
     for field, value in update_data.items():
