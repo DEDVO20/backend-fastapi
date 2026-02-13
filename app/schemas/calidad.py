@@ -9,7 +9,17 @@ from decimal import Decimal
 
 
 from .proceso import ProcesoResponse
-from .usuario import UsuarioResponse # Or similar if needed. But UsuarioNested is defined inside.
+
+# Schema para usuarios anidados
+class UsuarioNested(BaseModel):
+    """Schema para mostrar información básica de usuarios en relaciones"""
+    id: UUID
+    nombre: str
+    primerApellido: Optional[str] = Field(None, validation_alias="primer_apellido")
+    segundoApellido: Optional[str] = Field(None, validation_alias="segundo_apellido")
+    correoElectronico: Optional[str] = Field(None, validation_alias="correo_electronico")
+    
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 # Indicador Schemas
 class IndicadorBase(BaseModel):
@@ -93,18 +103,6 @@ class NoConformidadResponse(NoConformidadBase):
     responsable: Optional[UsuarioNested] = None
 
     model_config = ConfigDict(from_attributes=True)
-
-
-# Schema para usuarios anidados
-class UsuarioNested(BaseModel):
-    """Schema para mostrar información básica de usuarios en relaciones"""
-    id: UUID
-    nombre: str
-    primerApellido: Optional[str] = Field(None, validation_alias="primer_apellido")
-    segundoApellido: Optional[str] = Field(None, validation_alias="segundo_apellido")
-    correoElectronico: Optional[str] = Field(None, validation_alias="correo_electronico")
-    
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 # AccionCorrectiva Schemas
