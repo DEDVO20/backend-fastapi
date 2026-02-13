@@ -87,8 +87,10 @@ class NoConformidadUpdate(BaseModel):
     fuente: Optional[str] = Field(None, max_length=100)
     gravedad: Optional[str] = Field(None, max_length=50)
     estado: Optional[str] = Field(None, max_length=50)
+    detectado_por: Optional[UUID] = None
     analisis_causa: Optional[str] = None
     plan_accion: Optional[str] = None
+    evidencias: Optional[str] = None
     fecha_cierre: Optional[datetime] = None
     responsable_id: Optional[UUID] = None
 
