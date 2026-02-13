@@ -122,6 +122,30 @@ def actualizar_documento(
         )
     
     update_data = documento_update.model_dump(exclude_unset=True)
+    
+    # PROTECCIÓN: No permitir cambiar el creador (creado_por) nunca
+    if 'creado_por' in update_data:
+        del update_data['creado_por']
+    
+    # PROTECCIÓN: Solo el creador o admin puede cambiar el aprobador
+    if 'aprobado_por' in update_data:
+        if documento.creado_por != current_user.id:
+            # Verificar si tiene permiso de admin
+            tiene_permiso_admin = False
+            for usuario_rol in current_user.roles:
+                for rol_permiso in usuario_rol.rol.permisos:
+                    if rol_permiso.permiso.codigo in ["documentos.administrar", "admin.all"]:
+                        tiene_permiso_admin = True
+                        break
+                if tiene_permiso_admin:
+                    break
+            
+            if not tiene_permiso_admin:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Solo el creador del documento o un administrador puede asignar el aprobador"
+                )
+    
     for field, value in update_data.items():
         setattr(documento, field, value)
     
@@ -275,15 +299,22 @@ def solicitar_revision_documento(
     if not documento:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     
-    # Actualizar estado (opcional, dependiendo del flujo)
+    # Verificar que el usuario actual sea el creador del documento
+    if documento.creado_por != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el creador del documento puede solicitar revisión"
+        )
+    
+    # Actualizar estado
     documento.estado = "en_revision"
     
-    # Crear notificación
+    # Crear notificación (CORREGIDO: usar 'nombre' en lugar de 'titulo')
     crear_notificacion_revision(
         db=db,
         usuario_id=revisor_id,
         titulo="Revisión de Documento Asignada",
-        mensaje=f"Se te ha asignado la revisión del documento: {documento.titulo} ({documento.codigo})",
+        mensaje=f"Se te ha asignado la revisión del documento: {documento.nombre} ({documento.codigo})",
         referencia_tipo="documento",
         referencia_id=documento.id
     )
@@ -303,18 +334,19 @@ def solicitar_aprobacion_documento(
     if not documento:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     
-    if not documento.aprobador_id:
-        raise HTTPException(status_code=400, detail="El documento no tiene un aprobador asignado")
+    # CORREGIDO: verificar que tenga un aprobador asignado (campo aprobado_por)
+    if not documento.aprobado_por:
+        raise HTTPException(status_code=400, detail="El documento no tiene un aprobador asignado. Edite el documento para asignar un aprobador.")
     
     # Actualizar estado
     documento.estado = "pendiente_aprobacion"
     
-    # Crear notificación
+    # Crear notificación (CORREGIDO: usar nombre del documento y campo correcto de usuario)
     crear_notificacion_aprobacion(
         db=db,
-        usuario_id=documento.aprobador_id,
+        usuario_id=documento.aprobado_por,
         titulo="Documento para Aprobación",
-        mensaje=f"El documento {documento.codigo} requiere tu aprobación",
+        mensaje=f"El documento '{documento.nombre}' ({documento.codigo}) requiere tu aprobación",
         referencia_tipo="documento",
         referencia_id=documento.id
     )
@@ -347,25 +379,26 @@ def aprobar_documento(
     if not tiene_permiso:
         raise HTTPException(status_code=403, detail="No tienes permiso para aprobar documentos")
 
-    # 2. Verificar Asignación (Solo el aprobador designado)
-    if documento.aprobador_id != current_user.id:
+    # 2. Verificar Asignación (Solo el aprobador designado) - CORREGIDO: aprobado_por
+    if documento.aprobado_por != current_user.id:
+        # Permitir bypass a administradores globales si es necesario, pero por ahora estricto
         raise HTTPException(status_code=403, detail="No eres el aprobador asignado para este documento")
 
-    # 3. Segregación de Funciones (El aprobador NO puede ser el creador)
-    if documento.elaborador_id == current_user.id:
+    # 3. Segregación de Funciones (El aprobador NO puede ser el creador) - CORREGIDO: creado_por
+    if documento.creado_por == current_user.id:
         raise HTTPException(status_code=400, detail="No puedes aprobar tus propios documentos (Segregación de Funciones)")
 
     
-    # Actualizar estado
+    # Actualizar estado y fecha
     documento.estado = "aprobado"
+    documento.fecha_aprobacion = datetime.now()
     
-    # Notificar al creador/responsable
-    if documento.elaborador_id:
-        # Usa el helper genérico o crea uno específico de "info"
+    # Notificar al creador/responsable - CORREGIDO: creado_por
+    if documento.creado_por:
         notificacion = Notificacion(
-            usuario_id=documento.elaborador_id,
+            usuario_id=documento.creado_por,
             titulo="Documento Aprobado",
-            mensaje=f"El documento {documento.codigo} ha sido aprobado.",
+            mensaje=f"El documento '{documento.nombre}' ({documento.codigo}) ha sido aprobado.",
             tipo="aprobacion",
             referencia_tipo="documento",
             referencia_id=documento.id,
@@ -392,13 +425,13 @@ def rechazar_documento(
     # Actualizar estado
     documento.estado = "rechazado"
     
-    # Notificar al creador/responsable
-    if documento.elaborador_id:
+    # Notificar al creador/responsable - CORREGIDO: creado_por
+    if documento.creado_por:
         notificacion = Notificacion(
-            usuario_id=documento.elaborador_id,
+            usuario_id=documento.creado_por,
             titulo="Documento Rechazado",
-            mensaje=f"El documento {documento.codigo} ha sido rechazado. Motivo: {motivo}",
-            tipo="asignacion", # Usamos tipo genérico o uno de 'rechazo' si existiera
+            mensaje=f"El documento '{documento.nombre}' ({documento.codigo}) ha sido rechazado. Motivo: {motivo}",
+            tipo="rechazo", 
             referencia_tipo="documento",
             referencia_id=documento.id,
             leida=False
