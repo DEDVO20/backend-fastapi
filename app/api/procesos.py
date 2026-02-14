@@ -2,7 +2,7 @@
 Endpoints CRUD para gestión de procesos
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List
 from uuid import UUID
 
@@ -42,7 +42,10 @@ def listar_procesos(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Listar todos los procesos"""
-    query = db.query(Proceso)
+    query = db.query(Proceso).options(
+        joinedload(Proceso.area),
+        joinedload(Proceso.responsable)
+    )
     
     if estado:
         query = query.filter(Proceso.estado == estado)
@@ -50,7 +53,14 @@ def listar_procesos(
         query = query.filter(Proceso.area_id == area_id)
     
     procesos = query.offset(skip).limit(limit).all()
-    return procesos
+    result = []
+    for proceso in procesos:
+        proceso_data = ProcesoResponse.model_validate(proceso)
+        proceso_data.area_nombre = proceso.area.nombre if proceso.area else None
+        proceso_data.responsable_nombre = f"{proceso.responsable.nombre} {proceso.responsable.primer_apellido}" if proceso.responsable else None
+        result.append(proceso_data)
+    
+    return result
 
 
 @router.post("/procesos", response_model=ProcesoResponse, status_code=status.HTTP_201_CREATED)
@@ -82,13 +92,22 @@ def obtener_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtener un proceso por ID"""
-    proceso = db.query(Proceso).filter(Proceso.id == proceso_id).first()
+    proceso = db.query(Proceso).options(
+        joinedload(Proceso.area),
+        joinedload(Proceso.responsable)
+    ).filter(Proceso.id == proceso_id).first()
+    
     if not proceso:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Proceso no encontrado"
         )
-    return proceso
+    
+    proceso_data = ProcesoResponse.model_validate(proceso)
+    proceso_data.area_nombre = proceso.area.nombre if proceso.area else None
+    proceso_data.responsable_nombre = f"{proceso.responsable.nombre} {proceso.responsable.primer_apellido}" if proceso.responsable else None
+    
+    return proceso_data
 
 
 @router.put("/procesos/{proceso_id}", response_model=ProcesoResponse)
