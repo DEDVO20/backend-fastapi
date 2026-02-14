@@ -4,7 +4,8 @@ from datetime import datetime
 from fastapi import HTTPException, status
 from typing import List, Optional
 
-from ...models.auditoria import Auditoria, HallazgoAuditoria
+from ...models.auditoria import Auditoria, HallazgoAuditoria, ProgramaAuditoria
+from ...models.calidad import NoConformidad
 from ...models.historial import HistorialEstado
 from ...models.usuario import Usuario
 
@@ -26,6 +27,12 @@ class AuditoriaService:
         estado_anterior = auditoria.estado
         auditoria.estado = 'en_curso'
         auditoria.fecha_inicio = datetime.now()
+
+        # Primera auditoría iniciada del programa -> programa en ejecución
+        if auditoria.programa_id:
+            programa = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.id == auditoria.programa_id).first()
+            if programa and programa.estado == 'aprobado':
+                programa.estado = 'en_ejecucion'
         
         # Registrar historial
         historial = HistorialEstado(
@@ -91,6 +98,16 @@ class AuditoriaService:
         
         if hallazgos_abiertos > 0:
             raise HTTPException(status_code=400, detail="No se puede cerrar la auditoría con hallazgos abiertos")
+
+        # Validar que no existan No Conformidades abiertas asociadas
+        nc_abiertas = db.query(NoConformidad).join(
+            HallazgoAuditoria, HallazgoAuditoria.no_conformidad_id == NoConformidad.id
+        ).filter(
+            HallazgoAuditoria.auditoria_id == auditoria_id,
+            NoConformidad.estado != 'cerrada'
+        ).count()
+        if nc_abiertas > 0:
+            raise HTTPException(status_code=400, detail="No se puede cerrar la auditoría con No Conformidades abiertas")
 
         estado_anterior = auditoria.estado
         auditoria.estado = 'cerrada'

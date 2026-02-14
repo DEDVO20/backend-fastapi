@@ -44,7 +44,7 @@ class Auditoria(BaseModel):
     auditor_lider_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     creado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     informe_final = Column(Text, nullable=True)
-    programa_id = Column(UUID(as_uuid=True), ForeignKey("programa_auditorias.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    programa_id = Column(UUID(as_uuid=True), ForeignKey("programa_auditorias.id", onupdate="CASCADE", ondelete="RESTRICT"), nullable=False)
     
     # Relaciones
     programa = relationship("ProgramaAuditoria", back_populates="auditorias")
@@ -56,6 +56,7 @@ class Auditoria(BaseModel):
     __table_args__ = (
         Index('auditorias_codigo', 'codigo'),
         Index('auditorias_estado', 'estado'),
+        Index('idx_auditorias_programa_estado', 'programa_id', 'estado'),
     )
     
     def __repr__(self):

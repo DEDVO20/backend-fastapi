@@ -13,7 +13,7 @@ class ProgramaAuditoriaBase(BaseModel):
     
     anio: int
     objetivo: Optional[str] = None
-    estado: Literal['borrador', 'aprobado', 'cerrado'] = 'borrador'
+    estado: Literal['borrador', 'aprobado', 'en_ejecucion', 'finalizado', 'cerrado'] = 'borrador'
     criterio_riesgo: Optional[str] = Field(None, alias="criterioRiesgo")
     aprobado_por: Optional[UUID] = Field(None, alias="aprobadoPorId")
     fecha_aprobacion: Optional[datetime] = Field(None, alias="fechaAprobacion")
@@ -38,7 +38,7 @@ class ProgramaAuditoriaUpdate(BaseModel):
     def validar_estado_programa(cls, value: Optional[str]) -> Optional[str]:
         if value is None:
             return value
-        estados_validos = {"borrador", "aprobado", "cerrado"}
+        estados_validos = {"borrador", "aprobado", "en_ejecucion", "finalizado", "cerrado"}
         if value not in estados_validos:
             raise ValueError(f"Estado inválido. Debe ser uno de: {', '.join(sorted(estados_validos))}")
         return value
@@ -70,7 +70,7 @@ class AuditoriaBase(BaseModel):
     auditor_lider_id: Optional[UUID] = Field(None, alias="auditorLiderId")
     creado_por: Optional[UUID] = Field(None, alias="creadoPor")
     informe_final: Optional[str] = Field(None, alias="informeFinal")
-    programa_id: Optional[UUID] = Field(None, alias="programaId")
+    programa_id: UUID = Field(..., alias="programaId")
 
 
 class AuditoriaCreate(AuditoriaBase):

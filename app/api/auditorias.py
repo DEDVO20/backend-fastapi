@@ -3,6 +3,7 @@ Endpoints CRUD para gestión de auditorías
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
@@ -10,6 +11,7 @@ from datetime import datetime
 
 from ..database import get_db
 from ..models.auditoria import Auditoria, HallazgoAuditoria, ProgramaAuditoria
+from ..models.calidad import AccionCorrectiva
 from ..schemas.auditoria import (
     AuditoriaCreate,
     AuditoriaUpdate,
@@ -47,7 +49,7 @@ def _aplicar_reglas_iso_programa(programa_data: dict, current_user: Usuario, pro
         programa_data.setdefault("aprobado_por", current_user.id)
         programa_data.setdefault("fecha_aprobacion", datetime.utcnow())
 
-    if estado_objetivo == "cerrado":
+    if estado_objetivo in {"en_ejecucion", "finalizado", "cerrado"}:
         aprobado_por = programa_data.get(
             "aprobado_por",
             programa_actual.aprobado_por if programa_actual else None
@@ -59,7 +61,7 @@ def _aplicar_reglas_iso_programa(programa_data: dict, current_user: Usuario, pro
         if not aprobado_por or not fecha_aprobacion:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Para cerrar el programa primero debe estar aprobado (aprobado_por y fecha_aprobacion)."
+                detail="Para avanzar el programa primero debe estar aprobado (aprobado_por y fecha_aprobacion)."
             )
 
     return programa_data
@@ -70,10 +72,10 @@ def _validar_programa_para_auditoria(db: Session, programa_id: UUID, fecha_plani
     if not programa:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El programa de auditoría no existe.")
 
-    if programa.estado != "aprobado":
+    if programa.estado not in {"aprobado", "en_ejecucion"}:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Solo se pueden planificar auditorías en programas aprobados."
+            detail="No se pueden crear auditorías en un programa no aprobado o fuera de ejecución."
         )
 
     if fecha_planificada and fecha_planificada.year != programa.anio:
@@ -83,6 +85,14 @@ def _validar_programa_para_auditoria(db: Session, programa_id: UUID, fecha_plani
         )
 
     return programa
+
+
+def _tiene_auditorias_abiertas(db: Session, programa_id: UUID) -> bool:
+    abiertas = db.query(Auditoria).filter(
+        Auditoria.programa_id == programa_id,
+        Auditoria.estado.notin_(["completada", "cerrada"])
+    ).count()
+    return abiertas > 0
 
 # ======================
 # Endpoints de Programa de Auditorías
@@ -161,12 +171,101 @@ def actualizar_programa_auditoria(
 
     update_data = _aplicar_reglas_iso_programa(update_data, current_user, programa)
 
+    estado_objetivo = update_data.get("estado")
+    if estado_objetivo in {"finalizado", "cerrado"} and _tiene_auditorias_abiertas(db, programa.id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se puede cerrar/finalizar el programa mientras existan auditorías abiertas."
+        )
+
     for field, value in update_data.items():
         setattr(programa, field, value)
     
     db.commit()
     db.refresh(programa)
     return programa
+
+
+@router.delete("/programa-auditorias/{programa_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_programa_auditoria(
+    programa_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    programa = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.id == programa_id).first()
+    if not programa:
+        raise HTTPException(status_code=404, detail="Programa de auditoría no encontrado")
+
+    if db.query(Auditoria).filter(Auditoria.programa_id == programa_id).count() > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se puede eliminar un programa con auditorías asociadas."
+        )
+
+    db.delete(programa)
+    db.commit()
+    return None
+
+
+@router.get("/programas/{programa_id}/resumen")
+def resumen_programa_auditoria(
+    programa_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    programa = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.id == programa_id).first()
+    if not programa:
+        raise HTTPException(status_code=404, detail="Programa de auditoría no encontrado")
+
+    total_auditorias = db.query(Auditoria).filter(Auditoria.programa_id == programa_id).count()
+    planificadas = db.query(Auditoria).filter(
+        Auditoria.programa_id == programa_id,
+        Auditoria.estado == "planificada"
+    ).count()
+    en_curso = db.query(Auditoria).filter(
+        Auditoria.programa_id == programa_id,
+        Auditoria.estado == "en_curso"
+    ).count()
+    completadas = db.query(Auditoria).filter(
+        Auditoria.programa_id == programa_id,
+        Auditoria.estado.in_(["completada", "cerrada"])
+    ).count()
+
+    hallazgos_totales = db.query(HallazgoAuditoria).join(
+        Auditoria, HallazgoAuditoria.auditoria_id == Auditoria.id
+    ).filter(Auditoria.programa_id == programa_id).count()
+
+    nc_generadas = db.query(func.count(func.distinct(HallazgoAuditoria.no_conformidad_id))).join(
+        Auditoria, HallazgoAuditoria.auditoria_id == Auditoria.id
+    ).filter(
+        Auditoria.programa_id == programa_id,
+        HallazgoAuditoria.no_conformidad_id.isnot(None)
+    ).scalar() or 0
+
+    acciones_abiertas = db.query(func.count(func.distinct(AccionCorrectiva.id))).join(
+        HallazgoAuditoria, HallazgoAuditoria.no_conformidad_id == AccionCorrectiva.no_conformidad_id
+    ).join(
+        Auditoria, HallazgoAuditoria.auditoria_id == Auditoria.id
+    ).filter(
+        Auditoria.programa_id == programa_id,
+        AccionCorrectiva.estado.isnot(None),
+        AccionCorrectiva.estado.notin_(["cerrada", "verificada"])
+    ).scalar() or 0
+
+    avance_porcentaje = 0
+    if total_auditorias > 0:
+        avance_porcentaje = round(((completadas + (en_curso * 0.5)) / total_auditorias) * 100)
+
+    return {
+        "total_auditorias": total_auditorias,
+        "planificadas": planificadas,
+        "en_curso": en_curso,
+        "completadas": completadas,
+        "hallazgos_totales": hallazgos_totales,
+        "nc_generadas": nc_generadas,
+        "acciones_abiertas": acciones_abiertas,
+        "avance_porcentaje": avance_porcentaje
+    }
 
 @router.post("/auditorias/{auditoria_id}/iniciar", response_model=AuditoriaResponse)
 def iniciar_auditoria(
@@ -316,12 +415,11 @@ def crear_auditoria(
     auditoria_data = auditoria.model_dump()
     auditoria_data["norma_referencia"] = auditoria_data.get("norma_referencia") or "ISO 9001:2015"
 
-    if auditoria_data.get("programa_id"):
-        _validar_programa_para_auditoria(
-            db,
-            auditoria_data["programa_id"],
-            auditoria_data.get("fecha_planificada")
-        )
+    _validar_programa_para_auditoria(
+        db,
+        auditoria_data["programa_id"],
+        auditoria_data.get("fecha_planificada")
+    )
 
     nueva_auditoria = Auditoria(**auditoria_data)
     db.add(nueva_auditoria)
@@ -378,10 +476,15 @@ def actualizar_auditoria(
     
     update_data = auditoria_update.model_dump(exclude_unset=True)
 
+    if "programa_id" in update_data and update_data["programa_id"] != auditoria.programa_id and auditoria.estado != "planificada":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se puede cambiar el programa de una auditoría ya iniciada."
+        )
+
     programa_id_objetivo = update_data.get("programa_id", auditoria.programa_id)
     fecha_planificada_objetivo = update_data.get("fecha_planificada", auditoria.fecha_planificada)
-    if programa_id_objetivo:
-        _validar_programa_para_auditoria(db, programa_id_objetivo, fecha_planificada_objetivo)
+    _validar_programa_para_auditoria(db, programa_id_objetivo, fecha_planificada_objetivo)
 
     if "norma_referencia" in update_data and not update_data["norma_referencia"]:
         update_data["norma_referencia"] = "ISO 9001:2015"
