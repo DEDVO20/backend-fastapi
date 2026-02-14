@@ -20,14 +20,11 @@ from ..schemas.auditoria import (
 from ..services.auditorias.auditoria_service import AuditoriaService
 from ..services.auditorias.hallazgo_service import HallazgoService
 from ..schemas.calidad import NoConformidadResponse
+from ..utils.notification_service import crear_notificacion_asignacion
+from ..api.dependencies import get_current_user
+from ..models.usuario import Usuario
 
-# ... imports ...
-
-# ======================
-# Endpoints de Auditorías
-# ======================
-
-# ... existing endpoints ...
+router = APIRouter(prefix="/api/v1", tags=["auditorias"])
 
 @router.post("/auditorias/{auditoria_id}/iniciar", response_model=AuditoriaResponse)
 def iniciar_auditoria(
