@@ -57,7 +57,7 @@ def create_programa(
             detail=f"Ya existe un programa de auditoría para el año {programa.anio}"
         )
 
-    db_programa = ProgramaAuditoria(**programa.model_dump(by_alias=True))
+    db_programa = ProgramaAuditoria(**programa.model_dump())
     db.add(db_programa)
     db.commit()
     db.refresh(db_programa)
