@@ -7,6 +7,41 @@ from datetime import datetime
 from uuid import UUID
 
 
+# ProgramaAuditoria Schemas
+class ProgramaAuditoriaBase(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    
+    anio: int
+    objetivo: Optional[str] = None
+    estado: str = Field(default='borrador', max_length=30)
+    criterio_riesgo: Optional[str] = Field(None, alias="criterioRiesgo")
+    aprobado_por: Optional[UUID] = Field(None, alias="aprobadoPorId")
+    fecha_aprobacion: Optional[datetime] = Field(None, alias="fechaAprobacion")
+
+
+class ProgramaAuditoriaCreate(ProgramaAuditoriaBase):
+    pass
+
+
+class ProgramaAuditoriaUpdate(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    
+    anio: Optional[int] = None
+    objetivo: Optional[str] = None
+    estado: Optional[str] = Field(None, max_length=30)
+    criterio_riesgo: Optional[str] = Field(None, alias="criterioRiesgo")
+    aprobado_por: Optional[UUID] = Field(None, alias="aprobadoPorId")
+    fecha_aprobacion: Optional[datetime] = Field(None, alias="fechaAprobacion")
+
+
+class ProgramaAuditoriaResponse(ProgramaAuditoriaBase):
+    id: UUID
+    creado_en: datetime
+    actualizado_en: datetime
+    
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
 # Auditoria Schemas
 class AuditoriaBase(BaseModel):
     model_config = ConfigDict(populate_by_name=True)

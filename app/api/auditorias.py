@@ -8,15 +8,17 @@ from typing import List
 from uuid import UUID
 
 from ..database import get_db
-from ..models.auditoria import Auditoria, HallazgoAuditoria
+from ..models.auditoria import Auditoria, HallazgoAuditoria, ProgramaAuditoria
 from ..schemas.auditoria import (
     AuditoriaCreate,
     AuditoriaUpdate,
     AuditoriaResponse,
     HallazgoAuditoriaCreate,
     HallazgoAuditoriaUpdate,
-    HallazgoAuditoriaUpdate,
-    HallazgoAuditoriaResponse
+    HallazgoAuditoriaResponse,
+    ProgramaAuditoriaCreate,
+    ProgramaAuditoriaUpdate,
+    ProgramaAuditoriaResponse
 )
 from ..services.auditorias.auditoria_service import AuditoriaService
 from ..services.auditorias.hallazgo_service import HallazgoService
@@ -27,6 +29,143 @@ from ..models.usuario import Usuario
 from ..utils.pdf_generator import PDFGenerator
 
 router = APIRouter(prefix="/api/v1", tags=["auditorias"])
+
+# === PROGRAMA DE AUDITORIAS ===
+
+@router.get("/programa-auditorias", response_model=List[ProgramaAuditoriaResponse])
+def get_programas(
+    anio: int = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    query = db.query(ProgramaAuditoria)
+    if anio:
+        query = query.filter(ProgramaAuditoria.anio == anio)
+    return query.all()
+
+@router.post("/programa-auditorias", response_model=ProgramaAuditoriaResponse, status_code=status.HTTP_201_CREATED)
+def create_programa(
+    programa: ProgramaAuditoriaCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    # Verificar si ya existe un programa para ese año (opcional, pero buena práctica)
+    existing = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.anio == programa.anio).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ya existe un programa de auditoría para el año {programa.anio}"
+        )
+
+    db_programa = ProgramaAuditoria(**programa.model_dump(by_alias=True))
+    db.add(db_programa)
+    db.commit()
+    db.refresh(db_programa)
+    return db_programa
+
+@router.get("/programa-auditorias/{id}", response_model=ProgramaAuditoriaResponse)
+def get_programa(
+    id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    programa = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.id == id).first()
+    if not programa:
+        raise HTTPException(status_code=404, detail="Programa de auditoría no encontrado")
+    return programa
+
+@router.put("/programa-auditorias/{id}", response_model=ProgramaAuditoriaResponse)
+def update_programa(
+    id: UUID,
+    programa_update: ProgramaAuditoriaUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    db_programa = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.id == id).first()
+    if not db_programa:
+        raise HTTPException(status_code=404, detail="Programa de auditoría no encontrado")
+    
+    update_data = programa_update.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(db_programa, key, value)
+    
+    db.commit()
+    db.refresh(db_programa)
+    return db_programa
+
+# === AUDITORIAS ===
+
+
+# ======================
+# Endpoints de Programa de Auditorías
+# ======================
+
+@router.get("/programa-auditorias", response_model=List[ProgramaAuditoriaResponse])
+def listar_programa_auditorias(
+    skip: int = 0,
+    limit: int = 100,
+    anio: int = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Listar programas de auditoría"""
+    query = db.query(ProgramaAuditoria)
+    if anio:
+        query = query.filter(ProgramaAuditoria.anio == anio)
+    return query.offset(skip).limit(limit).all()
+
+@router.post("/programa-auditorias", response_model=ProgramaAuditoriaResponse, status_code=status.HTTP_201_CREATED)
+def crear_programa_auditoria(
+    programa: ProgramaAuditoriaCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Crear un nuevo programa anual de auditoría"""
+    # Verificar si ya existe un programa para ese año
+    existing = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.anio == programa.anio).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Ya existe un programa de auditoría para el año {programa.anio}"
+        )
+    
+    nuevo_programa = ProgramaAuditoria(**programa.model_dump())
+    db.add(nuevo_programa)
+    db.commit()
+    db.refresh(nuevo_programa)
+    return nuevo_programa
+
+@router.get("/programa-auditorias/{programa_id}", response_model=ProgramaAuditoriaResponse)
+def obtener_programa_auditoria(
+    programa_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Obtener un programa de auditoría por ID"""
+    programa = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.id == programa_id).first()
+    if not programa:
+        raise HTTPException(status_code=404, detail="Programa de auditoría no encontrado")
+    return programa
+
+@router.put("/programa-auditorias/{programa_id}", response_model=ProgramaAuditoriaResponse)
+def actualizar_programa_auditoria(
+    programa_id: UUID,
+    programa_update: ProgramaAuditoriaUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Actualizar un programa de auditoría"""
+    programa = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.id == programa_id).first()
+    if not programa:
+        raise HTTPException(status_code=404, detail="Programa de auditoría no encontrado")
+    
+    update_data = programa_update.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(programa, field, value)
+    
+    db.commit()
+    db.refresh(programa)
+    return programa
 
 @router.post("/auditorias/{auditoria_id}/iniciar", response_model=AuditoriaResponse)
 def iniciar_auditoria(
