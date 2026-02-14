@@ -1,8 +1,8 @@
 """
 Schemas Pydantic para auditorías
 """
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+from typing import Optional, Literal
 from datetime import datetime
 from uuid import UUID
 
@@ -13,7 +13,7 @@ class ProgramaAuditoriaBase(BaseModel):
     
     anio: int
     objetivo: Optional[str] = None
-    estado: str = Field(default='borrador', max_length=30)
+    estado: Literal['borrador', 'aprobado', 'cerrado'] = 'borrador'
     criterio_riesgo: Optional[str] = Field(None, alias="criterioRiesgo")
     aprobado_por: Optional[UUID] = Field(None, alias="aprobadoPorId")
     fecha_aprobacion: Optional[datetime] = Field(None, alias="fechaAprobacion")
@@ -32,6 +32,16 @@ class ProgramaAuditoriaUpdate(BaseModel):
     criterio_riesgo: Optional[str] = Field(None, alias="criterioRiesgo")
     aprobado_por: Optional[UUID] = Field(None, alias="aprobadoPorId")
     fecha_aprobacion: Optional[datetime] = Field(None, alias="fechaAprobacion")
+
+    @field_validator("estado")
+    @classmethod
+    def validar_estado_programa(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        estados_validos = {"borrador", "aprobado", "cerrado"}
+        if value not in estados_validos:
+            raise ValueError(f"Estado inválido. Debe ser uno de: {', '.join(sorted(estados_validos))}")
+        return value
 
 
 class ProgramaAuditoriaResponse(ProgramaAuditoriaBase):
@@ -55,7 +65,7 @@ class AuditoriaBase(BaseModel):
     fecha_inicio: Optional[datetime] = Field(None, alias="fechaInicio")
     fecha_fin: Optional[datetime] = Field(None, alias="fechaFin")
     estado: str = Field(default='planificada', max_length=50)
-    norma_referencia: Optional[str] = Field(None, max_length=200, alias="normaReferencia")
+    norma_referencia: Optional[str] = Field("ISO 9001:2015", max_length=200, alias="normaReferencia")
     equipo_auditor: Optional[str] = Field(None, alias="equipoAuditor")
     auditor_lider_id: Optional[UUID] = Field(None, alias="auditorLiderId")
     creado_por: Optional[UUID] = Field(None, alias="creadoPor")

@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
+from datetime import datetime
 
 from ..database import get_db
 from ..models.auditoria import Auditoria, HallazgoAuditoria, ProgramaAuditoria
@@ -30,71 +31,58 @@ from ..utils.pdf_generator import PDFGenerator
 
 router = APIRouter(prefix="/api/v1", tags=["auditorias"])
 
-# === PROGRAMA DE AUDITORIAS ===
+def _aplicar_reglas_iso_programa(programa_data: dict, current_user: Usuario, programa_actual: ProgramaAuditoria = None) -> dict:
+    estado_objetivo = programa_data.get("estado", programa_actual.estado if programa_actual else "borrador")
+    criterio_riesgo = programa_data.get(
+        "criterio_riesgo",
+        programa_actual.criterio_riesgo if programa_actual else None
+    )
 
-@router.get("/programa-auditorias", response_model=List[ProgramaAuditoriaResponse])
-def get_programas(
-    anio: int = None,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    query = db.query(ProgramaAuditoria)
-    if anio:
-        query = query.filter(ProgramaAuditoria.anio == anio)
-    return query.all()
+    if estado_objetivo == "aprobado":
+        if not criterio_riesgo or not str(criterio_riesgo).strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Para aprobar el programa debe definir criterio_riesgo (ISO 9001:2015, enfoque basado en riesgos)."
+            )
+        programa_data.setdefault("aprobado_por", current_user.id)
+        programa_data.setdefault("fecha_aprobacion", datetime.utcnow())
 
-@router.post("/programa-auditorias", response_model=ProgramaAuditoriaResponse, status_code=status.HTTP_201_CREATED)
-def create_programa(
-    programa: ProgramaAuditoriaCreate,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    # Verificar si ya existe un programa para ese año (opcional, pero buena práctica)
-    existing = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.anio == programa.anio).first()
-    if existing:
+    if estado_objetivo == "cerrado":
+        aprobado_por = programa_data.get(
+            "aprobado_por",
+            programa_actual.aprobado_por if programa_actual else None
+        )
+        fecha_aprobacion = programa_data.get(
+            "fecha_aprobacion",
+            programa_actual.fecha_aprobacion if programa_actual else None
+        )
+        if not aprobado_por or not fecha_aprobacion:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Para cerrar el programa primero debe estar aprobado (aprobado_por y fecha_aprobacion)."
+            )
+
+    return programa_data
+
+
+def _validar_programa_para_auditoria(db: Session, programa_id: UUID, fecha_planificada=None) -> ProgramaAuditoria:
+    programa = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.id == programa_id).first()
+    if not programa:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El programa de auditoría no existe.")
+
+    if programa.estado != "aprobado":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Ya existe un programa de auditoría para el año {programa.anio}"
+            detail="Solo se pueden planificar auditorías en programas aprobados."
         )
 
-    db_programa = ProgramaAuditoria(**programa.model_dump())
-    db.add(db_programa)
-    db.commit()
-    db.refresh(db_programa)
-    return db_programa
+    if fecha_planificada and fecha_planificada.year != programa.anio:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"La fecha planificada ({fecha_planificada.year}) no coincide con el año del programa ({programa.anio})."
+        )
 
-@router.get("/programa-auditorias/{id}", response_model=ProgramaAuditoriaResponse)
-def get_programa(
-    id: UUID,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    programa = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.id == id).first()
-    if not programa:
-        raise HTTPException(status_code=404, detail="Programa de auditoría no encontrado")
     return programa
-
-@router.put("/programa-auditorias/{id}", response_model=ProgramaAuditoriaResponse)
-def update_programa(
-    id: UUID,
-    programa_update: ProgramaAuditoriaUpdate,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    db_programa = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.id == id).first()
-    if not db_programa:
-        raise HTTPException(status_code=404, detail="Programa de auditoría no encontrado")
-    
-    update_data = programa_update.model_dump(exclude_unset=True)
-    for key, value in update_data.items():
-        setattr(db_programa, key, value)
-    
-    db.commit()
-    db.refresh(db_programa)
-    return db_programa
-
-# === AUDITORIAS ===
-
 
 # ======================
 # Endpoints de Programa de Auditorías
@@ -129,7 +117,8 @@ def crear_programa_auditoria(
             detail=f"Ya existe un programa de auditoría para el año {programa.anio}"
         )
     
-    nuevo_programa = ProgramaAuditoria(**programa.model_dump())
+    programa_data = _aplicar_reglas_iso_programa(programa.model_dump(), current_user)
+    nuevo_programa = ProgramaAuditoria(**programa_data)
     db.add(nuevo_programa)
     db.commit()
     db.refresh(nuevo_programa)
@@ -160,6 +149,18 @@ def actualizar_programa_auditoria(
         raise HTTPException(status_code=404, detail="Programa de auditoría no encontrado")
     
     update_data = programa_update.model_dump(exclude_unset=True)
+
+    nuevo_anio = update_data.get("anio")
+    if nuevo_anio and nuevo_anio != programa.anio:
+        existing = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.anio == nuevo_anio).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Ya existe un programa de auditoría para el año {nuevo_anio}"
+            )
+
+    update_data = _aplicar_reglas_iso_programa(update_data, current_user, programa)
+
     for field, value in update_data.items():
         setattr(programa, field, value)
     
@@ -312,7 +313,17 @@ def crear_auditoria(
             detail="El código de auditoría ya existe"
         )
     
-    nueva_auditoria = Auditoria(**auditoria.model_dump())
+    auditoria_data = auditoria.model_dump()
+    auditoria_data["norma_referencia"] = auditoria_data.get("norma_referencia") or "ISO 9001:2015"
+
+    if auditoria_data.get("programa_id"):
+        _validar_programa_para_auditoria(
+            db,
+            auditoria_data["programa_id"],
+            auditoria_data.get("fecha_planificada")
+        )
+
+    nueva_auditoria = Auditoria(**auditoria_data)
     db.add(nueva_auditoria)
     db.commit()
     db.refresh(nueva_auditoria)
@@ -366,6 +377,15 @@ def actualizar_auditoria(
     previous_auditor_lider = auditoria.auditor_lider_id
     
     update_data = auditoria_update.model_dump(exclude_unset=True)
+
+    programa_id_objetivo = update_data.get("programa_id", auditoria.programa_id)
+    fecha_planificada_objetivo = update_data.get("fecha_planificada", auditoria.fecha_planificada)
+    if programa_id_objetivo:
+        _validar_programa_para_auditoria(db, programa_id_objetivo, fecha_planificada_objetivo)
+
+    if "norma_referencia" in update_data and not update_data["norma_referencia"]:
+        update_data["norma_referencia"] = "ISO 9001:2015"
+
     for field, value in update_data.items():
         setattr(auditoria, field, value)
     
