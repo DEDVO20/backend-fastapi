@@ -167,7 +167,11 @@ def listar_no_conformidades(
     if tipo:
         query = query.filter(NoConformidad.tipo == tipo)
     
-    no_conformidades = query.offset(skip).limit(limit).all()
+    no_conformidades = query.options(
+        joinedload(NoConformidad.proceso),
+        joinedload(NoConformidad.detector),
+        joinedload(NoConformidad.responsable)
+    ).offset(skip).limit(limit).all()
     return no_conformidades
 
 
@@ -200,6 +204,14 @@ def crear_no_conformidad(
     db.add(nueva_nc)
     db.commit()
     db.refresh(nueva_nc)
+    
+    # Recargar con relaciones
+    nueva_nc = db.query(NoConformidad).options(
+        joinedload(NoConformidad.proceso),
+        joinedload(NoConformidad.detector),
+        joinedload(NoConformidad.responsable)
+    ).filter(NoConformidad.id == nueva_nc.id).first()
+    
     return nueva_nc
 
 
@@ -210,7 +222,12 @@ def obtener_no_conformidad(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtener una no conformidad por ID"""
-    nc = db.query(NoConformidad).filter(NoConformidad.id == nc_id).first()
+    nc = db.query(NoConformidad).options(
+        joinedload(NoConformidad.proceso),
+        joinedload(NoConformidad.detector),
+        joinedload(NoConformidad.responsable)
+    ).filter(NoConformidad.id == nc_id).first()
+    
     if not nc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -240,6 +257,14 @@ def actualizar_no_conformidad(
     
     db.commit()
     db.refresh(nc)
+    
+    # Recargar con relaciones
+    nc = db.query(NoConformidad).options(
+        joinedload(NoConformidad.proceso),
+        joinedload(NoConformidad.detector),
+        joinedload(NoConformidad.responsable)
+    ).filter(NoConformidad.id == nc_id).first()
+    
     return nc
 
 

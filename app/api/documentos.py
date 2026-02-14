@@ -41,11 +41,12 @@ def listar_documentos(
     estado: str = None,
     tipo_documento: str = None,
     aprobado_por: UUID = None,
+    revisado_por: UUID = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
     """Listar todos los documentos"""
-    print(f"DEBUG: listar_documentos - filters: estado={estado}, aprobado_por={aprobado_por}")
+    print(f"DEBUG: listar_documentos - filters: estado={estado}, aprobado_por={aprobado_por}, revisado_por={revisado_por}")
     
     query = db.query(Documento).options(
         joinedload(Documento.creador),
@@ -60,6 +61,8 @@ def listar_documentos(
         query = query.filter(Documento.tipo_documento == tipo_documento)
     if aprobado_por:
         query = query.filter(Documento.aprobado_por == aprobado_por)
+    if revisado_por:
+        query = query.filter(Documento.revisado_por == revisado_por)
     
     documentos = query.offset(skip).limit(limit).all()
     print(f"DEBUG: Found {len(documentos)} documents")
@@ -129,56 +132,68 @@ def actualizar_documento(
             detail="Documento no encontrado"
         )
     
-    update_data = documento_update.model_dump(exclude_unset=True)
-    
-    # PROTECCIÓN: No permitir cambiar el creador (creado_por) nunca
-    if 'creado_por' in update_data:
-        del update_data['creado_por']
-    
-    # PROTECCIÓN: Solo el creador o admin puede cambiar el aprobador
-    if 'aprobado_por' in update_data:
-        if documento.creado_por != current_user.id:
-            # Verificar si tiene permiso de admin
-            tiene_permiso_admin = False
-            for usuario_rol in current_user.roles:
-                for rol_permiso in usuario_rol.rol.permisos:
-                    if rol_permiso.permiso.codigo in ["documentos.administrar", "admin.all"]:
-                        tiene_permiso_admin = True
+    try:
+        update_data = documento_update.model_dump(exclude_unset=True)
+        
+        # PROTECCIÓN: No permitir cambiar el creador (creado_por) nunca
+        if 'creado_por' in update_data:
+            del update_data['creado_por']
+        
+        # PROTECCIÓN: Solo el creador o admin puede cambiar el aprobador
+        if 'aprobado_por' in update_data:
+            if documento.creado_por != current_user.id:
+                # Verificar si tiene permiso de admin
+                tiene_permiso_admin = False
+                for usuario_rol in current_user.roles:
+                    for rol_permiso in usuario_rol.rol.permisos:
+                        if rol_permiso.permiso.codigo in ["documentos.administrar", "admin.all"]:
+                            tiene_permiso_admin = True
+                            break
+                    if tiene_permiso_admin:
                         break
-                if tiene_permiso_admin:
-                    break
-            
-            if not tiene_permiso_admin:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Solo el creador del documento o un administrador puede asignar el aprobador"
-                )
+                
+                if not tiene_permiso_admin:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Solo el creador del documento o un administrador puede asignar el aprobador"
+                    )
 
-    # PROTECCIÓN: Solo el creador o admin puede cambiar el revisor
-    if 'revisado_por' in update_data:
-        if documento.creado_por != current_user.id:
-            # Verificar si tiene permiso de admin
-            tiene_permiso_admin = False
-            for usuario_rol in current_user.roles:
-                for rol_permiso in usuario_rol.rol.permisos:
-                    if rol_permiso.permiso.codigo in ["documentos.administrar", "admin.all"]:
-                        tiene_permiso_admin = True
+        # PROTECCIÓN: Solo el creador o admin puede cambiar el revisor
+        if 'revisado_por' in update_data:
+            if documento.creado_por != current_user.id:
+                # Verificar si tiene permiso de admin
+                tiene_permiso_admin = False
+                for usuario_rol in current_user.roles:
+                    for rol_permiso in usuario_rol.rol.permisos:
+                        if rol_permiso.permiso.codigo in ["documentos.administrar", "admin.all"]:
+                            tiene_permiso_admin = True
+                            break
+                    if tiene_permiso_admin:
                         break
-                if tiene_permiso_admin:
-                    break
-            
-            if not tiene_permiso_admin:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Solo el creador del documento o un administrador puede asignar el revisor"
-                )
-    
-    for field, value in update_data.items():
-        setattr(documento, field, value)
-    
-    db.commit()
-    db.refresh(documento)
-    return documento
+                
+                if not tiene_permiso_admin:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Solo el creador del documento o un administrador puede asignar el revisor"
+                    )
+        
+        for field, value in update_data.items():
+            setattr(documento, field, value)
+        
+        db.commit()
+        db.refresh(documento)
+        return documento
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"ERROR CRÍTICO al actualizar documento {documento_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno (Render Debug): {str(e)}"
+        )
 
 
 @router.delete("/documentos/{documento_id}", status_code=status.HTTP_204_NO_CONTENT)

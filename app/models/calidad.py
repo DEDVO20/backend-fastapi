@@ -51,6 +51,7 @@ class NoConformidad(BaseModel):
     estado = Column(String(50), nullable=False, default='abierta')
     analisis_causa = Column(Text, nullable=True)
     plan_accion = Column(Text, nullable=True)
+    evidencias = Column(Text, nullable=True) # JSON string con URLs de evidencias
     fecha_cierre = Column(DateTime(timezone=True), nullable=True)
     responsable_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     

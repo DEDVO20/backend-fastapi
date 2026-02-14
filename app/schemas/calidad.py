@@ -8,6 +8,19 @@ from uuid import UUID
 from decimal import Decimal
 
 
+from .proceso import ProcesoResponse
+
+# Schema para usuarios anidados
+class UsuarioNested(BaseModel):
+    """Schema para mostrar información básica de usuarios en relaciones"""
+    id: UUID
+    nombre: str
+    primerApellido: Optional[str] = Field(None, validation_alias="primer_apellido")
+    segundoApellido: Optional[str] = Field(None, validation_alias="segundo_apellido")
+    correoElectronico: Optional[str] = Field(None, validation_alias="correo_electronico")
+    
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
 # Indicador Schemas
 class IndicadorBase(BaseModel):
     proceso_id: UUID
@@ -58,6 +71,7 @@ class NoConformidadBase(BaseModel):
     estado: str = Field(default='abierta', max_length=50)
     analisis_causa: Optional[str] = None
     plan_accion: Optional[str] = None
+    evidencias: Optional[str] = None # JSON string
     fecha_cierre: Optional[datetime] = None
     responsable_id: Optional[UUID] = None
 
@@ -73,8 +87,10 @@ class NoConformidadUpdate(BaseModel):
     fuente: Optional[str] = Field(None, max_length=100)
     gravedad: Optional[str] = Field(None, max_length=50)
     estado: Optional[str] = Field(None, max_length=50)
+    detectado_por: Optional[UUID] = None
     analisis_causa: Optional[str] = None
     plan_accion: Optional[str] = None
+    evidencias: Optional[str] = None
     fecha_cierre: Optional[datetime] = None
     responsable_id: Optional[UUID] = None
 
@@ -84,19 +100,12 @@ class NoConformidadResponse(NoConformidadBase):
     creado_en: datetime
     actualizado_en: datetime
     
+    # Nested objects
+    proceso: Optional[ProcesoResponse] = None
+    detector: Optional[UsuarioNested] = None
+    responsable: Optional[UsuarioNested] = None
+
     model_config = ConfigDict(from_attributes=True)
-
-
-# Schema para usuarios anidados
-class UsuarioNested(BaseModel):
-    """Schema para mostrar información básica de usuarios en relaciones"""
-    id: UUID
-    nombre: str
-    primerApellido: Optional[str] = Field(None, validation_alias="primer_apellido")
-    segundoApellido: Optional[str] = Field(None, validation_alias="segundo_apellido")
-    correoElectronico: Optional[str] = Field(None, validation_alias="correo_electronico")
-    
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 # AccionCorrectiva Schemas
