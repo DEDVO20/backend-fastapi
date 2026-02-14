@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+import uuid
 
 
 # revision identifiers, used by Alembic.
@@ -20,20 +21,77 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.execute(
-        """
-        DO $$
-        BEGIN
-            IF EXISTS (
-                SELECT 1
-                FROM auditorias
+    conn = op.get_bind()
+
+    # Backfill para auditorías legacy sin programa_id:
+    # 1) Busca un programa existente del mismo año.
+    # 2) Si no existe, crea uno técnico en estado aprobado.
+    # 3) Asigna programa_id por año de fecha_planificada/creado_en.
+    years = conn.execute(
+        sa.text(
+            """
+            SELECT DISTINCT EXTRACT(YEAR FROM COALESCE(fecha_planificada, creado_en, NOW()))::int AS anio
+            FROM auditorias
+            WHERE programa_id IS NULL
+            """
+        )
+    ).fetchall()
+
+    for row in years:
+        anio = int(row.anio)
+        programa_id = conn.execute(
+            sa.text(
+                """
+                SELECT id
+                FROM programa_auditorias
+                WHERE anio = :anio
+                ORDER BY creado_en ASC
+                LIMIT 1
+                """
+            ),
+            {"anio": anio},
+        ).scalar()
+
+        if not programa_id:
+            programa_id = uuid.uuid4()
+            conn.execute(
+                sa.text(
+                    """
+                    INSERT INTO programa_auditorias (
+                        id, anio, objetivo, estado, criterio_riesgo, aprobado_por, fecha_aprobacion, creado_en, actualizado_en
+                    ) VALUES (
+                        :id, :anio, :objetivo, :estado, :criterio_riesgo, NULL, NOW(), NOW(), NOW()
+                    )
+                    """
+                ),
+                {
+                    "id": programa_id,
+                    "anio": anio,
+                    "objetivo": f"Programa migrado automáticamente para auditorías existentes del año {anio}",
+                    "estado": "aprobado",
+                    "criterio_riesgo": "Backfill técnico por migración de integridad referencial",
+                },
+            )
+
+        conn.execute(
+            sa.text(
+                """
+                UPDATE auditorias
+                SET programa_id = :programa_id
                 WHERE programa_id IS NULL
-            ) THEN
-                RAISE EXCEPTION 'No se puede aplicar migración: existen auditorías sin programa_id';
-            END IF;
-        END $$;
-        """
-    )
+                  AND EXTRACT(YEAR FROM COALESCE(fecha_planificada, creado_en, NOW()))::int = :anio
+                """
+            ),
+            {"programa_id": programa_id, "anio": anio},
+        )
+
+    remaining_nulls = conn.execute(
+        sa.text("SELECT COUNT(*) FROM auditorias WHERE programa_id IS NULL")
+    ).scalar()
+    if remaining_nulls and remaining_nulls > 0:
+        raise RuntimeError(
+            "No se pudo completar el backfill de programa_id para todas las auditorías."
+        )
 
     op.execute(
         """
