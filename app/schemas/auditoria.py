@@ -25,6 +25,7 @@ class AuditoriaBase(BaseModel):
     auditor_lider_id: Optional[UUID] = Field(None, alias="auditorLiderId")
     creado_por: Optional[UUID] = Field(None, alias="creadoPor")
     informe_final: Optional[str] = Field(None, alias="informeFinal")
+    programa_id: Optional[UUID] = Field(None, alias="programaId")
 
 
 class AuditoriaCreate(AuditoriaBase):
@@ -46,6 +47,7 @@ class AuditoriaUpdate(BaseModel):
     equipo_auditor: Optional[str] = Field(None, alias="equipoAuditor")
     auditor_lider_id: Optional[UUID] = Field(None, alias="auditorLiderId")
     informe_final: Optional[str] = Field(None, alias="informeFinal")
+    programa_id: Optional[UUID] = Field(None, alias="programaId")
 
 
 class AuditoriaResponse(AuditoriaBase):
@@ -58,16 +60,24 @@ class AuditoriaResponse(AuditoriaBase):
 
 # HallazgoAuditoria Schemas
 class HallazgoAuditoriaBase(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     auditoria_id: UUID
     codigo: str = Field(..., max_length=100)
     descripcion: str
-    tipo_hallazgo: str = Field(..., max_length=50)
+    tipo_hallazgo: str = Field(..., max_length=50, alias="tipo")
     proceso_id: Optional[UUID] = None
-    clausula_norma: Optional[str] = Field(None, max_length=100)
+    clausula_norma: Optional[str] = Field(None, max_length=100, alias="clausulaIso")
     evidencia: Optional[str] = None
-    responsable_respuesta_id: Optional[UUID] = None
+    responsable_respuesta_id: Optional[UUID] = Field(None, alias="responsableId")
     fecha_respuesta: Optional[datetime] = None
     estado: str = Field(default='abierto', max_length=50)
+
+    # Campos nuevos
+    no_conformidad_id: Optional[UUID] = Field(None, alias="noConformidadId")
+    verificado_por: Optional[UUID] = Field(None, alias="verificadoPor")
+    fecha_verificacion: Optional[datetime] = Field(None, alias="fechaVerificacion")
+    resultado_verificacion: Optional[str] = Field(None, alias="resultadoVerificacion")
 
 
 class HallazgoAuditoriaCreate(HallazgoAuditoriaBase):
@@ -75,14 +85,21 @@ class HallazgoAuditoriaCreate(HallazgoAuditoriaBase):
 
 
 class HallazgoAuditoriaUpdate(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     descripcion: Optional[str] = None
-    tipo_hallazgo: Optional[str] = Field(None, max_length=50)
+    tipo_hallazgo: Optional[str] = Field(None, max_length=50, alias="tipo")
     proceso_id: Optional[UUID] = None
-    clausula_norma: Optional[str] = Field(None, max_length=100)
+    clausula_norma: Optional[str] = Field(None, max_length=100, alias="clausulaIso")
     evidencia: Optional[str] = None
-    responsable_respuesta_id: Optional[UUID] = None
+    responsable_respuesta_id: Optional[UUID] = Field(None, alias="responsableId")
     fecha_respuesta: Optional[datetime] = None
     estado: Optional[str] = Field(None, max_length=50)
+    
+    no_conformidad_id: Optional[UUID] = Field(None, alias="noConformidadId")
+    verificado_por: Optional[UUID] = Field(None, alias="verificadoPor")
+    fecha_verificacion: Optional[datetime] = Field(None, alias="fechaVerificacion")
+    resultado_verificacion: Optional[str] = Field(None, alias="resultadoVerificacion")
 
 
 class HallazgoAuditoriaResponse(HallazgoAuditoriaBase):
@@ -90,4 +107,4 @@ class HallazgoAuditoriaResponse(HallazgoAuditoriaBase):
     creado_en: datetime
     actualizado_en: datetime
     
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)

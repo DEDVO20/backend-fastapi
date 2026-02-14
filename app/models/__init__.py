@@ -43,8 +43,10 @@ from .calidad import (
 # Importar modelos de auditorías
 from .auditoria import (
     Auditoria,
-    HallazgoAuditoria
+    HallazgoAuditoria,
+    ProgramaAuditoria
 )
+from .historial import HistorialEstado
 
 # Importar modelos de riesgos
 from .riesgo import (
@@ -108,6 +110,8 @@ __all__ = [
     # Auditorías
     "Auditoria",
     "HallazgoAuditoria",
+    "ProgramaAuditoria",
+    "HistorialEstado",
     # Riesgos
     "Riesgo",
     "ControlRiesgo",

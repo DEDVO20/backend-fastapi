@@ -17,11 +17,66 @@ from ..schemas.auditoria import (
     HallazgoAuditoriaUpdate,
     HallazgoAuditoriaResponse
 )
-from ..utils.notification_service import crear_notificacion_asignacion
-from ..api.dependencies import get_current_user
-from ..models.usuario import Usuario
+from ..services.auditorias.auditoria_service import AuditoriaService
+from ..services.auditorias.hallazgo_service import HallazgoService
+from ..schemas.calidad import NoConformidadResponse
 
-router = APIRouter(prefix="/api/v1", tags=["auditorias"])
+# ... imports ...
+
+# ======================
+# Endpoints de Auditorías
+# ======================
+
+# ... existing endpoints ...
+
+@router.post("/auditorias/{auditoria_id}/iniciar", response_model=AuditoriaResponse)
+def iniciar_auditoria(
+    auditoria_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Iniciar la ejecución de una auditoría"""
+    return AuditoriaService.iniciar_auditoria(db, auditoria_id, current_user.id)
+
+@router.post("/auditorias/{auditoria_id}/finalizar", response_model=AuditoriaResponse)
+def finalizar_auditoria(
+    auditoria_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Finalizar la ejecución de una auditoría"""
+    return AuditoriaService.finalizar_auditoria(db, auditoria_id, current_user.id)
+
+@router.post("/auditorias/{auditoria_id}/cerrar", response_model=AuditoriaResponse)
+def cerrar_auditoria(
+    auditoria_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Cerrar formalmente una auditoría"""
+    return AuditoriaService.cerrar_auditoria(db, auditoria_id, current_user.id)
+
+# ... existing hallazgo endpoints ...
+
+@router.post("/hallazgos-auditoria/{hallazgo_id}/generar-nc", response_model=NoConformidadResponse)
+def generar_nc_hallazgo(
+    hallazgo_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Generar una No Conformidad a partir de un hallazgo"""
+    return HallazgoService.generar_nc(db, hallazgo_id, current_user.id)
+
+@router.post("/hallazgos-auditoria/{hallazgo_id}/verificar", response_model=HallazgoAuditoriaResponse)
+def verificar_hallazgo(
+    hallazgo_id: UUID, 
+    resultado: str,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Verificar y cerrar un hallazgo"""
+    return HallazgoService.verificar_hallazgo(db, hallazgo_id, current_user.id, resultado)
+
 
 
 # ======================
