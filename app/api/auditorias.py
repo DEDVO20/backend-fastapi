@@ -2,6 +2,7 @@
 Endpoints CRUD para gestión de auditorías
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
@@ -23,6 +24,7 @@ from ..schemas.calidad import NoConformidadResponse
 from ..utils.notification_service import crear_notificacion_asignacion
 from ..api.dependencies import get_current_user
 from ..models.usuario import Usuario
+from ..utils.pdf_generator import PDFGenerator
 
 router = APIRouter(prefix="/api/v1", tags=["auditorias"])
 
@@ -73,6 +75,51 @@ def verificar_hallazgo(
 ):
     """Verificar y cerrar un hallazgo"""
     return HallazgoService.verificar_hallazgo(db, hallazgo_id, current_user.id, resultado)
+
+
+@router.get("/auditorias/{auditoria_id}/informe")
+def generar_informe_auditoria(
+    auditoria_id: UUID, 
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Generar informe de auditoría en PDF"""
+    auditoria = db.query(Auditoria).filter(Auditoria.id == auditoria_id).first()
+    if not auditoria:
+        raise HTTPException(status_code=404, detail="Auditoría no encontrada")
+
+    # Preparar datos para el PDF
+    auditoria_data = {
+        "codigo": auditoria.codigo,
+        "nombre": auditoria.nombre,
+        "tipo": auditoria.tipo_auditoria,
+        "estado": auditoria.estado,
+        "alcance": auditoria.alcance,
+        "objetivo": auditoria.objetivo,
+        "fecha_inicio": auditoria.fecha_inicio.strftime('%d/%m/%Y') if auditoria.fecha_inicio else 'N/A',
+        "fecha_fin": auditoria.fecha_fin.strftime('%d/%m/%Y') if auditoria.fecha_fin else 'N/A',
+        "auditor_lider": f"{auditoria.auditor_lider.nombre} {auditoria.auditor_lider.primer_apellido}" if auditoria.auditor_lider else "N/A"
+    }
+    
+    hallazgos_data = []
+    for h in auditoria.hallazgos:
+        hallazgos_data.append({
+            "codigo": h.codigo,
+            "tipo": h.tipo_hallazgo,
+            "descripcion": h.descripcion,
+            "estado": h.estado,
+            "gravedad": h.gravedad
+        })
+
+    pdf_buffer = PDFGenerator.generar_informe_auditoria(auditoria_data, hallazgos_data)
+    
+    filename = f"Informe_Auditoria_{auditoria.codigo}.pdf"
+    
+    return StreamingResponse(
+        pdf_buffer, 
+        media_type="application/pdf", 
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
 
 
 
