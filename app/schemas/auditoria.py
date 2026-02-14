@@ -62,7 +62,7 @@ class AuditoriaResponse(AuditoriaBase):
 class HallazgoAuditoriaBase(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    auditoria_id: UUID
+    auditoria_id: UUID = Field(..., alias="auditoriaId")
     codigo: str = Field(..., max_length=100)
     descripcion: str
     tipo_hallazgo: str = Field(..., max_length=50, alias="tipo")
