@@ -25,6 +25,10 @@ class Capacitacion(BaseModel):
     objetivo = Column(Text, nullable=True)
     contenido = Column(Text, nullable=True)
     responsable_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    proceso_id = Column(UUID(as_uuid=True), ForeignKey("procesos.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    relacionada_con_hallazgo_id = Column(UUID(as_uuid=True), ForeignKey("hallazgo_auditorias.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    relacionada_con_riesgo_id = Column(UUID(as_uuid=True), ForeignKey("riesgos.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    archivo_evidencia = Column(Text, nullable=True)
     
     # Relaciones
     responsable = relationship("Usuario", back_populates="capacitaciones_responsable")
@@ -51,6 +55,8 @@ class AsistenciaCapacitacion(BaseModel):
     observaciones = Column(Text, nullable=True)
     certificado = Column(Boolean, nullable=False, default=False)
     fecha_registro = Column(DateTime(timezone=True), nullable=False)
+    fecha_asistencia = Column(DateTime(timezone=True), nullable=True)
+    evaluacion_aprobada = Column(Boolean, nullable=True)
     
     # Relaciones
     capacitacion = relationship("Capacitacion", back_populates="asistencias")

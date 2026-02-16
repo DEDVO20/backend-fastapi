@@ -24,6 +24,10 @@ class CapacitacionBase(BaseModel):
     objetivo: Optional[str] = None
     contenido: Optional[str] = None
     responsable_id: Optional[UUID] = None
+    proceso_id: Optional[UUID] = None
+    relacionada_con_hallazgo_id: Optional[UUID] = None
+    relacionada_con_riesgo_id: Optional[UUID] = None
+    archivo_evidencia: Optional[str] = None
 
 
 class CapacitacionCreate(CapacitacionBase):
@@ -45,6 +49,10 @@ class CapacitacionUpdate(BaseModel):
     objetivo: Optional[str] = None
     contenido: Optional[str] = None
     responsable_id: Optional[UUID] = None
+    proceso_id: Optional[UUID] = None
+    relacionada_con_hallazgo_id: Optional[UUID] = None
+    relacionada_con_riesgo_id: Optional[UUID] = None
+    archivo_evidencia: Optional[str] = None
 
 
 class CapacitacionResponse(CapacitacionBase):
@@ -63,7 +71,9 @@ class AsistenciaCapacitacionBase(BaseModel):
     calificacion: Optional[Decimal] = Field(None, ge=0, le=100)
     observaciones: Optional[str] = None
     certificado: bool = False
-    fecha_registro: datetime
+    fecha_registro: Optional[datetime] = None
+    fecha_asistencia: Optional[datetime] = None
+    evaluacion_aprobada: Optional[bool] = None
 
 
 class AsistenciaCapacitacionCreate(AsistenciaCapacitacionBase):
@@ -75,6 +85,8 @@ class AsistenciaCapacitacionUpdate(BaseModel):
     calificacion: Optional[Decimal] = Field(None, ge=0, le=100)
     observaciones: Optional[str] = None
     certificado: Optional[bool] = None
+    fecha_asistencia: Optional[datetime] = None
+    evaluacion_aprobada: Optional[bool] = None
 
 
 class AsistenciaCapacitacionResponse(AsistenciaCapacitacionBase):
@@ -82,3 +94,46 @@ class AsistenciaCapacitacionResponse(AsistenciaCapacitacionBase):
     creado_en: datetime
     
     model_config = ConfigDict(from_attributes=True)
+
+
+class ResumenAsistenciaCapacitacionResponse(BaseModel):
+    capacitacion_id: UUID
+    total_participantes: int
+    asistieron: int
+    no_asistieron: int
+    porcentaje_asistencia: float
+    evaluados: int
+    evaluacion_aprobada: int
+    porcentaje_aprobacion: float
+
+
+class UsuarioCapacitacionHistorialItem(BaseModel):
+    capacitacion_id: UUID
+    codigo: str
+    nombre: str
+    tipo_capacitacion: str
+    estado: str
+    fecha_programada: Optional[datetime] = None
+    fecha_asistencia: Optional[datetime] = None
+    asistio: bool
+    evaluacion_aprobada: Optional[bool] = None
+    calificacion: Optional[Decimal] = None
+    observaciones: Optional[str] = None
+
+
+class UsuarioSinCapacitacionObligatoriaResponse(BaseModel):
+    usuario_id: UUID
+    nombre: str
+    primer_apellido: str
+    capacitaciones_obligatorias_pendientes: int
+    capacitaciones_ids: list[UUID]
+
+
+class ReporteCapacitacionAuditoriaResponse(BaseModel):
+    total_capacitaciones: int
+    capacitaciones_programadas: int
+    capacitaciones_ejecutadas: int
+    total_registros_asistencia: int
+    porcentaje_asistencia_promedio: float
+    capacitaciones_sin_evidencia: int
+    capacitaciones_obligatorias_sin_cobertura: int
