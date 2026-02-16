@@ -6,7 +6,7 @@ from sqlalchemy import func, case
 from sqlalchemy.orm import Session
 from typing import List, Iterable, Optional
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from ..database import get_db
 from ..models.capacitacion import Capacitacion, AsistenciaCapacitacion
@@ -26,6 +26,10 @@ from ..schemas.capacitacion import (
 from ..api.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/v1", tags=["capacitaciones"])
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def _validar_convocados(
@@ -72,7 +76,7 @@ def _sincronizar_convocados(
         if usuario_id not in convocados_set:
             db.delete(asistencia)
 
-    ahora = datetime.utcnow()
+    ahora = _utcnow()
     for usuario_id in convocados_ids:
         if usuario_id in existentes_por_usuario:
             continue
@@ -227,7 +231,7 @@ def iniciar_capacitacion(
     if capacitacion.estado != "programada":
         raise HTTPException(status_code=400, detail="Solo se pueden iniciar capacitaciones programadas")
 
-    ahora = datetime.utcnow()
+    ahora = _utcnow()
     capacitacion.estado = "en_curso"
     capacitacion.fecha_inicio = ahora
     capacitacion.fecha_realizacion = ahora
@@ -251,7 +255,7 @@ def finalizar_capacitacion(
     if capacitacion.estado != "en_curso":
         raise HTTPException(status_code=400, detail="Solo se pueden finalizar capacitaciones en curso")
 
-    ahora = datetime.utcnow()
+    ahora = _utcnow()
     capacitacion.estado = "completada"
     capacitacion.fecha_fin = ahora
     capacitacion.fecha_cierre_asistencia = ahora + timedelta(minutes=5)
@@ -273,8 +277,12 @@ def marcar_mi_asistencia(
     if capacitacion.estado != "completada":
         raise HTTPException(status_code=400, detail="La capacitación aún no ha finalizado.")
 
-    ahora = datetime.utcnow()
-    if not capacitacion.fecha_cierre_asistencia or ahora > capacitacion.fecha_cierre_asistencia:
+    ahora = _utcnow()
+    fecha_cierre_asistencia = capacitacion.fecha_cierre_asistencia
+    if fecha_cierre_asistencia and fecha_cierre_asistencia.tzinfo is None:
+        fecha_cierre_asistencia = fecha_cierre_asistencia.replace(tzinfo=timezone.utc)
+
+    if not fecha_cierre_asistencia or ahora > fecha_cierre_asistencia:
         raise HTTPException(status_code=400, detail="La ventana de 5 minutos para marcar asistencia ya cerró.")
 
     asistencia = db.query(AsistenciaCapacitacion).filter(
@@ -374,9 +382,9 @@ def crear_asistencia_capacitacion(
     
     asistencia_data = asistencia.model_dump()
     if not asistencia_data.get("fecha_registro"):
-        asistencia_data["fecha_registro"] = datetime.utcnow()
+        asistencia_data["fecha_registro"] = _utcnow()
     if not asistencia_data.get("fecha_asistencia") and asistencia_data.get("asistio"):
-        asistencia_data["fecha_asistencia"] = datetime.utcnow()
+        asistencia_data["fecha_asistencia"] = _utcnow()
 
     nueva_asistencia = AsistenciaCapacitacion(**asistencia_data)
     db.add(nueva_asistencia)
@@ -418,7 +426,7 @@ def actualizar_asistencia_capacitacion(
     update_data = asistencia_update.model_dump(exclude_unset=True)
 
     if update_data.get("asistio") is True and "fecha_asistencia" not in update_data:
-        update_data["fecha_asistencia"] = datetime.utcnow()
+        update_data["fecha_asistencia"] = _utcnow()
 
     for field, value in update_data.items():
         setattr(asistencia, field, value)
