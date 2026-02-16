@@ -46,6 +46,7 @@ class Proceso(BaseModel):
     hallazgos = relationship("HallazgoAuditoria", back_populates="proceso")
     riesgos = relationship("Riesgo", back_populates="proceso")
     acciones = relationship("AccionProceso", back_populates="proceso")
+    formularios_dinamicos = relationship("FormularioDinamico", back_populates="proceso")
     campos_formulario = relationship("CampoFormulario", back_populates="proceso")
     
     # Índices

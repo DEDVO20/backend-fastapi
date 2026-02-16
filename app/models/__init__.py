@@ -73,6 +73,7 @@ from .ticket import Ticket, EstadoTicket, TipoTicket, PrioridadTicket
 from .sistema import (
     Notificacion,
     Configuracion,
+    FormularioDinamico,
     CampoFormulario,
     RespuestaFormulario,
     Asignacion
@@ -129,6 +130,7 @@ __all__ = [
     # Sistema
     "Notificacion",
     "Configuracion",
+    "FormularioDinamico",
     "CampoFormulario",
     "RespuestaFormulario",
     "Asignacion",

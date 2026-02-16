@@ -51,10 +51,38 @@ class Configuracion(BaseModel):
         return f"<Configuracion(clave={self.clave}, activa={self.activa})>"
 
 
+class FormularioDinamico(BaseModel):
+    """Modelo de formularios dinámicos configurables"""
+    __tablename__ = "formularios_dinamicos"
+
+    codigo = Column(String(100), nullable=False, unique=True)
+    nombre = Column(String(200), nullable=False)
+    descripcion = Column(Text, nullable=True)
+    modulo = Column(String(50), nullable=False, default="general")
+    entidad_tipo = Column(String(50), nullable=False, default="general")
+    proceso_id = Column(UUID(as_uuid=True), ForeignKey("procesos.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    activo = Column(Boolean, nullable=False, default=True)
+    version = Column(Integer, nullable=False, default=1)
+
+    # Relaciones
+    proceso = relationship("Proceso", back_populates="formularios_dinamicos")
+    campos = relationship("CampoFormulario", back_populates="formulario", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("formularios_dinamicos_codigo_idx", "codigo"),
+        Index("formularios_dinamicos_modulo_idx", "modulo"),
+        Index("formularios_dinamicos_entidad_tipo_idx", "entidad_tipo"),
+    )
+
+    def __repr__(self):
+        return f"<FormularioDinamico(codigo={self.codigo}, modulo={self.modulo})>"
+
+
 class CampoFormulario(BaseModel):
     """Modelo de campos dinámicos de formularios"""
     __tablename__ = "campo_formularios"
-    
+
+    formulario_id = Column(UUID(as_uuid=True), ForeignKey("formularios_dinamicos.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=True)
     proceso_id = Column(UUID(as_uuid=True), ForeignKey("procesos.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=True)
     nombre = Column(String(200), nullable=False)
     etiqueta = Column(String(200), nullable=False)
@@ -66,6 +94,7 @@ class CampoFormulario(BaseModel):
     validaciones = Column(JSON, nullable=True)  # Reglas de validación
     
     # Relaciones
+    formulario = relationship("FormularioDinamico", back_populates="campos")
     proceso = relationship("Proceso", back_populates="campos_formulario")
     respuestas = relationship("RespuestaFormulario", back_populates="campo")
     
@@ -78,7 +107,8 @@ class RespuestaFormulario(BaseModel):
     __tablename__ = "respuesta_formularios"
     
     campo_formulario_id = Column(UUID(as_uuid=True), ForeignKey("campo_formularios.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False)
-    instancia_proceso_id = Column(UUID(as_uuid=True), ForeignKey("instancia_procesos.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False)
+    instancia_proceso_id = Column(UUID(as_uuid=True), ForeignKey("instancia_procesos.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=True)
+    auditoria_id = Column(UUID(as_uuid=True), ForeignKey("auditorias.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=True)
     valor = Column(Text, nullable=True)
     archivo_adjunto = Column(Text, nullable=True)  # URL o path del archivo
     usuario_respuesta_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
@@ -86,6 +116,7 @@ class RespuestaFormulario(BaseModel):
     # Relaciones
     campo = relationship("CampoFormulario", back_populates="respuestas")
     instancia = relationship("InstanciaProceso", back_populates="respuestas_formularios")
+    auditoria = relationship("Auditoria", back_populates="respuestas_formularios")
     usuario_respuesta = relationship("Usuario", back_populates="respuestas_formularios")
     
     def __repr__(self):

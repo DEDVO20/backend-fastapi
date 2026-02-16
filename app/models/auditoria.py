@@ -51,6 +51,7 @@ class Auditoria(BaseModel):
     auditor_lider = relationship("Usuario", back_populates="auditorias_lider", foreign_keys=[auditor_lider_id])
     creador = relationship("Usuario", back_populates="auditorias_creadas", foreign_keys=[creado_por])
     hallazgos = relationship("HallazgoAuditoria", back_populates="auditoria")
+    respuestas_formularios = relationship("RespuestaFormulario", back_populates="auditoria")
     
     # Índices
     __table_args__ = (

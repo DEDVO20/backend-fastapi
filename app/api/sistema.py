@@ -8,7 +8,14 @@ from typing import List
 from uuid import UUID
 
 from ..database import get_db
-from ..models.sistema import Notificacion, Configuracion, Asignacion
+from ..models.sistema import (
+    Notificacion,
+    Configuracion,
+    Asignacion,
+    FormularioDinamico,
+    CampoFormulario,
+    RespuestaFormulario,
+)
 from ..schemas.sistema import (
     NotificacionCreate,
     NotificacionUpdate,
@@ -17,12 +24,29 @@ from ..schemas.sistema import (
     ConfiguracionUpdate,
     ConfiguracionResponse,
     AsignacionCreate,
-    AsignacionResponse
+    AsignacionResponse,
+    FormularioDinamicoCreate,
+    FormularioDinamicoUpdate,
+    FormularioDinamicoResponse,
+    CampoFormularioCreate,
+    CampoFormularioUpdate,
+    CampoFormularioResponse,
+    RespuestaFormularioCreate,
+    RespuestaFormularioUpdate,
+    RespuestaFormularioResponse,
 )
 from ..api.dependencies import get_current_user
 from ..models.usuario import Usuario
 
 router = APIRouter(prefix="/api/v1", tags=["sistema"])
+
+
+def _validar_tipo_campo_con_opciones(tipo_campo: str, opciones):
+    if tipo_campo in {"select", "radio", "checkbox", "multiselect"} and not opciones:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Los campos de selección requieren opciones.",
+        )
 
 
 # =========================
@@ -311,3 +335,243 @@ def eliminar_configuracion(
     
     db.delete(configuracion)
     db.commit()
+
+
+# ==================================
+# Endpoints de Formularios Dinámicos
+# ==================================
+
+@router.get("/formularios-dinamicos", response_model=List[FormularioDinamicoResponse])
+def listar_formularios_dinamicos(
+    skip: int = 0,
+    limit: int = 100,
+    modulo: str = None,
+    entidad_tipo: str = None,
+    proceso_id: UUID = None,
+    activo: bool = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    query = db.query(FormularioDinamico)
+    if modulo:
+        query = query.filter(FormularioDinamico.modulo == modulo)
+    if entidad_tipo:
+        query = query.filter(FormularioDinamico.entidad_tipo == entidad_tipo)
+    if proceso_id:
+        query = query.filter(FormularioDinamico.proceso_id == proceso_id)
+    if activo is not None:
+        query = query.filter(FormularioDinamico.activo == activo)
+    return query.order_by(FormularioDinamico.nombre.asc()).offset(skip).limit(limit).all()
+
+
+@router.post("/formularios-dinamicos", response_model=FormularioDinamicoResponse, status_code=status.HTTP_201_CREATED)
+def crear_formulario_dinamico(
+    formulario: FormularioDinamicoCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    existente = db.query(FormularioDinamico).filter(FormularioDinamico.codigo == formulario.codigo).first()
+    if existente:
+        raise HTTPException(status_code=400, detail="Ya existe un formulario con ese código.")
+    nuevo = FormularioDinamico(**formulario.model_dump())
+    db.add(nuevo)
+    db.commit()
+    db.refresh(nuevo)
+    return nuevo
+
+
+@router.get("/formularios-dinamicos/{formulario_id}", response_model=FormularioDinamicoResponse)
+def obtener_formulario_dinamico(
+    formulario_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    formulario = db.query(FormularioDinamico).filter(FormularioDinamico.id == formulario_id).first()
+    if not formulario:
+        raise HTTPException(status_code=404, detail="Formulario dinámico no encontrado.")
+    return formulario
+
+
+@router.put("/formularios-dinamicos/{formulario_id}", response_model=FormularioDinamicoResponse)
+def actualizar_formulario_dinamico(
+    formulario_id: UUID,
+    formulario_update: FormularioDinamicoUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    formulario = db.query(FormularioDinamico).filter(FormularioDinamico.id == formulario_id).first()
+    if not formulario:
+        raise HTTPException(status_code=404, detail="Formulario dinámico no encontrado.")
+
+    update_data = formulario_update.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(formulario, field, value)
+
+    db.commit()
+    db.refresh(formulario)
+    return formulario
+
+
+@router.delete("/formularios-dinamicos/{formulario_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_formulario_dinamico(
+    formulario_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    formulario = db.query(FormularioDinamico).filter(FormularioDinamico.id == formulario_id).first()
+    if not formulario:
+        raise HTTPException(status_code=404, detail="Formulario dinámico no encontrado.")
+    db.delete(formulario)
+    db.commit()
+    return None
+
+
+# =============================
+# Endpoints de Campos Formulario
+# =============================
+
+@router.get("/campos-formulario", response_model=List[CampoFormularioResponse])
+def listar_campos_formulario(
+    formulario_id: UUID = None,
+    proceso_id: UUID = None,
+    activo: bool = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    query = db.query(CampoFormulario)
+    if formulario_id:
+        query = query.filter(CampoFormulario.formulario_id == formulario_id)
+    if proceso_id:
+        query = query.filter(CampoFormulario.proceso_id == proceso_id)
+    if activo is not None:
+        query = query.filter(CampoFormulario.activo == activo)
+    return query.order_by(CampoFormulario.orden.asc(), CampoFormulario.creado_en.asc()).all()
+
+
+@router.post("/campos-formulario", response_model=CampoFormularioResponse, status_code=status.HTTP_201_CREATED)
+def crear_campo_formulario(
+    campo: CampoFormularioCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    _validar_tipo_campo_con_opciones(campo.tipo_campo, campo.opciones)
+    if campo.formulario_id:
+        formulario = db.query(FormularioDinamico).filter(FormularioDinamico.id == campo.formulario_id).first()
+        if not formulario:
+            raise HTTPException(status_code=404, detail="Formulario dinámico no encontrado.")
+
+    nuevo_campo = CampoFormulario(**campo.model_dump())
+    db.add(nuevo_campo)
+    db.commit()
+    db.refresh(nuevo_campo)
+    return nuevo_campo
+
+
+@router.put("/campos-formulario/{campo_id}", response_model=CampoFormularioResponse)
+def actualizar_campo_formulario(
+    campo_id: UUID,
+    campo_update: CampoFormularioUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    campo = db.query(CampoFormulario).filter(CampoFormulario.id == campo_id).first()
+    if not campo:
+        raise HTTPException(status_code=404, detail="Campo no encontrado.")
+
+    update_data = campo_update.model_dump(exclude_unset=True)
+    tipo_objetivo = update_data.get("tipo_campo", campo.tipo_campo)
+    opciones_objetivo = update_data.get("opciones", campo.opciones)
+    _validar_tipo_campo_con_opciones(tipo_objetivo, opciones_objetivo)
+
+    for field, value in update_data.items():
+        setattr(campo, field, value)
+
+    db.commit()
+    db.refresh(campo)
+    return campo
+
+
+@router.delete("/campos-formulario/{campo_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_campo_formulario(
+    campo_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    campo = db.query(CampoFormulario).filter(CampoFormulario.id == campo_id).first()
+    if not campo:
+        raise HTTPException(status_code=404, detail="Campo no encontrado.")
+    db.delete(campo)
+    db.commit()
+    return None
+
+
+# ================================
+# Endpoints de Respuestas Formulario
+# ================================
+
+@router.get("/respuestas-formulario", response_model=List[RespuestaFormularioResponse])
+def listar_respuestas_formulario(
+    auditoria_id: UUID = None,
+    instancia_proceso_id: UUID = None,
+    campo_formulario_id: UUID = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    query = db.query(RespuestaFormulario)
+    if auditoria_id:
+        query = query.filter(RespuestaFormulario.auditoria_id == auditoria_id)
+    if instancia_proceso_id:
+        query = query.filter(RespuestaFormulario.instancia_proceso_id == instancia_proceso_id)
+    if campo_formulario_id:
+        query = query.filter(RespuestaFormulario.campo_formulario_id == campo_formulario_id)
+    return query.order_by(RespuestaFormulario.creado_en.asc()).all()
+
+
+@router.post("/respuestas-formulario", response_model=RespuestaFormularioResponse, status_code=status.HTTP_201_CREATED)
+def crear_respuesta_formulario(
+    respuesta: RespuestaFormularioCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    if not respuesta.auditoria_id and not respuesta.instancia_proceso_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Debe enviar auditoria_id o instancia_proceso_id para registrar la respuesta.",
+        )
+
+    campo = db.query(CampoFormulario).filter(CampoFormulario.id == respuesta.campo_formulario_id).first()
+    if not campo:
+        raise HTTPException(status_code=404, detail="Campo de formulario no encontrado.")
+
+    payload = respuesta.model_dump()
+    if not payload.get("usuario_respuesta_id"):
+        payload["usuario_respuesta_id"] = current_user.id
+
+    nueva_respuesta = RespuestaFormulario(**payload)
+    db.add(nueva_respuesta)
+    db.commit()
+    db.refresh(nueva_respuesta)
+    return nueva_respuesta
+
+
+@router.put("/respuestas-formulario/{respuesta_id}", response_model=RespuestaFormularioResponse)
+def actualizar_respuesta_formulario(
+    respuesta_id: UUID,
+    respuesta_update: RespuestaFormularioUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    respuesta = db.query(RespuestaFormulario).filter(RespuestaFormulario.id == respuesta_id).first()
+    if not respuesta:
+        raise HTTPException(status_code=404, detail="Respuesta no encontrada.")
+
+    update_data = respuesta_update.model_dump(exclude_unset=True)
+    if "usuario_respuesta_id" not in update_data:
+        update_data["usuario_respuesta_id"] = current_user.id
+
+    for field, value in update_data.items():
+        setattr(respuesta, field, value)
+
+    db.commit()
+    db.refresh(respuesta)
+    return respuesta
