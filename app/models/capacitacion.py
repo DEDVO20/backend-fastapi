@@ -19,11 +19,16 @@ class Capacitacion(BaseModel):
     duracion_horas = Column(Integer, nullable=True)
     instructor = Column(String(200), nullable=True)
     fecha_programada = Column(DateTime(timezone=True), nullable=True)
+    fecha_inicio = Column(DateTime(timezone=True), nullable=True)
+    fecha_fin = Column(DateTime(timezone=True), nullable=True)
+    fecha_cierre_asistencia = Column(DateTime(timezone=True), nullable=True)
     fecha_realizacion = Column(DateTime(timezone=True), nullable=True)
     lugar = Column(String(200), nullable=True)
     estado = Column(String(50), nullable=False, default='programada')
     objetivo = Column(Text, nullable=True)
     contenido = Column(Text, nullable=True)
+    area_id = Column(UUID(as_uuid=True), ForeignKey("areas.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    aplica_todas_areas = Column(Boolean, nullable=False, default=False)
     responsable_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     proceso_id = Column(UUID(as_uuid=True), ForeignKey("procesos.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     relacionada_con_hallazgo_id = Column(UUID(as_uuid=True), ForeignKey("hallazgo_auditorias.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
@@ -32,6 +37,7 @@ class Capacitacion(BaseModel):
     
     # Relaciones
     responsable = relationship("Usuario", back_populates="capacitaciones_responsable")
+    area = relationship("Area")
     asistencias = relationship("AsistenciaCapacitacion", back_populates="capacitacion")
     
     # Índices

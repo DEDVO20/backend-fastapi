@@ -4,9 +4,9 @@ Endpoints CRUD para gestión de capacitaciones
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, case
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Iterable, Optional
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from ..database import get_db
 from ..models.capacitacion import Capacitacion, AsistenciaCapacitacion
@@ -26,6 +26,65 @@ from ..schemas.capacitacion import (
 from ..api.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/v1", tags=["capacitaciones"])
+
+
+def _validar_convocados(
+    db: Session,
+    area_id: Optional[UUID],
+    aplica_todas_areas: bool,
+    usuarios_convocados_ids: Iterable[UUID],
+) -> list[UUID]:
+    convocados_ids = list(dict.fromkeys(usuarios_convocados_ids))
+    if not convocados_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debe seleccionar al menos una persona convocada.",
+        )
+
+    usuarios_query = db.query(Usuario).filter(
+        Usuario.id.in_(convocados_ids),
+        Usuario.activo.is_(True),
+    )
+    if not aplica_todas_areas and area_id:
+        usuarios_query = usuarios_query.filter(Usuario.area_id == area_id)
+    usuarios_validos = usuarios_query.all()
+
+    if len(usuarios_validos) != len(convocados_ids):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Hay usuarios convocados inválidos, inactivos o fuera del área seleccionada.",
+        )
+    return convocados_ids
+
+
+def _sincronizar_convocados(
+    db: Session,
+    capacitacion_id: UUID,
+    convocados_ids: list[UUID],
+) -> None:
+    existentes = db.query(AsistenciaCapacitacion).filter(
+        AsistenciaCapacitacion.capacitacion_id == capacitacion_id
+    ).all()
+    existentes_por_usuario = {row.usuario_id: row for row in existentes}
+    convocados_set = set(convocados_ids)
+
+    for usuario_id, asistencia in existentes_por_usuario.items():
+        if usuario_id not in convocados_set:
+            db.delete(asistencia)
+
+    ahora = datetime.utcnow()
+    for usuario_id in convocados_ids:
+        if usuario_id in existentes_por_usuario:
+            continue
+        db.add(
+            AsistenciaCapacitacion(
+                capacitacion_id=capacitacion_id,
+                usuario_id=usuario_id,
+                asistio=False,
+                certificado=False,
+                fecha_registro=ahora,
+            )
+        )
 
 
 # ===========================
@@ -79,8 +138,23 @@ def crear_capacitacion(
             detail="El código de capacitación ya existe"
         )
     
-    nueva_capacitacion = Capacitacion(**capacitacion.model_dump())
+    data = capacitacion.model_dump()
+    usuarios_convocados_ids = data.pop("usuarios_convocados_ids", [])
+    convocados_ids = _validar_convocados(
+        db=db,
+        area_id=data.get("area_id"),
+        aplica_todas_areas=bool(data.get("aplica_todas_areas")),
+        usuarios_convocados_ids=usuarios_convocados_ids,
+    )
+
+    nueva_capacitacion = Capacitacion(**data)
     db.add(nueva_capacitacion)
+    db.flush()
+    _sincronizar_convocados(
+        db=db,
+        capacitacion_id=nueva_capacitacion.id,
+        convocados_ids=convocados_ids,
+    )
     db.commit()
     db.refresh(nueva_capacitacion)
     return nueva_capacitacion
@@ -117,12 +191,104 @@ def actualizar_capacitacion(
         )
     
     update_data = capacitacion_update.model_dump(exclude_unset=True)
+    usuarios_convocados_ids = update_data.pop("usuarios_convocados_ids", None)
+
     for field, value in update_data.items():
         setattr(capacitacion, field, value)
+
+    if usuarios_convocados_ids is not None:
+        convocados_ids = _validar_convocados(
+            db=db,
+            area_id=capacitacion.area_id,
+            aplica_todas_areas=bool(capacitacion.aplica_todas_areas),
+            usuarios_convocados_ids=usuarios_convocados_ids,
+        )
+        _sincronizar_convocados(
+            db=db,
+            capacitacion_id=capacitacion.id,
+            convocados_ids=convocados_ids,
+        )
     
     db.commit()
     db.refresh(capacitacion)
     return capacitacion
+
+
+@router.post("/capacitaciones/{capacitacion_id}/iniciar", response_model=CapacitacionResponse)
+def iniciar_capacitacion(
+    capacitacion_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    capacitacion = db.query(Capacitacion).filter(Capacitacion.id == capacitacion_id).first()
+    if not capacitacion:
+        raise HTTPException(status_code=404, detail="Capacitación no encontrada")
+
+    if capacitacion.estado != "programada":
+        raise HTTPException(status_code=400, detail="Solo se pueden iniciar capacitaciones programadas")
+
+    ahora = datetime.utcnow()
+    capacitacion.estado = "en_curso"
+    capacitacion.fecha_inicio = ahora
+    capacitacion.fecha_realizacion = ahora
+    capacitacion.fecha_fin = None
+    capacitacion.fecha_cierre_asistencia = None
+    db.commit()
+    db.refresh(capacitacion)
+    return capacitacion
+
+
+@router.post("/capacitaciones/{capacitacion_id}/finalizar", response_model=CapacitacionResponse)
+def finalizar_capacitacion(
+    capacitacion_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    capacitacion = db.query(Capacitacion).filter(Capacitacion.id == capacitacion_id).first()
+    if not capacitacion:
+        raise HTTPException(status_code=404, detail="Capacitación no encontrada")
+
+    if capacitacion.estado != "en_curso":
+        raise HTTPException(status_code=400, detail="Solo se pueden finalizar capacitaciones en curso")
+
+    ahora = datetime.utcnow()
+    capacitacion.estado = "completada"
+    capacitacion.fecha_fin = ahora
+    capacitacion.fecha_cierre_asistencia = ahora + timedelta(minutes=5)
+    db.commit()
+    db.refresh(capacitacion)
+    return capacitacion
+
+
+@router.post("/capacitaciones/{capacitacion_id}/marcar-mi-asistencia", response_model=AsistenciaCapacitacionResponse)
+def marcar_mi_asistencia(
+    capacitacion_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    capacitacion = db.query(Capacitacion).filter(Capacitacion.id == capacitacion_id).first()
+    if not capacitacion:
+        raise HTTPException(status_code=404, detail="Capacitación no encontrada")
+
+    if capacitacion.estado != "completada":
+        raise HTTPException(status_code=400, detail="La capacitación aún no ha finalizado.")
+
+    ahora = datetime.utcnow()
+    if not capacitacion.fecha_cierre_asistencia or ahora > capacitacion.fecha_cierre_asistencia:
+        raise HTTPException(status_code=400, detail="La ventana de 5 minutos para marcar asistencia ya cerró.")
+
+    asistencia = db.query(AsistenciaCapacitacion).filter(
+        AsistenciaCapacitacion.capacitacion_id == capacitacion_id,
+        AsistenciaCapacitacion.usuario_id == current_user.id,
+    ).first()
+    if not asistencia:
+        raise HTTPException(status_code=403, detail="No estás convocado a esta capacitación.")
+
+    asistencia.asistio = True
+    asistencia.fecha_asistencia = ahora
+    db.commit()
+    db.refresh(asistencia)
+    return asistencia
 
 
 @router.delete("/capacitaciones/{capacitacion_id}", status_code=status.HTTP_204_NO_CONTENT)

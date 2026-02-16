@@ -18,11 +18,16 @@ class CapacitacionBase(BaseModel):
     duracion_horas: Optional[int] = None
     instructor: Optional[str] = Field(None, max_length=200)
     fecha_programada: Optional[datetime] = None
+    fecha_inicio: Optional[datetime] = None
+    fecha_fin: Optional[datetime] = None
+    fecha_cierre_asistencia: Optional[datetime] = None
     fecha_realizacion: Optional[datetime] = None
     lugar: Optional[str] = Field(None, max_length=200)
     estado: str = Field(default='programada', max_length=50)
     objetivo: Optional[str] = None
     contenido: Optional[str] = None
+    area_id: Optional[UUID] = None
+    aplica_todas_areas: bool = False
     responsable_id: Optional[UUID] = None
     proceso_id: Optional[UUID] = None
     relacionada_con_hallazgo_id: Optional[UUID] = None
@@ -31,7 +36,7 @@ class CapacitacionBase(BaseModel):
 
 
 class CapacitacionCreate(CapacitacionBase):
-    pass
+    usuarios_convocados_ids: list[UUID] = Field(default_factory=list)
 
 
 class CapacitacionUpdate(BaseModel):
@@ -43,16 +48,22 @@ class CapacitacionUpdate(BaseModel):
     duracion_horas: Optional[int] = None
     instructor: Optional[str] = Field(None, max_length=200)
     fecha_programada: Optional[datetime] = None
+    fecha_inicio: Optional[datetime] = None
+    fecha_fin: Optional[datetime] = None
+    fecha_cierre_asistencia: Optional[datetime] = None
     fecha_realizacion: Optional[datetime] = None
     lugar: Optional[str] = Field(None, max_length=200)
     estado: Optional[str] = Field(None, max_length=50)
     objetivo: Optional[str] = None
     contenido: Optional[str] = None
+    area_id: Optional[UUID] = None
+    aplica_todas_areas: Optional[bool] = None
     responsable_id: Optional[UUID] = None
     proceso_id: Optional[UUID] = None
     relacionada_con_hallazgo_id: Optional[UUID] = None
     relacionada_con_riesgo_id: Optional[UUID] = None
     archivo_evidencia: Optional[str] = None
+    usuarios_convocados_ids: Optional[list[UUID]] = None
 
 
 class CapacitacionResponse(CapacitacionBase):
