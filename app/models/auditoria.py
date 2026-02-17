@@ -42,6 +42,7 @@ class Auditoria(BaseModel):
     norma_referencia = Column(String(200), nullable=True)
     equipo_auditor = Column(Text, nullable=True)
     auditor_lider_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    proceso_id = Column(UUID(as_uuid=True), ForeignKey("procesos.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     creado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     informe_final = Column(Text, nullable=True)
     programa_id = Column(UUID(as_uuid=True), ForeignKey("programa_auditorias.id", onupdate="CASCADE", ondelete="RESTRICT"), nullable=False)
@@ -49,8 +50,10 @@ class Auditoria(BaseModel):
     # Relaciones
     programa = relationship("ProgramaAuditoria", back_populates="auditorias")
     auditor_lider = relationship("Usuario", back_populates="auditorias_lider", foreign_keys=[auditor_lider_id])
+    proceso = relationship("Proceso")
     creador = relationship("Usuario", back_populates="auditorias_creadas", foreign_keys=[creado_por])
     hallazgos = relationship("HallazgoAuditoria", back_populates="auditoria")
+    respuestas_formularios = relationship("RespuestaFormulario", back_populates="auditoria")
     
     # Índices
     __table_args__ = (

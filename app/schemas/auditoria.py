@@ -68,6 +68,7 @@ class AuditoriaBase(BaseModel):
     norma_referencia: Optional[str] = Field("ISO 9001:2015", max_length=200, alias="normaReferencia")
     equipo_auditor: Optional[str] = Field(None, alias="equipoAuditor")
     auditor_lider_id: Optional[UUID] = Field(None, alias="auditorLiderId")
+    proceso_id: Optional[UUID] = Field(None, alias="procesoId")
     creado_por: Optional[UUID] = Field(None, alias="creadoPor")
     informe_final: Optional[str] = Field(None, alias="informeFinal")
     programa_id: UUID = Field(..., alias="programaId")
@@ -91,6 +92,7 @@ class AuditoriaUpdate(BaseModel):
     norma_referencia: Optional[str] = Field(None, max_length=200, alias="normaReferencia")
     equipo_auditor: Optional[str] = Field(None, alias="equipoAuditor")
     auditor_lider_id: Optional[UUID] = Field(None, alias="auditorLiderId")
+    proceso_id: Optional[UUID] = Field(None, alias="procesoId")
     informe_final: Optional[str] = Field(None, alias="informeFinal")
     programa_id: Optional[UUID] = Field(None, alias="programaId")
 
