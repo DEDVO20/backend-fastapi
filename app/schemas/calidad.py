@@ -234,15 +234,13 @@ class ObjetivoCalidadBase(BaseModel):
             raise ValueError(f"Estado inválido. Use uno de: {', '.join(sorted(estados_permitidos))}")
         return estado
 
+
+class ObjetivoCalidadCreate(ObjetivoCalidadBase):
     @model_validator(mode="after")
     def validar_fechas(self):
         if self.fecha_fin <= self.fecha_inicio:
             raise ValueError("La fecha de fin debe ser posterior a la fecha de inicio")
         return self
-
-
-class ObjetivoCalidadCreate(ObjetivoCalidadBase):
-    pass
 
 
 class ObjetivoCalidadUpdate(BaseModel):
@@ -266,10 +264,36 @@ class ObjetivoCalidadUpdate(BaseModel):
         return estado
 
 
-class ObjetivoCalidadResponse(ObjetivoCalidadBase):
+class _AreaSimple(BaseModel):
     id: UUID
+    nombre: str
+    codigo: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class _ResponsableSimple(BaseModel):
+    id: UUID
+    nombre: str
+    primer_apellido: Optional[str] = None
+    correo_electronico: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ObjetivoCalidadResponse(BaseModel):
+    id: UUID
+    codigo: str
+    descripcion: str
+    area_id: Optional[UUID] = None
+    responsable_id: Optional[UUID] = None
+    fecha_inicio: datetime
+    fecha_fin: datetime
+    estado: str
+    progreso: Decimal = Field(default=0)
     creado_en: datetime
     actualizado_en: datetime
+    
+    # Relaciones opcionales (si se cargan con joinedload)
+    area: Optional[_AreaSimple] = None
+    responsable: Optional[_ResponsableSimple] = None
     
     model_config = ConfigDict(from_attributes=True)
 
