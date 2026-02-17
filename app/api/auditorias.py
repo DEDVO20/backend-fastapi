@@ -5,13 +5,14 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 from datetime import datetime
 
 from ..database import get_db
 from ..models.auditoria import Auditoria, HallazgoAuditoria, ProgramaAuditoria
 from ..models.calidad import AccionCorrectiva
+from ..models.proceso import Proceso
 from ..schemas.auditoria import (
     AuditoriaCreate,
     AuditoriaUpdate,
@@ -93,6 +94,17 @@ def _tiene_auditorias_abiertas(db: Session, programa_id: UUID) -> bool:
         Auditoria.estado.notin_(["completada", "cerrada"])
     ).count()
     return abiertas > 0
+
+
+def _validar_proceso_para_auditoria(db: Session, proceso_id: Optional[UUID]) -> None:
+    if not proceso_id:
+        return
+    proceso = db.query(Proceso).filter(Proceso.id == proceso_id).first()
+    if not proceso:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El proceso asociado a la auditoría no existe.",
+        )
 
 # ======================
 # Endpoints de Programa de Auditorías
@@ -372,6 +384,7 @@ def listar_auditorias(
     limit: int = 100,
     estado: str = None,
     tipo: str = None,
+    proceso_id: UUID = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
@@ -382,6 +395,8 @@ def listar_auditorias(
         query = query.filter(Auditoria.estado == estado)
     if tipo:
         query = query.filter(Auditoria.tipo_auditoria == tipo)
+    if proceso_id:
+        query = query.filter(Auditoria.proceso_id == proceso_id)
     
     auditorias = query.offset(skip).limit(limit).all()
     return auditorias
@@ -420,6 +435,7 @@ def crear_auditoria(
         auditoria_data["programa_id"],
         auditoria_data.get("fecha_planificada")
     )
+    _validar_proceso_para_auditoria(db, auditoria_data.get("proceso_id"))
 
     nueva_auditoria = Auditoria(**auditoria_data)
     db.add(nueva_auditoria)
@@ -485,6 +501,8 @@ def actualizar_auditoria(
     programa_id_objetivo = update_data.get("programa_id", auditoria.programa_id)
     fecha_planificada_objetivo = update_data.get("fecha_planificada", auditoria.fecha_planificada)
     _validar_programa_para_auditoria(db, programa_id_objetivo, fecha_planificada_objetivo)
+    proceso_id_objetivo = update_data.get("proceso_id", auditoria.proceso_id)
+    _validar_proceso_para_auditoria(db, proceso_id_objetivo)
 
     if "norma_referencia" in update_data and not update_data["norma_referencia"]:
         update_data["norma_referencia"] = "ISO 9001:2015"
