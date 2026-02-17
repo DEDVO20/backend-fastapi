@@ -463,7 +463,7 @@ def obtener_auditoria(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtener una auditoría por ID"""
-    auditoria = db.query(Auditoria).filter(Auditoria.id == auditoria_id).first()
+    auditoria = db.query(Auditoria).options(joinedload(Auditoria.auditor_lider)).filter(Auditoria.id == auditoria_id).first()
     if not auditoria:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

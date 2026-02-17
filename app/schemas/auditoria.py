@@ -52,6 +52,16 @@ class ProgramaAuditoriaResponse(ProgramaAuditoriaBase):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
+# Schema auxiliar para datos del auditor líder
+class AuditorLiderInfo(BaseModel):
+    id: UUID
+    nombre: str
+    primer_apellido: Optional[str] = Field(None, alias="primerApellido")
+    correo_electronico: Optional[str] = Field(None, alias="email")
+    
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
 # Auditoria Schemas
 class AuditoriaBase(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
@@ -101,6 +111,7 @@ class AuditoriaResponse(AuditoriaBase):
     id: UUID
     creado_en: datetime
     actualizado_en: datetime
+    auditor_lider: Optional[AuditorLiderInfo] = Field(None, alias="auditorLider")
     
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
