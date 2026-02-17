@@ -216,6 +216,10 @@ class ObjetivoCalidadBase(BaseModel):
     fecha_fin: datetime
     estado: str = Field(default='planificado', max_length=50)
     progreso: Decimal = Field(default=0, ge=0, le=100)
+    # ISO 9001:2015 Cláusula 6.2
+    meta: Optional[str] = None
+    indicador: Optional[str] = Field(None, max_length=255)
+    valor_meta: Optional[Decimal] = Field(None, ge=0)
 
     @field_validator("codigo")
     @classmethod
@@ -251,6 +255,9 @@ class ObjetivoCalidadUpdate(BaseModel):
     fecha_fin: Optional[datetime] = None
     estado: Optional[str] = Field(None, max_length=50)
     progreso: Optional[Decimal] = Field(None, ge=0, le=100)
+    meta: Optional[str] = None
+    indicador: Optional[str] = Field(None, max_length=255)
+    valor_meta: Optional[Decimal] = Field(None, ge=0)
 
     @field_validator("estado")
     @classmethod
@@ -288,6 +295,9 @@ class ObjetivoCalidadResponse(BaseModel):
     fecha_fin: datetime
     estado: str
     progreso: Decimal = Field(default=0)
+    meta: Optional[str] = None
+    indicador: Optional[str] = None
+    valor_meta: Optional[Decimal] = None
     creado_en: datetime
     actualizado_en: datetime
     

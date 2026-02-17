@@ -116,6 +116,10 @@ class ObjetivoCalidad(BaseModel):
     fecha_fin = Column(DateTime(timezone=True), nullable=False)
     estado = Column(String(50), nullable=False, default='planificado')
     progreso = Column(Numeric(5, 2), nullable=False, default=0)
+    # ISO 9001:2015 Cláusula 6.2 - Campos adicionales
+    meta = Column(Text, nullable=True)                          # Qué se hará / meta medible
+    indicador = Column(String(255), nullable=True)              # Cómo se evaluarán los resultados
+    valor_meta = Column(Numeric(10, 2), nullable=True)          # Valor numérico objetivo
     
     # Relaciones
     area = relationship("Area", back_populates="objetivos_calidad")
