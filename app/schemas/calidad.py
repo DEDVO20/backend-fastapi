@@ -1,7 +1,7 @@
 """
 Schemas Pydantic para gestión de calidad
 """
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 from typing import Optional
 from datetime import datetime, date
 from uuid import UUID
@@ -209,7 +209,7 @@ class AccionCorrectivaResponse(AccionCorrectivaBase):
 # ObjetivoCalidad Schemas
 class ObjetivoCalidadBase(BaseModel):
     codigo: str = Field(..., max_length=100)
-    descripcion: str
+    descripcion: str = Field(..., min_length=10)
     area_id: Optional[UUID] = None
     responsable_id: Optional[UUID] = None
     fecha_inicio: datetime
@@ -217,19 +217,53 @@ class ObjetivoCalidadBase(BaseModel):
     estado: str = Field(default='planificado', max_length=50)
     progreso: Decimal = Field(default=0, ge=0, le=100)
 
+    @field_validator("codigo")
+    @classmethod
+    def validar_codigo(cls, value: str) -> str:
+        codigo = value.strip().upper()
+        if not codigo:
+            raise ValueError("El código es obligatorio")
+        return codigo
+
+    @field_validator("estado")
+    @classmethod
+    def validar_estado(cls, value: str) -> str:
+        estados_permitidos = {"planificado", "en_curso", "cumplido", "no_cumplido", "cancelado"}
+        estado = value.strip().lower()
+        if estado not in estados_permitidos:
+            raise ValueError(f"Estado inválido. Use uno de: {', '.join(sorted(estados_permitidos))}")
+        return estado
+
+    @model_validator(mode="after")
+    def validar_fechas(self):
+        if self.fecha_fin <= self.fecha_inicio:
+            raise ValueError("La fecha de fin debe ser posterior a la fecha de inicio")
+        return self
+
 
 class ObjetivoCalidadCreate(ObjetivoCalidadBase):
     pass
 
 
 class ObjetivoCalidadUpdate(BaseModel):
-    descripcion: Optional[str] = None
+    descripcion: Optional[str] = Field(None, min_length=10)
     area_id: Optional[UUID] = None
     responsable_id: Optional[UUID] = None
     fecha_inicio: Optional[datetime] = None
     fecha_fin: Optional[datetime] = None
     estado: Optional[str] = Field(None, max_length=50)
     progreso: Optional[Decimal] = Field(None, ge=0, le=100)
+
+    @field_validator("estado")
+    @classmethod
+    def validar_estado(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        estados_permitidos = {"planificado", "en_curso", "cumplido", "no_cumplido", "cancelado"}
+        estado = value.strip().lower()
+        if estado not in estados_permitidos:
+            raise ValueError(f"Estado inválido. Use uno de: {', '.join(sorted(estados_permitidos))}")
+        return estado
 
 
 class ObjetivoCalidadResponse(ObjetivoCalidadBase):

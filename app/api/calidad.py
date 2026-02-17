@@ -32,7 +32,7 @@ from ..schemas.calidad import (
     SeguimientoObjetivoResponse
 )
 from ..api.dependencies import get_current_user
-from ..models.usuario import Usuario
+from ..models.usuario import Usuario, Area
 
 router = APIRouter(prefix="/api/v1", tags=["calidad"])
 
@@ -608,12 +608,19 @@ def listar_objetivos_calidad(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Listar objetivos de calidad"""
-    query = db.query(ObjetivoCalidad)
+    query = db.query(ObjetivoCalidad).options(
+        joinedload(ObjetivoCalidad.area),
+        joinedload(ObjetivoCalidad.responsable)
+    )
     
     if area_id:
         query = query.filter(ObjetivoCalidad.area_id == area_id)
     if estado:
-        query = query.filter(ObjetivoCalidad.estado == estado)
+        estados = [s.strip() for s in estado.split(",") if s.strip()]
+        if len(estados) > 1:
+            query = query.filter(ObjetivoCalidad.estado.in_(estados))
+        elif len(estados) == 1:
+            query = query.filter(ObjetivoCalidad.estado == estados[0])
     
     objetivos = query.offset(skip).limit(limit).all()
     return objetivos
@@ -626,18 +633,52 @@ def crear_objetivo_calidad(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crear un nuevo objetivo de calidad"""
+    codigo_normalizado = objetivo.codigo.strip().upper()
+
+    if not objetivo.area_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El área es obligatoria para el objetivo de calidad"
+        )
+
+    if not objetivo.responsable_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El responsable es obligatorio para el objetivo de calidad"
+        )
+
+    area = db.query(Area).filter(Area.id == objetivo.area_id).first()
+    if not area:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El área seleccionada no existe"
+        )
+
+    responsable = db.query(Usuario).filter(Usuario.id == objetivo.responsable_id).first()
+    if not responsable:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El responsable seleccionado no existe"
+        )
+
     # Verificar código único
-    db_objetivo = db.query(ObjetivoCalidad).filter(ObjetivoCalidad.codigo == objetivo.codigo).first()
+    db_objetivo = db.query(ObjetivoCalidad).filter(ObjetivoCalidad.codigo == codigo_normalizado).first()
     if db_objetivo:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El código de objetivo ya existe"
         )
     
-    nuevo_objetivo = ObjetivoCalidad(**objetivo.model_dump())
+    objetivo_data = objetivo.model_dump()
+    objetivo_data["codigo"] = codigo_normalizado
+
+    nuevo_objetivo = ObjetivoCalidad(**objetivo_data)
     db.add(nuevo_objetivo)
     db.commit()
-    db.refresh(nuevo_objetivo)
+    nuevo_objetivo = db.query(ObjetivoCalidad).options(
+        joinedload(ObjetivoCalidad.area),
+        joinedload(ObjetivoCalidad.responsable)
+    ).filter(ObjetivoCalidad.id == nuevo_objetivo.id).first()
     return nuevo_objetivo
 
 
@@ -648,7 +689,10 @@ def obtener_objetivo_calidad(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtener un objetivo de calidad por ID"""
-    objetivo = db.query(ObjetivoCalidad).filter(ObjetivoCalidad.id == objetivo_id).first()
+    objetivo = db.query(ObjetivoCalidad).options(
+        joinedload(ObjetivoCalidad.area),
+        joinedload(ObjetivoCalidad.responsable)
+    ).filter(ObjetivoCalidad.id == objetivo_id).first()
     if not objetivo:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -673,11 +717,52 @@ def actualizar_objetivo_calidad(
         )
     
     update_data = objetivo_update.model_dump(exclude_unset=True)
+
+    fecha_inicio = update_data.get("fecha_inicio", objetivo.fecha_inicio)
+    fecha_fin = update_data.get("fecha_fin", objetivo.fecha_fin)
+    if fecha_fin <= fecha_inicio:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La fecha de fin debe ser posterior a la fecha de inicio"
+        )
+
+    if "area_id" in update_data and update_data["area_id"]:
+        area = db.query(Area).filter(Area.id == update_data["area_id"]).first()
+        if not area:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El área seleccionada no existe"
+            )
+
+    if "responsable_id" in update_data and update_data["responsable_id"]:
+        responsable = db.query(Usuario).filter(Usuario.id == update_data["responsable_id"]).first()
+        if not responsable:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El responsable seleccionado no existe"
+            )
+
+    if "codigo" in update_data and update_data["codigo"]:
+        codigo_normalizado = update_data["codigo"].strip().upper()
+        existe_codigo = db.query(ObjetivoCalidad).filter(
+            ObjetivoCalidad.codigo == codigo_normalizado,
+            ObjetivoCalidad.id != objetivo_id
+        ).first()
+        if existe_codigo:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El código de objetivo ya existe"
+            )
+        update_data["codigo"] = codigo_normalizado
+
     for field, value in update_data.items():
         setattr(objetivo, field, value)
     
     db.commit()
-    db.refresh(objetivo)
+    objetivo = db.query(ObjetivoCalidad).options(
+        joinedload(ObjetivoCalidad.area),
+        joinedload(ObjetivoCalidad.responsable)
+    ).filter(ObjetivoCalidad.id == objetivo_id).first()
     return objetivo
 
 
