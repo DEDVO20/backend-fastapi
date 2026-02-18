@@ -328,13 +328,14 @@ class SeguimientoObjetivoUpdate(BaseModel):
     responsable_id: Optional[UUID] = None
 
 
-class SeguimientoObjetivoResponse(SeguimientoObjetivoBase):
+class SeguimientoObjetivoResponse(BaseModel):
     id: UUID
-    # No tiene timestamps base (creado_en/actualizado_en) en el modelo, solo lo que hereda de BaseModel si lo tuviera.
-    # Revisando modelo: class SeguimientoObjetivo(BaseModel) -> hereda de .base.BaseModel.
-    # Asumimos que tiene id. 
-    # El modelo tiene: # Nota: solo tiene creado_en en el comentario del modelo, pero hereda de BaseModel.
-    # BaseModel suele tener id, creado_en, actualizado_en.
-    # Verificaremos si BaseModel del backend los tiene.
+    objetivo_calidad_id: UUID
+    fecha_seguimiento: datetime
+    valor_actual: Optional[Decimal] = None
+    observaciones: Optional[str] = None
+    responsable_id: Optional[UUID] = None
+    creado_en: Optional[datetime] = None
+    actualizado_en: Optional[datetime] = None
     
     model_config = ConfigDict(from_attributes=True)

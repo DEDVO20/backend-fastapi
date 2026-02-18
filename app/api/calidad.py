@@ -623,6 +623,24 @@ def listar_objetivos_calidad(
             query = query.filter(ObjetivoCalidad.estado == estados[0])
     
     objetivos = query.offset(skip).limit(limit).all()
+    
+    # Auto-transición de estados según fechas
+    from datetime import datetime, timezone
+    ahora = datetime.now(timezone.utc)
+    cambios = False
+    for obj in objetivos:
+        # Planificado → En curso: si la fecha de inicio ya pasó
+        if obj.estado == 'planificado' and obj.fecha_inicio <= ahora:
+            obj.estado = 'en_curso'
+            cambios = True
+        # En curso → No cumplido: si la fecha fin ya pasó y progreso < 100
+        elif obj.estado == 'en_curso' and obj.fecha_fin <= ahora and (obj.progreso or 0) < 100:
+            obj.estado = 'no_cumplido'
+            cambios = True
+    
+    if cambios:
+        db.commit()
+    
     return objetivos
 
 
@@ -829,11 +847,24 @@ def crear_seguimiento_objetivo(
     
     nuevo_seguimiento = SeguimientoObjetivo(**seguimiento.model_dump())
     db.add(nuevo_seguimiento)
+    
+    # Auto-actualizar progreso del objetivo si hay valor_meta y valor_actual
+    if seguimiento.valor_actual is not None and objetivo.valor_meta and objetivo.valor_meta > 0:
+        progreso = min((seguimiento.valor_actual / objetivo.valor_meta) * 100, 100)
+        objetivo.progreso = progreso
+        
+        # Auto-marcar como cumplido si progreso >= 100%
+        if progreso >= 100 and objetivo.estado not in ('cumplido', 'cancelado'):
+            objetivo.estado = 'cumplido'
+    
+    # Auto-transición: si está "planificado" y la fecha de inicio ya pasó, cambiar a "en_curso"
+    from datetime import datetime, timezone
+    ahora = datetime.now(timezone.utc)
+    if objetivo.estado == 'planificado' and objetivo.fecha_inicio <= ahora:
+        objetivo.estado = 'en_curso'
+    
     db.commit()
     db.refresh(nuevo_seguimiento)
-    
-    # Opcional: Actualizar el progreso del objetivo automáticamente
-    # Esto dependería de la lógica de negocio (si el seguimiento define el progreso)
     
     return nuevo_seguimiento
 
