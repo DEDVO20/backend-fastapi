@@ -30,6 +30,7 @@ class CompetenciaResponse(CompetenciaBase):
 class EvaluacionCompetenciaBase(BaseModel):
     usuario_id: UUID
     competencia_id: UUID
+    nivel_requerido: Optional[str] = Field(None, max_length=50)
     nivel: str = Field(..., max_length=50)  # Básico, Intermedio, Avanzado
     estado: str = Field(..., max_length=50) # Pendiente, En Desarrollo, Reforzada, Desarrollada
     fecha_evaluacion: datetime

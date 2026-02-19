@@ -13,6 +13,7 @@ from ..schemas.competencia import (
 )
 from .auth import get_current_user
 from ..models.usuario import Usuario
+from ..services.competencia_service import CompetenciaService
 
 router = APIRouter(
     prefix="/api/v1/competencias",
@@ -79,24 +80,8 @@ def listar_evaluaciones(
 
 @router.post("/evaluar", response_model=EvaluacionCompetenciaResponse, status_code=status.HTTP_201_CREATED)
 def evaluar_competencia(evaluacion: EvaluacionCompetenciaCreate, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
-    # Check if user exists
-    db_usuario = db.query(Usuario).filter(Usuario.id == evaluacion.usuario_id).first()
-    if not db_usuario:
-        raise HTTPException(status_code=404, detail="Usuario not found")
-        
-    # Check if competencia exists
-    db_competencia = db.query(Competencia).filter(Competencia.id == evaluacion.competencia_id).first()
-    if not db_competencia:
-        raise HTTPException(status_code=404, detail="Competencia not found")
-
-    nueva_evaluacion = EvaluacionCompetencia(**evaluacion.model_dump())
-    if not nueva_evaluacion.evaluador_id:
-        nueva_evaluacion.evaluador_id = current_user.id
-        
-    db.add(nueva_evaluacion)
-    db.commit()
-    db.refresh(nueva_evaluacion)
-    return nueva_evaluacion
+    service = CompetenciaService(db)
+    return service.evaluar_competencia(evaluacion.model_dump(), current_user.id)
 
 @router.delete("/evaluaciones/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_evaluacion(id: UUID, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):

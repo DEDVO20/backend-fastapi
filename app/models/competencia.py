@@ -1,6 +1,7 @@
 """
 Modelos de Competencias (ISO 9001:2015 Clause 7.2)
 """
+from datetime import datetime
 from sqlalchemy import Column, String, Text, ForeignKey, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -46,3 +47,26 @@ class EvaluacionCompetencia(BaseModel):
 
     def __repr__(self):
         return f"<EvaluacionCompetencia(usuario={self.usuario_id}, competencia={self.competencia_id}, nivel={self.nivel})>"
+
+
+class BrechaCompetencia(BaseModel):
+    """
+    Brecha entre nivel requerido y nivel actual de una competencia.
+    """
+    __tablename__ = "brechas_competencia"
+
+    usuario_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False)
+    competencia_id = Column(UUID(as_uuid=True), ForeignKey("competencias.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False)
+    nivel_requerido = Column(String(50), nullable=False)
+    nivel_actual = Column(String(50), nullable=False)
+    estado = Column(String(50), nullable=False, default="pendiente")  # pendiente, en_capacitacion, resuelta
+    capacitacion_id = Column(UUID(as_uuid=True), ForeignKey("capacitaciones.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    fecha_deteccion = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    fecha_resolucion = Column(DateTime(timezone=True), nullable=True)
+
+    usuario = relationship("Usuario", foreign_keys=[usuario_id])
+    competencia = relationship("Competencia")
+    capacitacion = relationship("Capacitacion")
+
+    def __repr__(self):
+        return f"<BrechaCompetencia(usuario={self.usuario_id}, competencia={self.competencia_id}, estado={self.estado})>"
