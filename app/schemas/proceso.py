@@ -51,6 +51,15 @@ class TipoAccion(str, Enum):
     MEJORA = "mejora"
 
 
+class TipoEtapaProceso(str, Enum):
+    """Tipos de etapa para flujo Entrada->Actividad->Salida"""
+    ENTRADA = "entrada"
+    TRANSFORMACION = "transformacion"
+    VERIFICACION = "verificacion"
+    DECISION = "decision"
+    SALIDA = "salida"
+
+
 # ==================== PROCESO SCHEMAS ====================
 
 class ProcesoBase(BaseModel):
@@ -160,6 +169,13 @@ class EtapaProcesoBase(BaseModel):
     # Campos adicionales
     criterios_aceptacion: Optional[str] = Field(None, description="Criterios de aceptación")
     documentos_requeridos: Optional[str] = Field(None, description="Documentos necesarios")
+    es_critica: bool = Field(default=False, description="Punto de control crítico")
+    tipo_etapa: Optional[TipoEtapaProceso] = Field(default=TipoEtapaProceso.TRANSFORMACION, description="Tipo de etapa")
+    etapa_phva: Optional[EtapaPHVA] = Field(default=None, description="Etapa PHVA de la actividad")
+    entradas: Optional[str] = Field(None, description="Entradas que recibe la etapa")
+    salidas: Optional[str] = Field(None, description="Salidas que produce la etapa")
+    controles: Optional[str] = Field(None, description="Controles aplicados")
+    registros_requeridos: Optional[str] = Field(None, description="Registros generados por la etapa")
 
 
 class EtapaProcesoCreate(EtapaProcesoBase):
@@ -177,6 +193,13 @@ class EtapaProcesoUpdate(BaseModel):
     activa: Optional[bool] = None
     criterios_aceptacion: Optional[str] = None
     documentos_requeridos: Optional[str] = None
+    es_critica: Optional[bool] = None
+    tipo_etapa: Optional[TipoEtapaProceso] = None
+    etapa_phva: Optional[EtapaPHVA] = None
+    entradas: Optional[str] = None
+    salidas: Optional[str] = None
+    controles: Optional[str] = None
+    registros_requeridos: Optional[str] = None
 
 
 class EtapaProcesoResponse(EtapaProcesoBase):
@@ -185,8 +208,15 @@ class EtapaProcesoResponse(EtapaProcesoBase):
     creado_en: datetime
     actualizado_en: datetime
     responsable_nombre: Optional[str] = None
-    
+    hallazgos_count: Optional[int] = 0
+
     model_config = ConfigDict(from_attributes=True)
+
+
+class EtapaProcesoOrdenItem(BaseModel):
+    """Item para reordenamiento de etapas"""
+    id: UUID
+    orden: int = Field(..., ge=1)
 
 
 # ==================== INSTANCIA PROCESO SCHEMAS ====================

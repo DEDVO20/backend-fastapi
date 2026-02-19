@@ -2,12 +2,14 @@
 Endpoints CRUD para gestión de procesos
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from typing import List
 from uuid import UUID
 
 from ..database import get_db
 from ..models.proceso import Proceso, EtapaProceso, InstanciaProceso, AccionProceso
+from ..models.auditoria import HallazgoAuditoria
 from ..schemas.proceso import (
     ProcesoCreate,
     ProcesoUpdate,
@@ -15,6 +17,7 @@ from ..schemas.proceso import (
     EtapaProcesoCreate,
     EtapaProcesoUpdate,
     EtapaProcesoResponse,
+    EtapaProcesoOrdenItem,
     InstanciaProcesoCreate,
     InstanciaProcesoUpdate,
     InstanciaProcesoResponse,
@@ -164,10 +167,36 @@ def listar_etapas_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Listar etapas de un proceso"""
-    etapas = db.query(EtapaProceso).filter(
+    etapas = db.query(EtapaProceso).options(
+        joinedload(EtapaProceso.responsable)
+    ).filter(
         EtapaProceso.proceso_id == proceso_id
     ).order_by(EtapaProceso.orden).all()
-    return etapas
+
+    if not etapas:
+        return []
+
+    etapa_ids = [etapa.id for etapa in etapas]
+    hallazgos_por_etapa = dict(
+        db.query(
+            HallazgoAuditoria.etapa_proceso_id,
+            func.count(HallazgoAuditoria.id)
+        ).filter(
+            HallazgoAuditoria.etapa_proceso_id.in_(etapa_ids)
+        ).group_by(HallazgoAuditoria.etapa_proceso_id).all()
+    )
+
+    resultado = []
+    for etapa in etapas:
+        etapa_data = EtapaProcesoResponse.model_validate(etapa)
+        etapa_data.responsable_nombre = (
+            f"{etapa.responsable.nombre} {etapa.responsable.primer_apellido}".strip()
+            if etapa.responsable else None
+        )
+        etapa_data.hallazgos_count = hallazgos_por_etapa.get(etapa.id, 0)
+        resultado.append(etapa_data)
+
+    return resultado
 
 
 @router.post("/etapas", response_model=EtapaProcesoResponse, status_code=status.HTTP_201_CREATED)
@@ -206,6 +235,65 @@ def actualizar_etapa_proceso(
     db.commit()
     db.refresh(etapa)
     return etapa
+
+
+@router.delete("/etapas/{etapa_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_etapa_proceso(
+    etapa_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Eliminar una etapa de proceso"""
+    etapa = db.query(EtapaProceso).filter(EtapaProceso.id == etapa_id).first()
+    if not etapa:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Etapa no encontrada"
+        )
+
+    db.delete(etapa)
+    db.commit()
+    return None
+
+
+@router.patch("/procesos/{proceso_id}/etapas/reordenar", status_code=status.HTTP_204_NO_CONTENT)
+def reordenar_etapas_proceso(
+    proceso_id: UUID,
+    orden: List[EtapaProcesoOrdenItem],
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Reordenar etapas de un proceso en operación masiva"""
+    if not orden:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debe enviar al menos una etapa para reordenar"
+        )
+
+    ids_payload = [item.id for item in orden]
+    if len(ids_payload) != len(set(ids_payload)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se permiten IDs de etapa duplicados en el reordenamiento"
+        )
+
+    etapas = db.query(EtapaProceso).filter(
+        EtapaProceso.proceso_id == proceso_id,
+        EtapaProceso.id.in_(ids_payload)
+    ).all()
+
+    if len(etapas) != len(ids_payload):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Una o más etapas no pertenecen al proceso o no existen"
+        )
+
+    etapas_por_id = {etapa.id: etapa for etapa in etapas}
+    for item in orden:
+        etapas_por_id[item.id].orden = item.orden
+
+    db.commit()
+    return None
 
 
 # =================================

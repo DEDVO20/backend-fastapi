@@ -12,7 +12,7 @@ from datetime import datetime
 from ..database import get_db
 from ..models.auditoria import Auditoria, HallazgoAuditoria, ProgramaAuditoria
 from ..models.calidad import AccionCorrectiva
-from ..models.proceso import Proceso
+from ..models.proceso import Proceso, EtapaProceso
 from ..schemas.auditoria import (
     AuditoriaCreate,
     AuditoriaUpdate,
@@ -104,6 +104,28 @@ def _validar_proceso_para_auditoria(db: Session, proceso_id: Optional[UUID]) -> 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El proceso asociado a la auditoría no existe.",
+        )
+
+
+def _validar_etapa_para_hallazgo(
+    db: Session,
+    etapa_proceso_id: Optional[UUID],
+    proceso_id: Optional[UUID]
+) -> None:
+    if not etapa_proceso_id:
+        return
+
+    etapa = db.query(EtapaProceso).filter(EtapaProceso.id == etapa_proceso_id).first()
+    if not etapa:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La etapa de proceso asociada al hallazgo no existe.",
+        )
+
+    if proceso_id and etapa.proceso_id != proceso_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La etapa seleccionada no pertenece al proceso del hallazgo.",
         )
 
 # ======================
@@ -601,7 +623,14 @@ def crear_hallazgo_auditoria(
     if not tiene_permiso:
         raise HTTPException(status_code=403, detail="No tienes permiso para registrar hallazgos")
 
-    nuevo_hallazgo = HallazgoAuditoria(**hallazgo.model_dump())
+    hallazgo_data = hallazgo.model_dump()
+    _validar_etapa_para_hallazgo(
+        db,
+        hallazgo_data.get("etapa_proceso_id"),
+        hallazgo_data.get("proceso_id"),
+    )
+
+    nuevo_hallazgo = HallazgoAuditoria(**hallazgo_data)
     db.add(nuevo_hallazgo)
     db.commit()
     db.refresh(nuevo_hallazgo)
@@ -640,6 +669,10 @@ def actualizar_hallazgo_auditoria(
         )
     
     update_data = hallazgo_update.model_dump(exclude_unset=True)
+    proceso_objetivo = update_data.get("proceso_id", hallazgo.proceso_id)
+    etapa_objetivo = update_data.get("etapa_proceso_id", hallazgo.etapa_proceso_id)
+    _validar_etapa_para_hallazgo(db, etapa_objetivo, proceso_objetivo)
+
     for field, value in update_data.items():
         setattr(hallazgo, field, value)
     

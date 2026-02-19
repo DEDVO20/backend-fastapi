@@ -75,10 +75,18 @@ class EtapaProceso(BaseModel):
     # Campos adicionales ISO 9001
     criterios_aceptacion = Column(Text, nullable=True)  # Criterios para completar la etapa
     documentos_requeridos = Column(Text, nullable=True)  # Documentos necesarios
-    
+    es_critica = Column(Boolean, nullable=False, default=False)  # Punto de control crítico
+    tipo_etapa = Column(String(50), nullable=False, default='transformacion')  # entrada|transformacion|verificacion|decision|salida
+    etapa_phva = Column(String(20), nullable=True)  # planear|hacer|verificar|actuar
+    entradas = Column(Text, nullable=True)  # Qué recibe esta etapa
+    salidas = Column(Text, nullable=True)  # Qué produce esta etapa
+    controles = Column(Text, nullable=True)  # Controles aplicados
+    registros_requeridos = Column(Text, nullable=True)  # Registros generados
+
     # Relaciones
     proceso = relationship("Proceso", back_populates="etapas")
     responsable = relationship("Usuario", back_populates="etapas_responsable")
+    hallazgos = relationship("HallazgoAuditoria", back_populates="etapa_proceso")
     
     def __repr__(self):
         return f"<EtapaProceso(nombre={self.nombre}, orden={self.orden})>"

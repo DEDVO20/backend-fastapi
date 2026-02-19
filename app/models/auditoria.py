@@ -75,6 +75,7 @@ class HallazgoAuditoria(BaseModel):
     descripcion = Column(Text, nullable=False)
     tipo_hallazgo = Column(String(50), nullable=False)
     proceso_id = Column(UUID(as_uuid=True), ForeignKey("procesos.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    etapa_proceso_id = Column(UUID(as_uuid=True), ForeignKey("etapa_procesos.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     clausula_norma = Column(String(100), nullable=True)
     evidencia = Column(Text, nullable=True)
     responsable_respuesta_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
@@ -90,6 +91,7 @@ class HallazgoAuditoria(BaseModel):
     # Relaciones
     auditoria = relationship("Auditoria", back_populates="hallazgos")
     proceso = relationship("Proceso", back_populates="hallazgos")
+    etapa_proceso = relationship("EtapaProceso", back_populates="hallazgos")
     responsable_respuesta = relationship("Usuario", back_populates="hallazgos_responsable", foreign_keys=[responsable_respuesta_id])
     no_conformidad = relationship("NoConformidad") # Relación unidireccional por ahora para evitar ciclos complejos
     verificador = relationship("Usuario", foreign_keys=[verificado_por])
