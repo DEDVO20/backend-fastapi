@@ -194,11 +194,15 @@ def listar_notificaciones(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    """Listar notificaciones"""
-    query = db.query(Notificacion)
-    
-    if usuario_id:
-        query = query.filter(Notificacion.usuario_id == usuario_id)
+    """Listar notificaciones del usuario autenticado."""
+    if usuario_id and usuario_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para consultar notificaciones de otro usuario",
+        )
+
+    query = db.query(Notificacion).filter(Notificacion.usuario_id == current_user.id)
+
     if leida is not None:
         query = query.filter(Notificacion.leida == leida)
     if tipo:
@@ -228,8 +232,11 @@ def obtener_notificacion(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    """Obtener una notificación por ID"""
-    notificacion = db.query(Notificacion).filter(Notificacion.id == notificacion_id).first()
+    """Obtener una notificación propia por ID."""
+    notificacion = db.query(Notificacion).filter(
+        Notificacion.id == notificacion_id,
+        Notificacion.usuario_id == current_user.id,
+    ).first()
     if not notificacion:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -245,8 +252,11 @@ def actualizar_notificacion(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    """Actualizar una notificación (marcar como leída)"""
-    notificacion = db.query(Notificacion).filter(Notificacion.id == notificacion_id).first()
+    """Actualizar una notificación propia (marcar como leída)."""
+    notificacion = db.query(Notificacion).filter(
+        Notificacion.id == notificacion_id,
+        Notificacion.usuario_id == current_user.id,
+    ).first()
     if not notificacion:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -268,8 +278,11 @@ def eliminar_notificacion(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    """Eliminar una notificación"""
-    notificacion = db.query(Notificacion).filter(Notificacion.id == notificacion_id).first()
+    """Eliminar una notificación propia."""
+    notificacion = db.query(Notificacion).filter(
+        Notificacion.id == notificacion_id,
+        Notificacion.usuario_id == current_user.id,
+    ).first()
     if not notificacion:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
