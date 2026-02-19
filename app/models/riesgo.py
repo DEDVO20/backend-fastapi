@@ -1,7 +1,8 @@
 """
-Modelos de gestión de riesgos y controles
+Modelos de gestión de riesgos y controles.
 """
-from sqlalchemy import Column, String, Text, Integer, Boolean, ForeignKey, Index, Date
+from datetime import datetime
+from sqlalchemy import Column, String, Text, Integer, Boolean, ForeignKey, Index, Date, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from .base import BaseModel
@@ -16,6 +17,7 @@ class Riesgo(BaseModel):
     descripcion = Column(Text, nullable=False)
     categoria = Column(String(100), nullable=True)
     tipo_riesgo = Column(String(50), nullable=False)
+    etapa_proceso_id = Column(UUID(as_uuid=True), ForeignKey("etapa_procesos.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     probabilidad = Column(Integer, nullable=True)  # Escala 1-5
     impacto = Column(Integer, nullable=True)  # Escala 1-5
     nivel_riesgo = Column(String(50), nullable=True)  # Bajo, Medio, Alto, Crítico
@@ -29,13 +31,16 @@ class Riesgo(BaseModel):
     
     # Relaciones
     proceso = relationship("Proceso", back_populates="riesgos")
+    etapa_proceso = relationship("EtapaProceso")
     responsable = relationship("Usuario", back_populates="riesgos_responsable")
     controles = relationship("ControlRiesgo", back_populates="riesgo")
+    historial_evaluaciones = relationship("EvaluacionRiesgoHistorial", back_populates="riesgo", cascade="all, delete-orphan")
     
     # Índices
     __table_args__ = (
         Index('riesgos_codigo', 'codigo'),
         Index('riesgos_proceso_id', 'proceso_id'),
+        Index('riesgos_etapa_proceso_id', 'etapa_proceso_id'),
     )
     
     def __repr__(self):
@@ -60,3 +65,24 @@ class ControlRiesgo(BaseModel):
     
     def __repr__(self):
         return f"<ControlRiesgo(riesgo_id={self.riesgo_id}, tipo={self.tipo_control})>"
+
+
+class EvaluacionRiesgoHistorial(BaseModel):
+    __tablename__ = "evaluacion_riesgo_historial"
+
+    riesgo_id = Column(UUID(as_uuid=True), ForeignKey("riesgos.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False)
+    probabilidad_anterior = Column(Integer, nullable=True)
+    impacto_anterior = Column(Integer, nullable=True)
+    nivel_anterior = Column(String(50), nullable=True)
+    probabilidad_nueva = Column(Integer, nullable=False)
+    impacto_nueva = Column(Integer, nullable=False)
+    nivel_nuevo = Column(String(50), nullable=False)
+    justificacion = Column(Text, nullable=True)
+    evaluado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    fecha_evaluacion = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+    riesgo = relationship("Riesgo", back_populates="historial_evaluaciones")
+    evaluador = relationship("Usuario", foreign_keys=[evaluado_por])
+
+    def __repr__(self):
+        return f"<EvaluacionRiesgoHistorial(riesgo_id={self.riesgo_id}, nivel={self.nivel_nuevo})>"

@@ -27,6 +27,7 @@ from ..schemas.proceso import (
 )
 from ..api.dependencies import get_current_user
 from ..models.usuario import Usuario
+from ..services.proceso_service import ProcesoService
 
 router = APIRouter(prefix="/api/v1", tags=["procesos"])
 
@@ -45,17 +46,8 @@ def listar_procesos(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Listar todos los procesos"""
-    query = db.query(Proceso).options(
-        joinedload(Proceso.area),
-        joinedload(Proceso.responsable)
-    )
-    
-    if estado:
-        query = query.filter(Proceso.estado == estado)
-    if area_id:
-        query = query.filter(Proceso.area_id == area_id)
-    
-    procesos = query.offset(skip).limit(limit).all()
+    service = ProcesoService(db)
+    procesos = service.listar(skip=skip, limit=limit, estado=estado, area_id=area_id)
     result = []
     for proceso in procesos:
         proceso_data = ProcesoResponse.model_validate(proceso)
@@ -73,19 +65,8 @@ def crear_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crear un nuevo proceso"""
-    # Verificar si el código ya existe
-    db_proceso = db.query(Proceso).filter(Proceso.codigo == proceso.codigo).first()
-    if db_proceso:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El código de proceso ya existe"
-        )
-    
-    nuevo_proceso = Proceso(**proceso.model_dump())
-    db.add(nuevo_proceso)
-    db.commit()
-    db.refresh(nuevo_proceso)
-    return nuevo_proceso
+    service = ProcesoService(db)
+    return service.crear_proceso(proceso, current_user.id)
 
 
 @router.get("/procesos/{proceso_id}", response_model=ProcesoResponse)
@@ -95,17 +76,8 @@ def obtener_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtener un proceso por ID"""
-    proceso = db.query(Proceso).options(
-        joinedload(Proceso.area),
-        joinedload(Proceso.responsable)
-    ).filter(Proceso.id == proceso_id).first()
-    
-    if not proceso:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Proceso no encontrado"
-        )
-    
+    service = ProcesoService(db)
+    proceso = service.obtener(proceso_id)
     proceso_data = ProcesoResponse.model_validate(proceso)
     proceso_data.area_nombre = proceso.area.nombre if proceso.area else None
     proceso_data.responsable_nombre = f"{proceso.responsable.nombre} {proceso.responsable.primer_apellido}" if proceso.responsable else None
@@ -121,20 +93,8 @@ def actualizar_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar un proceso"""
-    proceso = db.query(Proceso).filter(Proceso.id == proceso_id).first()
-    if not proceso:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Proceso no encontrado"
-        )
-    
-    update_data = proceso_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(proceso, field, value)
-    
-    db.commit()
-    db.refresh(proceso)
-    return proceso
+    service = ProcesoService(db)
+    return service.actualizar_proceso(proceso_id, proceso_update, current_user.id)
 
 
 @router.delete("/procesos/{proceso_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -144,15 +104,8 @@ def eliminar_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Eliminar un proceso"""
-    proceso = db.query(Proceso).filter(Proceso.id == proceso_id).first()
-    if not proceso:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Proceso no encontrado"
-        )
-    
-    db.delete(proceso)
-    db.commit()
+    service = ProcesoService(db)
+    service.eliminar_proceso(proceso_id, current_user.id)
     return None
 
 
@@ -170,7 +123,8 @@ def listar_etapas_proceso(
     etapas = db.query(EtapaProceso).options(
         joinedload(EtapaProceso.responsable)
     ).filter(
-        EtapaProceso.proceso_id == proceso_id
+        EtapaProceso.proceso_id == proceso_id,
+        EtapaProceso.activo.is_(True)
     ).order_by(EtapaProceso.orden).all()
 
     if not etapas:
@@ -206,11 +160,8 @@ def crear_etapa_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crear una nueva etapa de proceso"""
-    nueva_etapa = EtapaProceso(**etapa.model_dump())
-    db.add(nueva_etapa)
-    db.commit()
-    db.refresh(nueva_etapa)
-    return nueva_etapa
+    service = ProcesoService(db)
+    return service.crear_etapa(etapa, current_user.id)
 
 
 @router.put("/etapas/{etapa_id}", response_model=EtapaProcesoResponse)
@@ -221,20 +172,8 @@ def actualizar_etapa_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar una etapa de proceso"""
-    etapa = db.query(EtapaProceso).filter(EtapaProceso.id == etapa_id).first()
-    if not etapa:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Etapa no encontrada"
-        )
-    
-    update_data = etapa_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(etapa, field, value)
-    
-    db.commit()
-    db.refresh(etapa)
-    return etapa
+    service = ProcesoService(db)
+    return service.actualizar_etapa(etapa_id, etapa_update, current_user.id)
 
 
 @router.delete("/etapas/{etapa_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -244,15 +183,8 @@ def eliminar_etapa_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Eliminar una etapa de proceso"""
-    etapa = db.query(EtapaProceso).filter(EtapaProceso.id == etapa_id).first()
-    if not etapa:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Etapa no encontrada"
-        )
-
-    db.delete(etapa)
-    db.commit()
+    service = ProcesoService(db)
+    service.eliminar_etapa(etapa_id, current_user.id)
     return None
 
 

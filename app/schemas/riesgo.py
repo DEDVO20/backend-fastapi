@@ -10,6 +10,7 @@ from uuid import UUID
 # Riesgo Schemas
 class RiesgoBase(BaseModel):
     proceso_id: UUID
+    etapa_proceso_id: Optional[UUID] = None
     codigo: str = Field(..., max_length=100)
     descripcion: str
     categoria: Optional[str] = Field(None, max_length=100)
@@ -31,6 +32,7 @@ class RiesgoCreate(RiesgoBase):
 
 
 class RiesgoUpdate(BaseModel):
+    etapa_proceso_id: Optional[UUID] = None
     descripcion: Optional[str] = None
     categoria: Optional[str] = Field(None, max_length=100)
     tipo_riesgo: Optional[str] = Field(None, max_length=50)

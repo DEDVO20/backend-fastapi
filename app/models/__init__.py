@@ -47,11 +47,13 @@ from .auditoria import (
     ProgramaAuditoria
 )
 from .historial import HistorialEstado
+from .audit_log import AuditLog
 
 # Importar modelos de riesgos
 from .riesgo import (
     Riesgo,
-    ControlRiesgo
+    ControlRiesgo,
+    EvaluacionRiesgoHistorial,
 )
 
 # Importar modelos de capacitación
@@ -113,9 +115,11 @@ __all__ = [
     "HallazgoAuditoria",
     "ProgramaAuditoria",
     "HistorialEstado",
+    "AuditLog",
     # Riesgos
     "Riesgo",
     "ControlRiesgo",
+    "EvaluacionRiesgoHistorial",
     # Capacitación
     "Capacitacion",
     "AsistenciaCapacitacion",
