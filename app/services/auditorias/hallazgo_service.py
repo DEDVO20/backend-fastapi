@@ -5,11 +5,50 @@ from fastapi import HTTPException
 from typing import Optional
 
 from ...models.auditoria import HallazgoAuditoria
-from ...models.calidad import NoConformidad
+from ...models.calidad import NoConformidad, AccionCorrectiva
 from ...models.historial import HistorialEstado
 from ...schemas.calidad import NoConformidadCreate
+from ...models.proceso import Proceso
 
 class HallazgoService:
+    @staticmethod
+    def crear_hallazgo(db: Session, hallazgo_data: dict, usuario_id: UUID) -> HallazgoAuditoria:
+        proceso_id = hallazgo_data.get("proceso_id")
+        if proceso_id:
+            proceso = db.query(Proceso).filter(Proceso.id == proceso_id).first()
+            if not proceso:
+                raise HTTPException(status_code=400, detail="El proceso especificado no existe")
+
+        hallazgo = HallazgoAuditoria(**hallazgo_data)
+        hallazgo.estado = hallazgo.estado or "abierto"
+        db.add(hallazgo)
+        db.flush()
+
+        if hallazgo.tipo_hallazgo in ("no_conformidad_mayor", "no_conformidad_menor") and hallazgo.no_conformidad_id:
+            codigo = f"AC-AUTO-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            accion = AccionCorrectiva(
+                no_conformidad_id=hallazgo.no_conformidad_id,
+                codigo=codigo,
+                descripcion=f"Acción correctiva para hallazgo {hallazgo.codigo}",
+                estado="borrador",
+                tipo="correctiva",
+                creado_por=usuario_id,
+            )
+            db.add(accion)
+
+        historial = HistorialEstado(
+            entidad_tipo='hallazgo',
+            entidad_id=hallazgo.id,
+            estado_anterior=None,
+            estado_nuevo=hallazgo.estado,
+            usuario_id=usuario_id,
+            comentario="Creación de hallazgo"
+        )
+        db.add(historial)
+        db.commit()
+        db.refresh(hallazgo)
+        return hallazgo
+
     @staticmethod
     def generar_nc(db: Session, hallazgo_id: UUID, usuario_id: UUID) -> NoConformidad:
         # 1. Obtener Hallazgo

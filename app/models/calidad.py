@@ -1,7 +1,7 @@
 """
-Modelos de gestión de calidad (indicadores, no conformidades, objetivos)
+Modelos de gestión de calidad (indicadores, no conformidades, objetivos).
 """
-from sqlalchemy import Column, String, Text, Integer, ForeignKey, Index, Numeric, Date, DateTime
+from sqlalchemy import Column, String, Text, Integer, ForeignKey, Index, Numeric, Date, DateTime, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from .base import BaseModel
@@ -25,6 +25,7 @@ class Indicador(BaseModel):
     # Relaciones
     proceso = relationship("Proceso", back_populates="indicadores")
     responsable_medicion = relationship("Usuario", back_populates="indicadores_responsable")
+    mediciones = relationship("MedicionIndicador", back_populates="indicador", cascade="all, delete-orphan")
     
     # Índices
     __table_args__ = (
@@ -34,6 +35,29 @@ class Indicador(BaseModel):
     
     def __repr__(self):
         return f"<Indicador(codigo={self.codigo}, nombre={self.nombre})>"
+
+
+class MedicionIndicador(BaseModel):
+    __tablename__ = "mediciones_indicador"
+
+    indicador_id = Column(UUID(as_uuid=True), ForeignKey("indicadores.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False)
+    periodo = Column(String(20), nullable=False)  # 2026-01, 2026-Q1
+    valor = Column(Numeric(10, 2), nullable=False)
+    meta = Column(Numeric(10, 2), nullable=True)
+    cumple_meta = Column(Boolean, nullable=True)
+    observaciones = Column(Text, nullable=True)
+    registrado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+
+    indicador = relationship("Indicador", back_populates="mediciones")
+    registrador = relationship("Usuario", foreign_keys=[registrado_por])
+
+    __table_args__ = (
+        Index("idx_mediciones_indicador_id", "indicador_id"),
+        Index("idx_mediciones_indicador_periodo", "periodo"),
+    )
+
+    def __repr__(self):
+        return f"<MedicionIndicador(indicador_id={self.indicador_id}, periodo={self.periodo}, valor={self.valor})>"
 
 
 class NoConformidad(BaseModel):

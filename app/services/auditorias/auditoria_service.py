@@ -89,6 +89,9 @@ class AuditoriaService:
         auditoria = db.query(Auditoria).filter(Auditoria.id == auditoria_id).first()
         if not auditoria:
              raise HTTPException(status_code=404, detail="Auditoría no encontrada")
+
+        if not auditoria.informe_final:
+            raise HTTPException(status_code=400, detail="Debe adjuntar el informe final antes de cerrar")
              
         # Verificar que no haya hallazgos abiertos (especialmente No Conformidades sin cerrar)
         hallazgos_abiertos = db.query(HallazgoAuditoria).filter(
@@ -111,6 +114,8 @@ class AuditoriaService:
 
         estado_anterior = auditoria.estado
         auditoria.estado = 'cerrada'
+        if not auditoria.fecha_fin:
+            auditoria.fecha_fin = datetime.now()
         
         historial = HistorialEstado(
             entidad_tipo='auditoria',

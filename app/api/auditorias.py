@@ -629,12 +629,7 @@ def crear_hallazgo_auditoria(
         hallazgo_data.get("etapa_proceso_id"),
         hallazgo_data.get("proceso_id"),
     )
-
-    nuevo_hallazgo = HallazgoAuditoria(**hallazgo_data)
-    db.add(nuevo_hallazgo)
-    db.commit()
-    db.refresh(nuevo_hallazgo)
-    return nuevo_hallazgo
+    return HallazgoService.crear_hallazgo(db, hallazgo_data, current_user.id)
 
 
 @router.get("/hallazgos-auditoria/{hallazgo_id}", response_model=HallazgoAuditoriaResponse)

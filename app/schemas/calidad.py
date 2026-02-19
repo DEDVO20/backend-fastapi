@@ -58,6 +58,37 @@ class IndicadorResponse(IndicadorBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class MedicionIndicadorBase(BaseModel):
+    periodo: str = Field(..., max_length=20)
+    valor: Decimal
+    meta: Optional[Decimal] = None
+    observaciones: Optional[str] = None
+
+
+class MedicionIndicadorCreate(MedicionIndicadorBase):
+    pass
+
+
+class MedicionIndicadorResponse(MedicionIndicadorBase):
+    id: UUID
+    indicador_id: UUID
+    cumple_meta: Optional[bool] = None
+    registrado_por: Optional[UUID] = None
+    creado_en: datetime
+    actualizado_en: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TendenciaIndicadorResponse(BaseModel):
+    indicador_id: UUID
+    total_mediciones: int
+    promedio: Decimal
+    ultimo_valor: Optional[Decimal] = None
+    ultimo_periodo: Optional[str] = None
+    tendencia: str
+
+
 # NoConformidad Schemas
 class NoConformidadBase(BaseModel):
     codigo: str = Field(..., max_length=100)
@@ -136,6 +167,7 @@ class AccionCorrectivaEstadoUpdate(BaseModel):
 
 class AccionCorrectivaVerificacion(BaseModel):
     observaciones: Optional[str] = None
+    eficaz: Optional[bool] = None
     eficacia_verificada: Optional[int] = Field(None, validation_alias="eficaciaVerificada")
     
     model_config = ConfigDict(populate_by_name=True)

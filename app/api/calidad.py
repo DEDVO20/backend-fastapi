@@ -12,6 +12,9 @@ from ..schemas.calidad import (
     IndicadorCreate,
     IndicadorUpdate,
     IndicadorResponse,
+    MedicionIndicadorCreate,
+    MedicionIndicadorResponse,
+    TendenciaIndicadorResponse,
     NoConformidadCreate,
     NoConformidadUpdate,
     NoConformidadResponse,
@@ -33,6 +36,8 @@ from ..schemas.calidad import (
 )
 from ..api.dependencies import get_current_user
 from ..models.usuario import Usuario, Area
+from ..services.calidad_service import CalidadService
+from ..services.indicador_service import IndicadorService
 
 router = APIRouter(prefix="/api/v1", tags=["calidad"])
 
@@ -141,6 +146,37 @@ def eliminar_indicador(
     db.delete(indicador)
     db.commit()
     return None
+
+
+@router.post("/indicadores/{indicador_id}/mediciones", response_model=MedicionIndicadorResponse, status_code=status.HTTP_201_CREATED)
+def registrar_medicion_indicador(
+    indicador_id: UUID,
+    medicion: MedicionIndicadorCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    service = IndicadorService(db)
+    return service.registrar_medicion(indicador_id, medicion.model_dump(), current_user.id)
+
+
+@router.get("/indicadores/{indicador_id}/mediciones", response_model=List[MedicionIndicadorResponse])
+def historial_mediciones_indicador(
+    indicador_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    service = IndicadorService(db)
+    return service.historial(indicador_id)
+
+
+@router.get("/indicadores/{indicador_id}/tendencia", response_model=TendenciaIndicadorResponse)
+def tendencia_indicador(
+    indicador_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    service = IndicadorService(db)
+    return service.tendencia(indicador_id)
 
 
 # =============================
@@ -472,29 +508,14 @@ def verificar_accion_correctiva(
     if not tiene_permiso:
         raise HTTPException(status_code=403, detail="No tienes permiso para cerrar no conformidades")
 
-    accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.id == accion_id).first()
-    if not accion:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Acción correctiva no encontrada"
-        )
-    
-    from datetime import date
-    accion.fecha_verificacion = date.today()
-    accion.verificado_por = current_user.id  # Asignar quien verificó
-    
-    if verificacion.observaciones:
-        accion.observacion = verificacion.observaciones
-    if verificacion.eficacia_verificada is not None:
-        accion.eficacia_verificada = verificacion.eficacia_verificada
-    
-    # Cambiar estado a verificada
-    accion.estado = "verificada"
-    
-    db.commit()
-    db.refresh(accion)
-    
-    # Cargar relaciones para la respuesta
+    service = CalidadService(db)
+    accion = service.cerrar_accion(
+        accion_id=accion_id,
+        verificacion_data=verificacion.model_dump(exclude_unset=True, by_alias=False),
+        usuario_id=current_user.id,
+    )
+
+    # Cargar relaciones para la respuesta (mismo contrato del endpoint)
     accion = db.query(AccionCorrectiva).options(
         joinedload(AccionCorrectiva.responsable),
         joinedload(AccionCorrectiva.implementador),

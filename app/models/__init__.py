@@ -34,6 +34,7 @@ from .documento import (
 # Importar modelos de calidad
 from .calidad import (
     Indicador,
+    MedicionIndicador,
     NoConformidad,
     AccionCorrectiva,
     ObjetivoCalidad,
@@ -107,6 +108,7 @@ __all__ = [
     "DocumentoProceso",
     # Calidad
     "Indicador",
+    "MedicionIndicador",
     "NoConformidad",
     "AccionCorrectiva",
     "ObjetivoCalidad",
