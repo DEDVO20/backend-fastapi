@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
 from typing import List
 from uuid import UUID
+from datetime import datetime
 
 from ..database import get_db
 from ..models.sistema import (
@@ -16,6 +17,7 @@ from ..models.sistema import (
     CampoFormulario,
     RespuestaFormulario,
 )
+from ..models.audit_log import AuditLog
 from ..schemas.sistema import (
     NotificacionCreate,
     NotificacionUpdate,
@@ -34,6 +36,7 @@ from ..schemas.sistema import (
     RespuestaFormularioCreate,
     RespuestaFormularioUpdate,
     RespuestaFormularioResponse,
+    AuditLogResponse,
 )
 from ..api.dependencies import get_current_user
 from ..models.usuario import Usuario
@@ -47,6 +50,51 @@ def _validar_tipo_campo_con_opciones(tipo_campo: str, opciones):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Los campos de selección requieren opciones.",
         )
+
+
+def _is_admin_user(current_user: Usuario) -> bool:
+    # Compatibilidad con múltiples convenciones de permisos/roles existentes.
+    permisos = set(getattr(current_user, "permisos_codes", []) or getattr(current_user, "permisos", []) or [])
+    if "sistema.admin" in permisos:
+        return True
+    try:
+        role_keys = {ur.rol.clave for ur in getattr(current_user, "roles", []) if getattr(ur, "rol", None)}
+    except Exception:
+        role_keys = set()
+    return bool(role_keys.intersection({"ADMIN", "admin"}))
+
+
+@router.get("/audit-log", response_model=List[AuditLogResponse])
+def listar_audit_log(
+    skip: int = 0,
+    limit: int = 100,
+    tabla: str = None,
+    accion: str = None,
+    usuario_id: UUID = None,
+    fecha_desde: datetime = None,
+    fecha_hasta: datetime = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    if not _is_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tiene permisos para consultar el audit log",
+        )
+
+    query = db.query(AuditLog)
+    if tabla:
+        query = query.filter(AuditLog.tabla == tabla)
+    if accion:
+        query = query.filter(AuditLog.accion == accion.upper().strip())
+    if usuario_id:
+        query = query.filter(AuditLog.usuario_id == usuario_id)
+    if fecha_desde:
+        query = query.filter(AuditLog.fecha >= fecha_desde)
+    if fecha_hasta:
+        query = query.filter(AuditLog.fecha <= fecha_hasta)
+
+    return query.order_by(AuditLog.fecha.desc()).offset(skip).limit(limit).all()
 
 
 # =========================

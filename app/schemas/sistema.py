@@ -35,6 +35,20 @@ class NotificacionResponse(NotificacionBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AuditLogResponse(BaseModel):
+    id: UUID
+    tabla: str
+    registro_id: UUID
+    accion: str
+    usuario_id: Optional[UUID] = None
+    cambios_json: Optional[Any] = None
+    fecha: datetime
+    creado_en: datetime
+    actualizado_en: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # Configuracion Schemas
 class ConfiguracionBase(BaseModel):
     clave: str = Field(..., max_length=100)
