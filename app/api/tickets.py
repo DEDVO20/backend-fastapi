@@ -56,16 +56,21 @@ def create_ticket(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crear un nuevo ticket"""
+    if not ticket.area_destino_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debe seleccionar un área destino para crear el ticket"
+        )
+
     # Validar que el área destino existe si se proporciona
-    if ticket.area_destino_id:
-        from ..models.usuario import Area
-        from ..models.sistema import Asignacion
-        area = db.query(Area).filter(Area.id == ticket.area_destino_id).first()
-        if not area:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Área destino no encontrada"
-            )
+    from ..models.usuario import Area
+    from ..models.sistema import Asignacion
+    area = db.query(Area).filter(Area.id == ticket.area_destino_id).first()
+    if not area:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Área destino no encontrada"
+        )
     
     # Validar documento público si se proporciona
     if ticket.documento_publico_id:
@@ -78,25 +83,24 @@ def create_ticket(
             )
     
     asignado_a = None
-    if ticket.area_destino_id:
-        principal = db.query(Asignacion).filter(
-            Asignacion.area_id == ticket.area_destino_id,
-            Asignacion.es_principal == True
+    principal = db.query(Asignacion).filter(
+        Asignacion.area_id == ticket.area_destino_id,
+        Asignacion.es_principal == True
+    ).first()
+    if principal:
+        asignado_a = principal.usuario_id
+    else:
+        alterno = db.query(Asignacion).filter(
+            Asignacion.area_id == ticket.area_destino_id
         ).first()
-        if principal:
-            asignado_a = principal.usuario_id
-        else:
-            alterno = db.query(Asignacion).filter(
-                Asignacion.area_id == ticket.area_destino_id
-            ).first()
-            if alterno:
-                asignado_a = alterno.usuario_id
+        if alterno:
+            asignado_a = alterno.usuario_id
 
-        if not asignado_a:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El area seleccionada no tiene responsable asignado para aprobar solicitudes"
-            )
+    if not asignado_a:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El area seleccionada no tiene responsable de tickets asignado"
+        )
 
     prioridad_calculada = _inferir_prioridad(
         ticket.categoria or "soporte",
@@ -144,24 +148,17 @@ def list_tickets(
     from sqlalchemy import or_
     from sqlalchemy.orm import joinedload
     
-    # Verificar si el usuario es admin o gestor de calidad
-    es_admin_o_gestor = any(
-        ur.rol.clave in ['admin', 'gestor_calidad'] 
-        for ur in current_user.roles
-    )
-    
     # Construir query base con eager loading de relaciones
     query = db.query(Ticket).options(
         joinedload(Ticket.solicitante),
         joinedload(Ticket.asignado)
     )
     
-    # Aplicar filtros de visibilidad según rol
-    if not es_admin_o_gestor:
-        # Usuarios regulares ven:
-        # 1. Tickets que crearon
-        # 2. Tickets asignados a su área
-        # 3. Tickets asignados directamente a ellos
+    # Visibilidad estricta por área:
+    # 1) los que crea el usuario
+    # 2) los de su área
+    # 3) los asignados directamente al usuario
+    if current_user.area_id:
         query = query.filter(
             or_(
                 Ticket.solicitante_id == current_user.id,
@@ -169,7 +166,13 @@ def list_tickets(
                 Ticket.asignado_a == current_user.id
             )
         )
-    # Si es admin/gestor, ve todos los tickets (no se aplica filtro adicional)
+    else:
+        query = query.filter(
+            or_(
+                Ticket.solicitante_id == current_user.id,
+                Ticket.asignado_a == current_user.id
+            )
+        )
     
     # Filtro por estado si se proporciona
     if estado:
@@ -198,18 +201,11 @@ def get_ticket(
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
     
-    # Verificar si el usuario es admin o gestor de calidad
-    es_admin_o_gestor = any(
-        ur.rol.clave in ['admin', 'gestor_calidad'] 
-        for ur in current_user.roles
-    )
-    
-    # Verificar acceso
+    # Verificar acceso estricto por área
     tiene_acceso = (
         ticket.solicitante_id == current_user.id or  # Es el solicitante
         ticket.asignado_a == current_user.id or      # Está asignado a él
-        ticket.area_destino_id == current_user.area_id or  # Es de su área
-        es_admin_o_gestor  # Es admin o gestor
+        ticket.area_destino_id == current_user.area_id  # Es de su área
     )
     
     if not tiene_acceso:
@@ -282,12 +278,6 @@ def resolver_ticket(
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
     
-    # Verificar si el usuario es admin o gestor de calidad
-    es_admin_o_gestor = any(
-        ur.rol.clave in ['admin', 'gestor_calidad'] 
-        for ur in current_user.roles
-    )
-    
     # REGLA: El solicitante NO puede resolver su propio ticket
     if ticket.solicitante_id == current_user.id:
         raise HTTPException(
@@ -298,8 +288,7 @@ def resolver_ticket(
     # Verificar que el usuario puede resolver el ticket
     puede_resolver = (
         ticket.asignado_a == current_user.id or  # Está asignado a él
-        ticket.area_destino_id == current_user.area_id or  # Es de su área
-        es_admin_o_gestor  # Es admin o gestor
+        ticket.area_destino_id == current_user.area_id  # Es de su área
     )
     
     if not puede_resolver:
@@ -341,14 +330,8 @@ def aprobar_ticket(
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
 
-    es_admin_o_gestor = any(
-        ur.rol.clave in ['admin', 'gestor_calidad']
-        for ur in current_user.roles
-    )
-
     puede_decidir = (
-        ticket.asignado_a == current_user.id or
-        es_admin_o_gestor
+        ticket.asignado_a == current_user.id
     )
 
     if not puede_decidir:
@@ -383,14 +366,8 @@ def declinar_ticket(
     if not ticket:
         raise HTTPException(status_code=404, detail="Ticket no encontrado")
 
-    es_admin_o_gestor = any(
-        ur.rol.clave in ['admin', 'gestor_calidad']
-        for ur in current_user.roles
-    )
-
     puede_decidir = (
-        ticket.asignado_a == current_user.id or
-        es_admin_o_gestor
+        ticket.asignado_a == current_user.id
     )
 
     if not puede_decidir:
