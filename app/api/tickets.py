@@ -9,9 +9,13 @@ from uuid import UUID
 from ..database import get_db
 from ..models.ticket import Ticket, EstadoTicket
 from ..models.usuario import Usuario
-from ..schemas.ticket import TicketCreate, TicketUpdate, TicketResponse, TicketResolver
+from ..schemas.ticket import TicketCreate, TicketUpdate, TicketResponse, TicketResolver, TicketDecision
 from .auth import get_current_user
-from ..utils.notification_service import crear_notificacion_asignacion, crear_notificacion_ticket_resuelto
+from ..utils.notification_service import (
+    crear_notificacion_asignacion,
+    crear_notificacion_ticket_resuelto,
+    crear_notificacion_resultado_solicitud,
+)
 from datetime import datetime
 
 router = APIRouter()
@@ -27,6 +31,7 @@ def create_ticket(
     # Validar que el área destino existe si se proporciona
     if ticket.area_destino_id:
         from ..models.usuario import Area
+        from ..models.sistema import Asignacion
         area = db.query(Area).filter(Area.id == ticket.area_destino_id).first()
         if not area:
             raise HTTPException(
@@ -34,17 +39,62 @@ def create_ticket(
                 detail="Área destino no encontrada"
             )
     
+    # Validar documento público si se proporciona
+    if ticket.documento_publico_id:
+        from ..models.documento import Documento
+        documento = db.query(Documento).filter(Documento.id == ticket.documento_publico_id).first()
+        if not documento:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Documento público no encontrado"
+            )
+    
+    asignado_a = None
+    if ticket.area_destino_id:
+        principal = db.query(Asignacion).filter(
+            Asignacion.area_id == ticket.area_destino_id,
+            Asignacion.es_principal == True
+        ).first()
+        if principal:
+            asignado_a = principal.usuario_id
+        else:
+            alterno = db.query(Asignacion).filter(
+                Asignacion.area_id == ticket.area_destino_id
+            ).first()
+            if alterno:
+                asignado_a = alterno.usuario_id
+
+        if not asignado_a:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El area seleccionada no tiene responsable asignado para aprobar solicitudes"
+            )
+
     new_ticket = Ticket(
         titulo=ticket.titulo,
         descripcion=ticket.descripcion,
         categoria=ticket.categoria,
         prioridad=ticket.prioridad,
         solicitante_id=current_user.id,
-        area_destino_id=ticket.area_destino_id
+        area_destino_id=ticket.area_destino_id,
+        asignado_a=asignado_a,
+        documento_publico_id=ticket.documento_publico_id,
+        archivo_adjunto_url=ticket.archivo_adjunto_url,
     )
     db.add(new_ticket)
     db.commit()
     db.refresh(new_ticket)
+
+    # Notificar al responsable de área cuando aplica
+    if asignado_a:
+        crear_notificacion_asignacion(
+            db=db,
+            usuario_id=asignado_a,
+            titulo="Nueva solicitud de documento",
+            mensaje=f"Se ha creado una solicitud pendiente para: {new_ticket.titulo}",
+            referencia_tipo="ticket",
+            referencia_id=new_ticket.id
+        )
     return new_ticket
 
 
@@ -230,4 +280,88 @@ def resolver_ticket(
         referencia_id=ticket.id
     )
     
+    return ticket
+
+
+@router.post("/{ticket_id}/aprobar", response_model=TicketResponse)
+def aprobar_ticket(
+    ticket_id: UUID,
+    decision: TicketDecision,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Aprobar solicitud de ticket (flujo de documentos públicos)"""
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+
+    es_admin_o_gestor = any(
+        ur.rol.clave in ['admin', 'gestor_calidad']
+        for ur in current_user.roles
+    )
+
+    puede_decidir = (
+        ticket.asignado_a == current_user.id or
+        es_admin_o_gestor
+    )
+
+    if not puede_decidir:
+        raise HTTPException(status_code=403, detail="No tienes permiso para aprobar esta solicitud")
+
+    ticket.estado = EstadoTicket.APROBADO.value
+    ticket.solucion = decision.comentario or "Solicitud aprobada"
+    ticket.fecha_resolucion = datetime.now()
+    db.commit()
+    db.refresh(ticket)
+
+    crear_notificacion_resultado_solicitud(
+        db=db,
+        usuario_id=ticket.solicitante_id,
+        titulo_ticket=ticket.titulo,
+        estado=EstadoTicket.APROBADO.value,
+        referencia_id=ticket.id,
+        comentario=decision.comentario,
+    )
+    return ticket
+
+
+@router.post("/{ticket_id}/declinar", response_model=TicketResponse)
+def declinar_ticket(
+    ticket_id: UUID,
+    decision: TicketDecision,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Declinar solicitud de ticket (flujo de documentos públicos)"""
+    ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+
+    es_admin_o_gestor = any(
+        ur.rol.clave in ['admin', 'gestor_calidad']
+        for ur in current_user.roles
+    )
+
+    puede_decidir = (
+        ticket.asignado_a == current_user.id or
+        es_admin_o_gestor
+    )
+
+    if not puede_decidir:
+        raise HTTPException(status_code=403, detail="No tienes permiso para declinar esta solicitud")
+
+    ticket.estado = EstadoTicket.DECLINADO.value
+    ticket.solucion = decision.comentario or "Solicitud declinada"
+    ticket.fecha_resolucion = datetime.now()
+    db.commit()
+    db.refresh(ticket)
+
+    crear_notificacion_resultado_solicitud(
+        db=db,
+        usuario_id=ticket.solicitante_id,
+        titulo_ticket=ticket.titulo,
+        estado=EstadoTicket.DECLINADO.value,
+        referencia_id=ticket.id,
+        comentario=decision.comentario,
+    )
     return ticket

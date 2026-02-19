@@ -1,7 +1,7 @@
 """
 Modelo de Tickets / Mesa de Ayuda
 """
-from sqlalchemy import Column, String, Text, ForeignKey, Enum as SQLEnum, Integer, DateTime
+from sqlalchemy import Column, String, Text, ForeignKey, Integer, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from .base import BaseModel
@@ -30,6 +30,8 @@ class EstadoTicket(str, enum.Enum):
     EN_PROGRESO = "en_progreso"
     RESUELTO = "resuelto"
     CERRADO = "cerrado"
+    APROBADO = "aprobado"
+    DECLINADO = "declinado"
 
 
 def _generar_codigo_ticket():
@@ -53,6 +55,8 @@ class Ticket(BaseModel):
     solicitante_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
     asignado_a = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     area_destino_id = Column(UUID(as_uuid=True), ForeignKey("areas.id"), nullable=True)
+    documento_publico_id = Column(UUID(as_uuid=True), ForeignKey("documentos.id"), nullable=True)
+    archivo_adjunto_url = Column(Text, nullable=True)
     
     # Campos adicionales de la BD
     fecha_limite = Column(DateTime(timezone=True), nullable=True)
@@ -65,6 +69,7 @@ class Ticket(BaseModel):
     solicitante = relationship("Usuario", back_populates="tickets_solicitados", foreign_keys=[solicitante_id])
     asignado = relationship("Usuario", back_populates="tickets_asignados", foreign_keys=[asignado_a])
     area_destino = relationship("Area", foreign_keys=[area_destino_id])
+    documento_publico = relationship("Documento", foreign_keys=[documento_publico_id])
     
     def __repr__(self):
         return f"<Ticket(titulo={self.titulo}, estado={self.estado})>"
