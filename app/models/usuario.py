@@ -43,7 +43,7 @@ class Usuario(BaseModel):
     
     # Relaciones
     area = relationship("Area", back_populates="usuarios", foreign_keys=[area_id])
-    roles = relationship("UsuarioRol", back_populates="usuario")
+    roles = relationship("UsuarioRol", back_populates="usuario", foreign_keys="[UsuarioRol.usuario_id]")
     
     # Relaciones inversas (como creador/responsable)
     procesos_creados = relationship("Proceso", back_populates="creador", foreign_keys="[Proceso.creado_por]")
@@ -52,10 +52,10 @@ class Usuario(BaseModel):
     documentos_revisados = relationship("Documento", back_populates="revisor", foreign_keys="[Documento.revisado_por]")
     documentos_aprobados = relationship("Documento", back_populates="aprobador", foreign_keys="[Documento.aprobado_por]")
     versiones_documentos = relationship("VersionDocumento", back_populates="creador")
-    etapas_responsable = relationship("EtapaProceso", back_populates="responsable")
-    instancias_iniciadas = relationship("InstanciaProceso", back_populates="iniciador")
-    participaciones = relationship("ParticipanteProceso", back_populates="usuario")
-    indicadores_responsable = relationship("Indicador", back_populates="responsable_medicion")
+    etapas_responsable = relationship("EtapaProceso", back_populates="responsable", foreign_keys="[EtapaProceso.responsable_id]")
+    instancias_iniciadas = relationship("InstanciaProceso", back_populates="iniciador", foreign_keys="[InstanciaProceso.iniciado_por]")
+    participaciones = relationship("ParticipanteProceso", back_populates="usuario", foreign_keys="[ParticipanteProceso.usuario_id]")
+    indicadores_responsable = relationship("Indicador", back_populates="responsable_medicion", foreign_keys="[Indicador.responsable_medicion_id]")
     no_conformidades_detectadas = relationship("NoConformidad", back_populates="detector", foreign_keys="[NoConformidad.detectado_por]")
     no_conformidades_responsable = relationship("NoConformidad", back_populates="responsable", foreign_keys="[NoConformidad.responsable_id]")
     acciones_correctivas = relationship("AccionCorrectiva", back_populates="responsable", foreign_keys="[AccionCorrectiva.responsable_id]")
@@ -65,18 +65,18 @@ class Usuario(BaseModel):
     auditorias_creadas = relationship("Auditoria", back_populates="creador", foreign_keys="[Auditoria.creado_por]")
     hallazgos_responsable = relationship("HallazgoAuditoria", back_populates="responsable_respuesta", foreign_keys="[HallazgoAuditoria.responsable_respuesta_id]")
     hallazgos_verificados = relationship("HallazgoAuditoria", back_populates="verificador", foreign_keys="[HallazgoAuditoria.verificado_por]")
-    riesgos_responsable = relationship("Riesgo", back_populates="responsable")
-    controles_responsable = relationship("ControlRiesgo", back_populates="responsable")
-    objetivos_calidad_responsable = relationship("ObjetivoCalidad", back_populates="responsable")
-    seguimientos_responsable = relationship("SeguimientoObjetivo", back_populates="responsable")
-    capacitaciones_responsable = relationship("Capacitacion", back_populates="responsable")
-    asistencias = relationship("AsistenciaCapacitacion", back_populates="usuario")
-    acciones_procesos_responsable = relationship("AccionProceso", back_populates="responsable")
-    respuestas_formularios = relationship("RespuestaFormulario", back_populates="usuario_respuesta")
+    riesgos_responsable = relationship("Riesgo", back_populates="responsable", foreign_keys="[Riesgo.responsable_id]")
+    controles_responsable = relationship("ControlRiesgo", back_populates="responsable", foreign_keys="[ControlRiesgo.responsable_id]")
+    objetivos_calidad_responsable = relationship("ObjetivoCalidad", back_populates="responsable", foreign_keys="[ObjetivoCalidad.responsable_id]")
+    seguimientos_responsable = relationship("SeguimientoObjetivo", back_populates="responsable", foreign_keys="[SeguimientoObjetivo.responsable_id]")
+    capacitaciones_responsable = relationship("Capacitacion", back_populates="responsable", foreign_keys="[Capacitacion.responsable_id]")
+    asistencias = relationship("AsistenciaCapacitacion", back_populates="usuario", foreign_keys="[AsistenciaCapacitacion.usuario_id]")
+    acciones_procesos_responsable = relationship("AccionProceso", back_populates="responsable", foreign_keys="[AccionProceso.responsable_id]")
+    respuestas_formularios = relationship("RespuestaFormulario", back_populates="usuario_respuesta", foreign_keys="[RespuestaFormulario.usuario_respuesta_id]")
     tickets_solicitados = relationship("Ticket", back_populates="solicitante", foreign_keys="[Ticket.solicitante_id]")
     tickets_asignados = relationship("Ticket", back_populates="asignado", foreign_keys="[Ticket.asignado_a]")
-    notificaciones = relationship("Notificacion", back_populates="usuario")
-    asignaciones = relationship("Asignacion", back_populates="usuario")
+    notificaciones = relationship("Notificacion", back_populates="usuario", foreign_keys="[Notificacion.usuario_id]")
+    asignaciones = relationship("Asignacion", back_populates="usuario", foreign_keys="[Asignacion.usuario_id]")
     competencias_evaluadas = relationship("EvaluacionCompetencia", back_populates="usuario", foreign_keys="[EvaluacionCompetencia.usuario_id]")
     
     # Índices
@@ -149,7 +149,7 @@ class UsuarioRol(BaseModel):
     rol_id = Column(UUID(as_uuid=True), ForeignKey("roles.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False)
     
     # Relaciones
-    usuario = relationship("Usuario", back_populates="roles")
+    usuario = relationship("Usuario", back_populates="roles", foreign_keys=[usuario_id])
     rol = relationship("Rol", back_populates="usuarios")
     
     # Constraint único

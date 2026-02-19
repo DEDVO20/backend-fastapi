@@ -32,7 +32,7 @@ class Riesgo(BaseModel):
     # Relaciones
     proceso = relationship("Proceso", back_populates="riesgos")
     etapa_proceso = relationship("EtapaProceso")
-    responsable = relationship("Usuario", back_populates="riesgos_responsable")
+    responsable = relationship("Usuario", back_populates="riesgos_responsable", foreign_keys=[responsable_id])
     controles = relationship("ControlRiesgo", back_populates="riesgo")
     historial_evaluaciones = relationship("EvaluacionRiesgoHistorial", back_populates="riesgo", cascade="all, delete-orphan")
     
@@ -61,7 +61,7 @@ class ControlRiesgo(BaseModel):
     
     # Relaciones
     riesgo = relationship("Riesgo", back_populates="controles")
-    responsable = relationship("Usuario", back_populates="controles_responsable")
+    responsable = relationship("Usuario", back_populates="controles_responsable", foreign_keys=[responsable_id])
     
     def __repr__(self):
         return f"<ControlRiesgo(riesgo_id={self.riesgo_id}, tipo={self.tipo_control})>"

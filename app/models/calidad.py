@@ -24,7 +24,7 @@ class Indicador(BaseModel):
     
     # Relaciones
     proceso = relationship("Proceso", back_populates="indicadores")
-    responsable_medicion = relationship("Usuario", back_populates="indicadores_responsable")
+    responsable_medicion = relationship("Usuario", back_populates="indicadores_responsable", foreign_keys=[responsable_medicion_id])
     mediciones = relationship("MedicionIndicador", back_populates="indicador", cascade="all, delete-orphan")
     
     # Índices
@@ -147,7 +147,7 @@ class ObjetivoCalidad(BaseModel):
     
     # Relaciones
     area = relationship("Area", back_populates="objetivos_calidad")
-    responsable = relationship("Usuario", back_populates="objetivos_calidad_responsable")
+    responsable = relationship("Usuario", back_populates="objetivos_calidad_responsable", foreign_keys=[responsable_id])
     seguimientos = relationship("SeguimientoObjetivo", back_populates="objetivo_calidad")
     
     # Índices
@@ -171,7 +171,7 @@ class SeguimientoObjetivo(BaseModel):
     
     # Relaciones
     objetivo_calidad = relationship("ObjetivoCalidad", back_populates="seguimientos")
-    responsable = relationship("Usuario", back_populates="seguimientos_responsable")
+    responsable = relationship("Usuario", back_populates="seguimientos_responsable", foreign_keys=[responsable_id])
     
     # Nota: solo tiene creado_en
     def __repr__(self):
@@ -188,7 +188,7 @@ class AccionCorrectivaComentario(BaseModel):
     
     # Relaciones
     accion_correctiva = relationship("AccionCorrectiva", back_populates="comentarios")
-    usuario = relationship("Usuario")
+    usuario = relationship("Usuario", foreign_keys=[usuario_id])
     
     def __repr__(self):
         return f"<AccionCorrectivaComentario(id={self.id}, accion_id={self.accion_correctiva_id})>"

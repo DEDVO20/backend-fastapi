@@ -85,7 +85,7 @@ class EtapaProceso(BaseModel):
 
     # Relaciones
     proceso = relationship("Proceso", back_populates="etapas")
-    responsable = relationship("Usuario", back_populates="etapas_responsable")
+    responsable = relationship("Usuario", back_populates="etapas_responsable", foreign_keys=[responsable_id])
     hallazgos = relationship("HallazgoAuditoria", back_populates="etapa_proceso")
     
     def __repr__(self):
@@ -106,7 +106,7 @@ class InstanciaProceso(BaseModel):
     
     # Relaciones
     proceso = relationship("Proceso", back_populates="instancias")
-    iniciador = relationship("Usuario", back_populates="instancias_iniciadas")
+    iniciador = relationship("Usuario", back_populates="instancias_iniciadas", foreign_keys=[iniciado_por])
     participantes = relationship("ParticipanteProceso", back_populates="instancia")
     respuestas_formularios = relationship("RespuestaFormulario", back_populates="instancia")
     
@@ -126,7 +126,7 @@ class ParticipanteProceso(BaseModel):
     
     # Relaciones
     instancia = relationship("InstanciaProceso", back_populates="participantes")
-    usuario = relationship("Usuario", back_populates="participaciones")
+    usuario = relationship("Usuario", back_populates="participaciones", foreign_keys=[usuario_id])
     
     # Constraint único
     __table_args__ = (
@@ -158,7 +158,7 @@ class AccionProceso(BaseModel):
     
     # Relaciones
     proceso = relationship("Proceso", back_populates="acciones")
-    responsable = relationship("Usuario", back_populates="acciones_procesos_responsable")
+    responsable = relationship("Usuario", back_populates="acciones_procesos_responsable", foreign_keys=[responsable_id])
     
     def __repr__(self):
         return f"<AccionProceso(codigo={self.codigo}, nombre={self.nombre})>"

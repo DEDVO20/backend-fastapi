@@ -15,7 +15,7 @@ class HistorialEstado(BaseModel):
     comentario = Column(Text, nullable=True)
     
     # Relaciones
-    usuario = relationship("Usuario")
+    usuario = relationship("Usuario", foreign_keys=[usuario_id])
 
     __table_args__ = (
         Index('historial_entidad', 'entidad_tipo', 'entidad_id'),

@@ -23,7 +23,7 @@ class Notificacion(BaseModel):
     referencia_id = Column(UUID(as_uuid=True), nullable=True)  # ID de la entidad referenciada
     
     # Relaciones
-    usuario = relationship("Usuario", back_populates="notificaciones")
+    usuario = relationship("Usuario", back_populates="notificaciones", foreign_keys=[usuario_id])
     
     # Índices
     __table_args__ = (
@@ -117,7 +117,7 @@ class RespuestaFormulario(BaseModel):
     campo = relationship("CampoFormulario", back_populates="respuestas")
     instancia = relationship("InstanciaProceso", back_populates="respuestas_formularios")
     auditoria = relationship("Auditoria", back_populates="respuestas_formularios")
-    usuario_respuesta = relationship("Usuario", back_populates="respuestas_formularios")
+    usuario_respuesta = relationship("Usuario", back_populates="respuestas_formularios", foreign_keys=[usuario_respuesta_id])
     
     def __repr__(self):
         return f"<RespuestaFormulario(campo_id={self.campo_formulario_id}, instancia_id={self.instancia_proceso_id})>"
@@ -133,7 +133,7 @@ class Asignacion(BaseModel):
     
     # Relaciones
     area = relationship("Area", back_populates="asignaciones")
-    usuario = relationship("Usuario", back_populates="asignaciones")
+    usuario = relationship("Usuario", back_populates="asignaciones", foreign_keys=[usuario_id])
     
     # Constraint único e índices
     __table_args__ = (
