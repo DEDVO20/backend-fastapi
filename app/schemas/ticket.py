@@ -55,7 +55,7 @@ class TicketBase(BaseModel):
     titulo: str
     descripcion: str
     categoria: str
-    prioridad: str
+    prioridad: Optional[str] = None
 
 
 class TicketCreate(TicketBase):

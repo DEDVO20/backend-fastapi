@@ -20,6 +20,34 @@ from datetime import datetime
 
 router = APIRouter()
 
+def _inferir_prioridad(categoria: str, titulo: str, descripcion: str) -> str:
+    """
+    Prioridad automática basada en tipo de solicitud y señales de urgencia.
+    """
+    texto = f"{titulo} {descripcion}".lower()
+
+    # Reglas por categoría
+    prioridad_base = {
+        "soporte": "alta",
+        "consulta": "baja",
+        "mejora": "media",
+        "solicitud_documento": "media",
+    }.get(categoria, "media")
+
+    # Escala por términos críticos
+    palabras_criticas = [
+        "caido", "caída", "bloquea", "bloqueado", "produccion",
+        "producción", "urgente", "no funciona", "inoperante",
+    ]
+    if any(p in texto for p in palabras_criticas):
+        return "critica"
+
+    palabras_altas = ["error", "falla", "incidente", "no puedo", "fallo"]
+    if any(p in texto for p in palabras_altas):
+        return "alta" if prioridad_base in {"baja", "media"} else prioridad_base
+
+    return prioridad_base
+
 
 @router.post("/", response_model=TicketResponse, status_code=status.HTTP_201_CREATED)
 def create_ticket(
@@ -70,11 +98,17 @@ def create_ticket(
                 detail="El area seleccionada no tiene responsable asignado para aprobar solicitudes"
             )
 
+    prioridad_calculada = _inferir_prioridad(
+        ticket.categoria or "soporte",
+        ticket.titulo or "",
+        ticket.descripcion or "",
+    )
+
     new_ticket = Ticket(
         titulo=ticket.titulo,
         descripcion=ticket.descripcion,
         categoria=ticket.categoria,
-        prioridad=ticket.prioridad,
+        prioridad=prioridad_calculada,
         solicitante_id=current_user.id,
         area_destino_id=ticket.area_destino_id,
         asignado_a=asignado_a,
@@ -202,10 +236,22 @@ def update_ticket(
     # Verificar si cambió la asignación
     previous_asignado_a = ticket.asignado_a
     
-    # Actualizar campos
-    for key, value in ticket_update.model_dump(exclude_unset=True).items():
+    payload = ticket_update.model_dump(exclude_unset=True)
+
+    # Actualizar campos (excepto prioridad, se calcula automáticamente)
+    payload.pop("prioridad", None)
+
+    for key, value in payload.items():
         if hasattr(ticket, key) and value is not None:
             setattr(ticket, key, value)
+
+    # Recalcular prioridad si cambió información relevante
+    if any(k in payload for k in ["categoria", "titulo", "descripcion"]):
+        ticket.prioridad = _inferir_prioridad(
+            ticket.categoria or "soporte",
+            ticket.titulo or "",
+            ticket.descripcion or "",
+        )
             
     db.commit()
     db.refresh(ticket)
