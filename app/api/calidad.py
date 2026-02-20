@@ -82,7 +82,10 @@ def crear_indicador(
             detail="El código de indicador ya existe"
         )
     
-    nuevo_indicador = Indicador(**indicador.model_dump())
+    payload = indicador.model_dump()
+    payload["creado_por"] = current_user.id
+
+    nuevo_indicador = Indicador(**payload)
     db.add(nuevo_indicador)
     db.commit()
     db.refresh(nuevo_indicador)

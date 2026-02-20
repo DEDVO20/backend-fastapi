@@ -52,6 +52,7 @@ class IndicadorUpdate(BaseModel):
 
 class IndicadorResponse(IndicadorBase):
     id: UUID
+    creado_por: Optional[UUID] = None
     creado_en: datetime
     actualizado_en: datetime
     
