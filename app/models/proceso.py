@@ -46,6 +46,7 @@ class Proceso(BaseModel):
     hallazgos = relationship("HallazgoAuditoria", back_populates="proceso")
     riesgos = relationship("Riesgo", back_populates="proceso")
     acciones = relationship("AccionProceso", back_populates="proceso")
+    responsables_formales = relationship("ResponsableProceso", back_populates="proceso", cascade="all, delete-orphan")
     formularios_dinamicos = relationship("FormularioDinamico", back_populates="proceso")
     campos_formulario = relationship("CampoFormulario", back_populates="proceso")
     
@@ -136,6 +137,47 @@ class ParticipanteProceso(BaseModel):
     # Nota: solo tiene creado_en
     def __repr__(self):
         return f"<ParticipanteProceso(instancia={self.instancia_proceso_id}, usuario={self.usuario_id})>"
+
+
+class ResponsableProceso(BaseModel):
+    """
+    Asignación formal de usuarios a procesos con rol específico.
+    Cumple ISO 9001:2015 Cláusula 5.3 — Roles, responsabilidades y autoridades.
+
+    A diferencia de ParticipanteProceso (vinculado a instancias/ejecuciones),
+    este modelo define la ESTRUCTURA ORGANIZACIONAL permanente del proceso.
+    """
+    __tablename__ = "responsables_proceso"
+
+    proceso_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("procesos.id", onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=False
+    )
+    usuario_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=False
+    )
+    rol = Column(String(100), nullable=False)  # responsable, ejecutor, supervisor, apoyo, auditor_interno
+    es_principal = Column(Boolean, default=False, nullable=False)
+    fecha_asignacion = Column(DateTime(timezone=True), nullable=False)
+    vigente_hasta = Column(DateTime(timezone=True), nullable=True)  # NULL = vigente indefinidamente
+    observaciones = Column(Text, nullable=True)
+
+    # Relaciones
+    proceso = relationship("Proceso", back_populates="responsables_formales")
+    usuario = relationship("Usuario", back_populates="responsabilidades_proceso", foreign_keys=[usuario_id])
+
+    # Constraints e índices
+    __table_args__ = (
+        UniqueConstraint('proceso_id', 'usuario_id', 'rol', name='responsables_proceso_unique'),
+        Index('idx_responsables_proceso_proceso', 'proceso_id'),
+        Index('idx_responsables_proceso_usuario', 'usuario_id'),
+    )
+
+    def __repr__(self):
+        return f"<ResponsableProceso(proceso={self.proceso_id}, usuario={self.usuario_id}, rol={self.rol})>"
 
 
 class AccionProceso(BaseModel):

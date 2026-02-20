@@ -78,6 +78,7 @@ class Usuario(BaseModel):
     notificaciones = relationship("Notificacion", back_populates="usuario", foreign_keys="[Notificacion.usuario_id]")
     asignaciones = relationship("Asignacion", back_populates="usuario", foreign_keys="[Asignacion.usuario_id]")
     competencias_evaluadas = relationship("EvaluacionCompetencia", back_populates="usuario", foreign_keys="[EvaluacionCompetencia.usuario_id]")
+    responsabilidades_proceso = relationship("ResponsableProceso", back_populates="usuario", foreign_keys="[ResponsableProceso.usuario_id]")
     
     # Índices
     __table_args__ = (

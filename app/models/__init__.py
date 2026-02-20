@@ -21,6 +21,7 @@ from .proceso import (
     EtapaProceso,
     InstanciaProceso,
     ParticipanteProceso,
+    ResponsableProceso,
     AccionProceso
 )
 
@@ -101,6 +102,7 @@ __all__ = [
     "EtapaProceso",
     "InstanciaProceso",
     "ParticipanteProceso",
+    "ResponsableProceso",
     "AccionProceso",
     # Documentos
     "Documento",
