@@ -39,32 +39,31 @@ def listar_riesgos(
 ):
     """Listar riesgos"""
     service = RiesgoService(db)
-    query = db.query(Riesgo)
-    
-    if proceso_id:
-        query = query.filter(Riesgo.proceso_id == proceso_id)
-    if estado:
-        query = query.filter(Riesgo.estado == estado)
-    if nivel_riesgo:
-        query = query.filter(Riesgo.nivel_riesgo == nivel_riesgo)
-    
-    # Data Scoping: Verificar si el usuario puede ver riesgos de todas las áreas
-    # Si el usuario es admin o gestor de calidad, puede ver todos los riesgos
-    # De lo contrario, solo ve los riesgos de su área
-    
+
+    # Data Scoping por área del usuario
+    area_id_filtro = None
     try:
-        es_admin_o_gestor = any(ur.rol.clave in ['admin', 'gestor_calidad'] for ur in current_user.roles)
-        
+        es_admin_o_gestor = any(
+            ur.rol.clave in ['admin', 'gestor_calidad']
+            for ur in current_user.roles
+        )
         if not es_admin_o_gestor and current_user.area_id:
-            # Filtrar por área del usuario
-            from ..models.proceso import Proceso
-            query = query.join(Proceso).filter(Proceso.area_id == current_user.area_id)
-    except Exception as e:
-        # Si hay error en el filtrado por área, permitir ver todos (fallback seguro)
-        print(f"Error en filtrado por área: {e}")
-    
-    # Se mantiene query local para respetar el data-scope por área existente.
-    riesgos = query.offset(skip).limit(limit).all()
+            area_id_filtro = current_user.area_id
+    except Exception:
+        pass  # Fallback: ver todos
+
+    riesgos = service.listar(
+        skip=skip,
+        limit=limit,
+        proceso_id=proceso_id,
+        estado=estado,
+        nivel_riesgo=nivel_riesgo,
+    )
+
+    # Filtrar por área si aplica
+    if area_id_filtro:
+        riesgos = [r for r in riesgos if r.proceso and r.proceso.area_id == area_id_filtro]
+
     return riesgos
 
 
