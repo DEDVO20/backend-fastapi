@@ -306,6 +306,55 @@ class AccionProcesoResponse(AccionProcesoBase):
     
     model_config = ConfigDict(from_attributes=True)
 
+# ==================== RESPONSABLE PROCESO SCHEMAS (ISO 9001 Cláusula 5.3) ====================
+
+class RolResponsableProceso(str, Enum):
+    """Roles formales dentro de un proceso (ISO 9001 Cláusula 5.3)"""
+    RESPONSABLE = "responsable"
+    EJECUTOR = "ejecutor"
+    SUPERVISOR = "supervisor"
+    APOYO = "apoyo"
+    AUDITOR_INTERNO = "auditor_interno"
+
+
+class ResponsableProcesoBase(BaseModel):
+    """Schema base para responsables formales de proceso"""
+    proceso_id: UUID
+    usuario_id: UUID
+    rol: RolResponsableProceso = Field(..., description="Rol formal dentro del proceso")
+    es_principal: bool = Field(False, description="Si es el responsable principal (solo 1 por proceso)")
+    fecha_asignacion: datetime = Field(default_factory=datetime.now, description="Fecha de asignación")
+    vigente_hasta: Optional[datetime] = Field(None, description="Fecha fin de vigencia. NULL = indefinido")
+    observaciones: Optional[str] = Field(None, description="Observaciones sobre la asignación")
+
+
+class ResponsableProcesoCreate(ResponsableProcesoBase):
+    """Schema para asignar un responsable a un proceso"""
+    pass
+
+
+class ResponsableProcesoUpdate(BaseModel):
+    """Schema para actualizar asignación de responsable"""
+    rol: Optional[RolResponsableProceso] = None
+    es_principal: Optional[bool] = None
+    vigente_hasta: Optional[datetime] = None
+    observaciones: Optional[str] = None
+
+
+class ResponsableProcesoResponse(ResponsableProcesoBase):
+    """Schema de respuesta para responsable de proceso"""
+    id: UUID
+    creado_en: datetime
+    actualizado_en: datetime
+
+    # Información enriquecida
+    usuario_nombre: Optional[str] = None
+    usuario_correo: Optional[str] = None
+    proceso_nombre: Optional[str] = None
+    proceso_codigo: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 # ==================== SCHEMAS DE ESTADÍSTICAS ====================
 
