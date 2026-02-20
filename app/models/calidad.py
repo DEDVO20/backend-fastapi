@@ -20,7 +20,7 @@ class Indicador(BaseModel):
     meta = Column(Numeric(10, 2), nullable=True)
     frecuencia_medicion = Column(String(50), nullable=False, default='mensual')
     responsable_medicion_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
-    activo = Column(Integer, nullable=False, default=True)
+    activo = Column(Boolean, nullable=False, default=True)
     
     # Relaciones
     proceso = relationship("Proceso", back_populates="indicadores")
