@@ -4,6 +4,7 @@ Utilidades de auditoría de cambios.
 from typing import Any, Dict, Optional
 from uuid import UUID
 from sqlalchemy.orm import Session
+from fastapi.encoders import jsonable_encoder
 
 from ..models.audit_log import AuditLog
 
@@ -29,7 +30,7 @@ def registrar_auditoria(
         registro_id=registro_id,
         accion=accion_normalizada,
         usuario_id=usuario_id,
-        cambios_json=cambios,
+        cambios_json=jsonable_encoder(cambios) if cambios else None,
     )
     db.add(entry)
     return entry
