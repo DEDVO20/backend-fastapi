@@ -5,10 +5,13 @@ from uuid import UUID
 
 from ..models.capacitacion import Capacitacion, AsistenciaCapacitacion
 from ..models.competencia import BrechaCompetencia, EvaluacionCompetencia
+from .competency_risk_automation_service import CompetencyRiskAutomationService
 from ..utils.audit import registrar_auditoria
 
 
 class CapacitacionService:
+    ESTADOS_BRECHA_ABIERTA = ("abierta", "pendiente", "en_capacitacion")
+
     def __init__(self, db: Session):
         self.db = db
 
@@ -31,7 +34,7 @@ class CapacitacionService:
             brechas = self.db.query(BrechaCompetencia).filter(
                 BrechaCompetencia.usuario_id == asistencia.usuario_id,
                 BrechaCompetencia.capacitacion_id == capacitacion_id,
-                BrechaCompetencia.estado.in_(["pendiente", "en_capacitacion"]),
+                BrechaCompetencia.estado.in_(self.ESTADOS_BRECHA_ABIERTA),
             ).all()
 
             for brecha in brechas:
@@ -48,7 +51,7 @@ class CapacitacionService:
                     )
                 )
                 brecha.nivel_actual = brecha.nivel_requerido
-                brecha.estado = "resuelta"
+                brecha.estado = "cerrada"
                 brecha.fecha_resolucion = ahora
 
         cap.estado = "cerrada"
@@ -61,6 +64,13 @@ class CapacitacionService:
             usuario_id=usuario_id,
             cambios={"estado": "cerrada"},
         )
+        automation = CompetencyRiskAutomationService(self.db)
+        for asistencia in asistencias_aprobadas:
+            for brecha in self.db.query(BrechaCompetencia).filter(
+                BrechaCompetencia.usuario_id == asistencia.usuario_id,
+                BrechaCompetencia.capacitacion_id == capacitacion_id,
+            ).all():
+                automation.reevaluar_usuario_por_competencia(asistencia.usuario_id, brecha.competencia_id)
         self.db.commit()
         self.db.refresh(cap)
         return cap

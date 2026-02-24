@@ -31,6 +31,7 @@ from ..schemas.proceso import (
 from ..api.dependencies import get_current_user
 from ..models.usuario import Usuario
 from ..services.proceso_service import ProcesoService
+from ..services.competency_risk_automation_service import CompetencyRiskAutomationService
 
 router = APIRouter(prefix="/api/v1", tags=["procesos"])
 
@@ -444,6 +445,8 @@ def asignar_responsable_proceso(
         observaciones=data.observaciones,
     )
     db.add(responsable)
+    automation = CompetencyRiskAutomationService(db)
+    automation.evaluar_usuario_en_proceso(data.usuario_id, proceso_id)
     db.commit()
     db.refresh(responsable)
 

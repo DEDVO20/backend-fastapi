@@ -1,16 +1,18 @@
-from datetime import datetime, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 from uuid import UUID
 
 from ..models.competencia import Competencia, EvaluacionCompetencia, BrechaCompetencia
 from ..models.sistema import Notificacion
+from ..models.proceso import EtapaCompetencia, EtapaProceso, ResponsableProceso
 from ..models.usuario import Usuario
+from .competency_risk_automation_service import CompetencyRiskAutomationService
 from ..utils.audit import registrar_auditoria
 
 
 class CompetenciaService:
     NIVELES_ORDEN = {"basico": 1, "intermedio": 2, "avanzado": 3}
+    ESTADOS_BRECHA_ABIERTA = ("abierta", "pendiente", "en_capacitacion")
 
     def __init__(self, db: Session):
         self.db = db
@@ -22,10 +24,27 @@ class CompetenciaService:
         if nivel_requerido_input:
             return self._normalizar_nivel(nivel_requerido_input)
 
+        nivel_etapa = (
+            self.db.query(EtapaCompetencia.nivel_requerido)
+            .join(EtapaProceso, EtapaProceso.id == EtapaCompetencia.etapa_id)
+            .join(ResponsableProceso, ResponsableProceso.proceso_id == EtapaProceso.proceso_id)
+            .filter(
+                ResponsableProceso.usuario_id == usuario_id,
+                EtapaCompetencia.competencia_id == competencia_id,
+                EtapaCompetencia.activo.is_(True),
+                EtapaProceso.activo.is_(True),
+                ResponsableProceso.activo.is_(True),
+            )
+            .order_by(EtapaProceso.orden.asc())
+            .first()
+        )
+        if nivel_etapa:
+            return self._normalizar_nivel(nivel_etapa[0])
+
         brecha = self.db.query(BrechaCompetencia).filter(
             BrechaCompetencia.usuario_id == usuario_id,
             BrechaCompetencia.competencia_id == competencia_id,
-            BrechaCompetencia.estado.in_(["pendiente", "en_capacitacion"]),
+            BrechaCompetencia.estado.in_(self.ESTADOS_BRECHA_ABIERTA),
         ).order_by(BrechaCompetencia.creado_en.desc()).first()
         return self._normalizar_nivel(brecha.nivel_requerido) if brecha else None
 
@@ -74,12 +93,12 @@ class CompetenciaService:
             brecha = self.db.query(BrechaCompetencia).filter(
                 BrechaCompetencia.usuario_id == evaluacion.usuario_id,
                 BrechaCompetencia.competencia_id == evaluacion.competencia_id,
-                BrechaCompetencia.estado.in_(["pendiente", "en_capacitacion"]),
+                BrechaCompetencia.estado.in_(self.ESTADOS_BRECHA_ABIERTA),
             ).first()
             if brecha:
                 brecha.nivel_actual = evaluacion.nivel
                 brecha.nivel_requerido = nivel_requerido
-                brecha.estado = "pendiente"
+                brecha.estado = "abierta"
             else:
                 self.db.add(
                     BrechaCompetencia(
@@ -87,7 +106,7 @@ class CompetenciaService:
                         competencia_id=evaluacion.competencia_id,
                         nivel_requerido=nivel_requerido,
                         nivel_actual=evaluacion.nivel,
-                        estado="pendiente",
+                        estado="abierta",
                     )
                 )
             self._generar_alerta_capacitacion(evaluacion.usuario_id, evaluacion.competencia_id)
@@ -95,12 +114,12 @@ class CompetenciaService:
             brechas = self.db.query(BrechaCompetencia).filter(
                 BrechaCompetencia.usuario_id == evaluacion.usuario_id,
                 BrechaCompetencia.competencia_id == evaluacion.competencia_id,
-                BrechaCompetencia.estado.in_(["pendiente", "en_capacitacion"]),
+                BrechaCompetencia.estado.in_(self.ESTADOS_BRECHA_ABIERTA),
             ).all()
             for brecha in brechas:
-                brecha.estado = "resuelta"
+                brecha.estado = "cerrada"
                 brecha.nivel_actual = evaluacion.nivel
-                brecha.fecha_resolucion = datetime.now(timezone.utc)
+                brecha.fecha_resolucion = evaluacion.fecha_evaluacion
 
         registrar_auditoria(
             self.db,
@@ -110,6 +129,11 @@ class CompetenciaService:
             usuario_id=usuario_id,
             cambios=evaluacion_data,
         )
+
+        # Reglas automáticas certificables:
+        # proceso -> etapa -> competencia -> brecha -> riesgo residual -> acción preventiva
+        automation = CompetencyRiskAutomationService(self.db)
+        automation.reevaluar_usuario_por_competencia(evaluacion.usuario_id, evaluacion.competencia_id)
 
         self.db.commit()
         self.db.refresh(evaluacion)

@@ -5,6 +5,7 @@ from uuid import UUID
 from ..models.riesgo import Riesgo, ControlRiesgo, EvaluacionRiesgoHistorial
 from ..repositories.riesgo import RiesgoRepository
 from ..schemas.riesgo import RiesgoCreate, RiesgoUpdate, ControlRiesgoCreate, ControlRiesgoUpdate
+from .competency_risk_automation_service import CompetencyRiskAutomationService
 from ..utils.audit import registrar_auditoria
 
 
@@ -51,7 +52,9 @@ class RiesgoService:
 
         payload = data.model_dump()
         if payload.get("probabilidad") and payload.get("impacto"):
+            score_base = payload["probabilidad"] * payload["impacto"]
             payload["nivel_riesgo"] = self.calcular_nivel(payload["probabilidad"], payload["impacto"])
+            payload["nivel_residual"] = score_base
 
         riesgo = self.repo.create(payload, creado_por=usuario_id)
 
@@ -74,6 +77,8 @@ class RiesgoService:
             usuario_id=usuario_id,
             cambios=payload,
         )
+        automation = CompetencyRiskAutomationService(self.db)
+        automation.reevaluar_riesgo_critico(riesgo.id)
         self.db.commit()
         self.db.refresh(riesgo)
         return riesgo
@@ -92,6 +97,7 @@ class RiesgoService:
         nuevo_imp = update_data.get("impacto", riesgo.impacto)
         if nueva_prob and nuevo_imp:
             update_data["nivel_riesgo"] = self.calcular_nivel(nueva_prob, nuevo_imp)
+            update_data["nivel_residual"] = nueva_prob * nuevo_imp
 
         if update_data.get("estado") == "cerrado":
             controles = self.db.query(ControlRiesgo).filter(
@@ -130,6 +136,8 @@ class RiesgoService:
             usuario_id=usuario_id,
             cambios=update_data,
         )
+        automation = CompetencyRiskAutomationService(self.db)
+        automation.reevaluar_riesgo_critico(riesgo_id)
         self.db.commit()
         self.db.refresh(riesgo)
         return riesgo
