@@ -473,6 +473,7 @@ def listar_formularios_dinamicos(
     entidad_tipo: str = None,
     proceso_id: UUID = None,
     activo: bool = None,
+    estado_workflow: str = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user),
 ):
@@ -485,7 +486,9 @@ def listar_formularios_dinamicos(
         query = query.filter(FormularioDinamico.proceso_id == proceso_id)
     if activo is not None:
         query = query.filter(FormularioDinamico.activo == activo)
-    return query.order_by(FormularioDinamico.nombre.asc()).offset(skip).limit(limit).all()
+    if estado_workflow:
+        query = query.filter(FormularioDinamico.estado_workflow == estado_workflow)
+    return query.order_by(FormularioDinamico.nombre.asc(), FormularioDinamico.version.desc()).offset(skip).limit(limit).all()
 
 
 @router.post("/formularios-dinamicos", response_model=FormularioDinamicoResponse, status_code=status.HTTP_201_CREATED)
