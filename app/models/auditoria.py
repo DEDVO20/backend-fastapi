@@ -46,6 +46,8 @@ class Auditoria(BaseModel):
     creado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     informe_final = Column(Text, nullable=True)
     programa_id = Column(UUID(as_uuid=True), ForeignKey("programa_auditorias.id", onupdate="CASCADE", ondelete="RESTRICT"), nullable=False)
+    formulario_checklist_id = Column(UUID(as_uuid=True), ForeignKey("formularios_dinamicos.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    formulario_checklist_version = Column(Integer, nullable=True)
     
     # Relaciones
     programa = relationship("ProgramaAuditoria", back_populates="auditorias")
@@ -54,6 +56,7 @@ class Auditoria(BaseModel):
     creador = relationship("Usuario", back_populates="auditorias_creadas", foreign_keys=[creado_por])
     hallazgos = relationship("HallazgoAuditoria", back_populates="auditoria")
     respuestas_formularios = relationship("RespuestaFormulario", back_populates="auditoria")
+    formulario_checklist = relationship("FormularioDinamico")
     
     # Índices
     __table_args__ = (

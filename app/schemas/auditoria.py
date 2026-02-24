@@ -82,6 +82,8 @@ class AuditoriaBase(BaseModel):
     creado_por: Optional[UUID] = Field(None, alias="creadoPor")
     informe_final: Optional[str] = Field(None, alias="informeFinal")
     programa_id: UUID = Field(..., alias="programaId")
+    formulario_checklist_id: Optional[UUID] = Field(None, alias="formularioChecklistId")
+    formulario_checklist_version: Optional[int] = Field(None, alias="formularioChecklistVersion")
 
 
 class AuditoriaCreate(AuditoriaBase):
@@ -105,6 +107,8 @@ class AuditoriaUpdate(BaseModel):
     proceso_id: Optional[UUID] = Field(None, alias="procesoId")
     informe_final: Optional[str] = Field(None, alias="informeFinal")
     programa_id: Optional[UUID] = Field(None, alias="programaId")
+    formulario_checklist_id: Optional[UUID] = Field(None, alias="formularioChecklistId")
+    formulario_checklist_version: Optional[int] = Field(None, alias="formularioChecklistVersion")
 
 
 class AuditoriaResponse(AuditoriaBase):

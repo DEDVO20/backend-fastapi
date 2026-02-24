@@ -63,10 +63,18 @@ class FormularioDinamico(BaseModel):
     proceso_id = Column(UUID(as_uuid=True), ForeignKey("procesos.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     activo = Column(Boolean, nullable=False, default=True)
     version = Column(Integer, nullable=False, default=1)
+    estado_workflow = Column(String(30), nullable=False, default="borrador")  # borrador|revision|aprobado|obsoleto
+    vigente_desde = Column(DateTime(timezone=True), nullable=True)
+    vigente_hasta = Column(DateTime(timezone=True), nullable=True)
+    aprobado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    fecha_aprobacion = Column(DateTime(timezone=True), nullable=True)
+    parent_formulario_id = Column(UUID(as_uuid=True), ForeignKey("formularios_dinamicos.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
 
     # Relaciones
     proceso = relationship("Proceso", back_populates="formularios_dinamicos")
     campos = relationship("CampoFormulario", back_populates="formulario", cascade="all, delete-orphan")
+    aprobador = relationship("Usuario", foreign_keys=[aprobado_por])
+    parent_formulario = relationship("FormularioDinamico", remote_side="FormularioDinamico.id", uselist=False)
 
     __table_args__ = (
         Index("formularios_dinamicos_codigo_idx", "codigo"),
@@ -92,6 +100,10 @@ class CampoFormulario(BaseModel):
     orden = Column(Integer, nullable=False, default=1)
     activo = Column(Boolean, nullable=False, default=True)
     validaciones = Column(JSON, nullable=True)  # Reglas de validación
+    seccion_iso = Column(String(100), nullable=True)  # Contexto, Liderazgo, etc.
+    clausula_iso = Column(String(50), nullable=True)
+    subclausula_iso = Column(String(50), nullable=True)
+    evidencia_requerida = Column(Boolean, nullable=False, default=False)
     
     # Relaciones
     formulario = relationship("FormularioDinamico", back_populates="campos")
@@ -112,12 +124,16 @@ class RespuestaFormulario(BaseModel):
     valor = Column(Text, nullable=True)
     archivo_adjunto = Column(Text, nullable=True)  # URL o path del archivo
     usuario_respuesta_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    evidencia_hash = Column(String(128), nullable=True)
+    evidencia_fecha = Column(DateTime(timezone=True), nullable=True)
+    evidencia_usuario_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     
     # Relaciones
     campo = relationship("CampoFormulario", back_populates="respuestas")
     instancia = relationship("InstanciaProceso", back_populates="respuestas_formularios")
     auditoria = relationship("Auditoria", back_populates="respuestas_formularios")
     usuario_respuesta = relationship("Usuario", back_populates="respuestas_formularios", foreign_keys=[usuario_respuesta_id])
+    evidencia_usuario = relationship("Usuario", foreign_keys=[evidencia_usuario_id])
     
     def __repr__(self):
         return f"<RespuestaFormulario(campo_id={self.campo_formulario_id}, instancia_id={self.instancia_proceso_id})>"
