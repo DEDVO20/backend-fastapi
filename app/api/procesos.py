@@ -411,10 +411,12 @@ def asignar_responsable_proceso(
     if not proceso:
         raise HTTPException(status_code=404, detail="Proceso no encontrado")
 
-    # Validar usuario existe
+    # Validar usuario existe y esté activo
     usuario = db.query(Usuario).filter(Usuario.id == data.usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=400, detail="El usuario especificado no existe")
+    if not usuario.activo:
+        raise HTTPException(status_code=400, detail="El usuario especificado está inactivo")
 
     # Validar unicidad (proceso + usuario + rol)
     existente = db.query(ResponsableProceso).filter(

@@ -17,6 +17,14 @@ class ProcesoService:
         self.repo = ProcesoRepository(db)
         self.etapa_repo = EtapaProcesoRepository(db)
 
+    def _validar_usuario_activo(self, usuario_id: UUID, campo: str = "responsable") -> Usuario:
+        usuario = self.db.query(Usuario).filter(Usuario.id == usuario_id).first()
+        if not usuario:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"El {campo} especificado no existe")
+        if not usuario.activo:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"El {campo} especificado está inactivo")
+        return usuario
+
     def listar(self, skip: int = 0, limit: int = 100, estado: str | None = None, area_id: UUID | None = None):
         query = self.db.query(Proceso).options(
             joinedload(Proceso.area),
@@ -48,9 +56,7 @@ class ProcesoService:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El código de proceso ya existe")
 
         if data.responsable_id:
-            responsable = self.db.query(Usuario).filter(Usuario.id == data.responsable_id).first()
-            if not responsable:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El responsable especificado no existe")
+            self._validar_usuario_activo(data.responsable_id, "responsable")
 
         proceso = self.repo.create(data.model_dump(), creado_por=usuario_id)
         registrar_auditoria(
@@ -76,6 +82,9 @@ class ProcesoService:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El código de proceso ya existe")
 
         update_data = data.model_dump(exclude_unset=True)
+        if "responsable_id" in update_data and update_data["responsable_id"]:
+            self._validar_usuario_activo(update_data["responsable_id"], "responsable")
+
         self.repo.update(proceso_id, update_data)
         registrar_auditoria(
             self.db,
@@ -116,6 +125,9 @@ class ProcesoService:
         if orden_duplicado:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ya existe una etapa con ese orden en el proceso")
 
+        if data.responsable_id:
+            self._validar_usuario_activo(data.responsable_id, "responsable de etapa")
+
         etapa = self.etapa_repo.create(data.model_dump(), creado_por=usuario_id)
         registrar_auditoria(
             self.db,
@@ -144,6 +156,9 @@ class ProcesoService:
             ).first()
             if orden_duplicado:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Ya existe una etapa con ese orden en el proceso")
+
+        if "responsable_id" in update_data and update_data["responsable_id"]:
+            self._validar_usuario_activo(update_data["responsable_id"], "responsable de etapa")
 
         self.etapa_repo.update(etapa_id, update_data)
         registrar_auditoria(

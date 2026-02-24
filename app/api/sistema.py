@@ -63,6 +63,21 @@ ISO_SECCIONES_VALIDAS = {
 }
 
 
+def _obtener_usuario_activo(db: Session, usuario_id: UUID, campo: str = "usuario") -> Usuario:
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El {campo} seleccionado no existe"
+        )
+    if not usuario.activo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El {campo} seleccionado está inactivo y no puede ser asignado"
+        )
+    return usuario
+
+
 def _validar_tipo_campo_con_opciones(tipo_campo: str, opciones):
     if tipo_campo in {"select", "radio", "checkbox", "multiselect"} and not opciones:
         raise HTTPException(
@@ -195,6 +210,8 @@ def crear_asignacion(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crear una nueva asignación de responsable"""
+    _obtener_usuario_activo(db, asignacion.usuario_id)
+
     # Verificar unicidad
     db_asignacion = db.query(Asignacion).filter(
         Asignacion.area_id == asignacion.area_id,

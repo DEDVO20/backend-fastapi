@@ -42,6 +42,21 @@ from ..services.indicador_service import IndicadorService
 router = APIRouter(prefix="/api/v1", tags=["calidad"])
 
 
+def _obtener_usuario_activo(db: Session, usuario_id: UUID, campo: str = "usuario") -> Usuario:
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El {campo} seleccionado no existe"
+        )
+    if not usuario.activo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El {campo} seleccionado está inactivo y no puede ser asignado"
+        )
+    return usuario
+
+
 # ======================
 # Endpoints de Indicadores
 # ======================
@@ -82,6 +97,9 @@ def crear_indicador(
             detail="El código de indicador ya existe"
         )
     
+    if indicador.responsable_medicion_id:
+        _obtener_usuario_activo(db, indicador.responsable_medicion_id, "responsable de medición")
+
     data = indicador.model_dump()
     if 'activo' in data and isinstance(data['activo'], bool):
         data['activo'] = 1 if data['activo'] else 0
@@ -124,6 +142,9 @@ def actualizar_indicador(
         )
     
     update_data = indicador_update.model_dump(exclude_unset=True)
+    if "responsable_medicion_id" in update_data and update_data["responsable_medicion_id"]:
+        _obtener_usuario_activo(db, update_data["responsable_medicion_id"], "responsable de medición")
+
     for field, value in update_data.items():
         # Convertir activo de bool a int (la columna es Integer, no Boolean)
         if field == 'activo' and isinstance(value, bool):
@@ -242,7 +263,13 @@ def crear_no_conformidad(
             detail="El código de no conformidad ya existe"
         )
     
-    nueva_nc = NoConformidad(**nc.model_dump())
+    payload = nc.model_dump()
+    if payload.get("detectado_por"):
+        _obtener_usuario_activo(db, payload["detectado_por"], "usuario detectado por")
+    if payload.get("responsable_id"):
+        _obtener_usuario_activo(db, payload["responsable_id"], "responsable")
+
+    nueva_nc = NoConformidad(**payload)
     db.add(nueva_nc)
     db.commit()
     db.refresh(nueva_nc)
@@ -294,6 +321,11 @@ def actualizar_no_conformidad(
         )
     
     update_data = nc_update.model_dump(exclude_unset=True)
+    if "detectado_por" in update_data and update_data["detectado_por"]:
+        _obtener_usuario_activo(db, update_data["detectado_por"], "usuario detectado por")
+    if "responsable_id" in update_data and update_data["responsable_id"]:
+        _obtener_usuario_activo(db, update_data["responsable_id"], "responsable")
+
     for field, value in update_data.items():
         setattr(nc, field, value)
     
@@ -374,7 +406,16 @@ def crear_accion_correctiva(
             detail="El código de acción correctiva ya existe"
         )
     
-    nueva_accion = AccionCorrectiva(**accion.model_dump())
+    payload = accion.model_dump()
+    for campo, etiqueta in (
+        ("responsable_id", "responsable"),
+        ("implementado_por", "implementador"),
+        ("verificado_por", "verificador"),
+    ):
+        if payload.get(campo):
+            _obtener_usuario_activo(db, payload[campo], etiqueta)
+
+    nueva_accion = AccionCorrectiva(**payload)
     db.add(nueva_accion)
     db.commit()
     db.refresh(nueva_accion)
@@ -418,6 +459,14 @@ def actualizar_accion_correctiva(
         )
     
     update_data = accion_update.model_dump(exclude_unset=True)
+    for campo, etiqueta in (
+        ("responsable_id", "responsable"),
+        ("implementado_por", "implementador"),
+        ("verificado_por", "verificador"),
+    ):
+        if campo in update_data and update_data[campo]:
+            _obtener_usuario_activo(db, update_data[campo], etiqueta)
+
     for field, value in update_data.items():
         setattr(accion, field, value)
     
@@ -699,12 +748,7 @@ def crear_objetivo_calidad(
             detail="El área seleccionada no existe"
         )
 
-    responsable = db.query(Usuario).filter(Usuario.id == objetivo.responsable_id).first()
-    if not responsable:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El responsable seleccionado no existe"
-        )
+    _obtener_usuario_activo(db, objetivo.responsable_id, "responsable")
 
     # Verificar código único
     db_objetivo = db.query(ObjetivoCalidad).filter(ObjetivoCalidad.codigo == codigo_normalizado).first()
@@ -780,12 +824,7 @@ def actualizar_objetivo_calidad(
             )
 
     if "responsable_id" in update_data and update_data["responsable_id"]:
-        responsable = db.query(Usuario).filter(Usuario.id == update_data["responsable_id"]).first()
-        if not responsable:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El responsable seleccionado no existe"
-            )
+        _obtener_usuario_activo(db, update_data["responsable_id"], "responsable")
 
     if "codigo" in update_data and update_data["codigo"]:
         codigo_normalizado = update_data["codigo"].strip().upper()
@@ -893,7 +932,11 @@ def crear_seguimiento_objetivo(
             detail="Objetivo de calidad no encontrado"
         )
     
-    nuevo_seguimiento = SeguimientoObjetivo(**seguimiento.model_dump())
+    payload = seguimiento.model_dump()
+    if payload.get("responsable_id"):
+        _obtener_usuario_activo(db, payload["responsable_id"], "responsable")
+
+    nuevo_seguimiento = SeguimientoObjetivo(**payload)
     db.add(nuevo_seguimiento)
     
     # Auto-actualizar progreso del objetivo si hay valor_meta y valor_actual
@@ -933,6 +976,9 @@ def actualizar_seguimiento_objetivo(
         )
     
     update_data = seguimiento_update.model_dump(exclude_unset=True)
+    if "responsable_id" in update_data and update_data["responsable_id"]:
+        _obtener_usuario_activo(db, update_data["responsable_id"], "responsable")
+
     for field, value in update_data.items():
         setattr(seguimiento, field, value)
     

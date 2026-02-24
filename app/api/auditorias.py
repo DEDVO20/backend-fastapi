@@ -35,6 +35,38 @@ from ..utils.pdf_generator import PDFGenerator
 
 router = APIRouter(prefix="/api/v1", tags=["auditorias"])
 
+
+def _validar_usuario_activo(db: Session, usuario_id: UUID, campo: str = "usuario") -> Usuario:
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El {campo} seleccionado no existe."
+        )
+    if not usuario.activo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El {campo} seleccionado está inactivo y no puede ser asignado."
+        )
+    return usuario
+
+
+def _validar_equipo_auditor_activo(db: Session, equipo_auditor: Optional[str]) -> None:
+    if not equipo_auditor:
+        return
+    for raw_id in str(equipo_auditor).split(","):
+        raw_id = raw_id.strip()
+        if not raw_id:
+            continue
+        try:
+            usuario_id = UUID(raw_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El campo equipo_auditor contiene un UUID inválido."
+            )
+        _validar_usuario_activo(db, usuario_id, "usuario del equipo auditor")
+
 def _aplicar_reglas_iso_programa(programa_data: dict, current_user: Usuario, programa_actual: ProgramaAuditoria = None) -> dict:
     estado_objetivo = programa_data.get("estado", programa_actual.estado if programa_actual else "borrador")
     criterio_riesgo = programa_data.get(
@@ -571,6 +603,9 @@ def crear_auditoria(
         auditoria_data.get("fecha_planificada")
     )
     _validar_proceso_para_auditoria(db, auditoria_data.get("proceso_id"))
+    if auditoria_data.get("auditor_lider_id"):
+        _validar_usuario_activo(db, auditoria_data["auditor_lider_id"], "auditor líder")
+    _validar_equipo_auditor_activo(db, auditoria_data.get("equipo_auditor"))
     if auditoria_data.get("formulario_checklist_id"):
         form = db.query(FormularioDinamico).filter(FormularioDinamico.id == auditoria_data["formulario_checklist_id"]).first()
         if not form or form.estado_workflow != "aprobado" or not form.activo:
@@ -643,6 +678,10 @@ def actualizar_auditoria(
     _validar_programa_para_auditoria(db, programa_id_objetivo, fecha_planificada_objetivo)
     proceso_id_objetivo = update_data.get("proceso_id", auditoria.proceso_id)
     _validar_proceso_para_auditoria(db, proceso_id_objetivo)
+    if "auditor_lider_id" in update_data and update_data["auditor_lider_id"]:
+        _validar_usuario_activo(db, update_data["auditor_lider_id"], "auditor líder")
+    if "equipo_auditor" in update_data:
+        _validar_equipo_auditor_activo(db, update_data.get("equipo_auditor"))
     if "formulario_checklist_id" in update_data and update_data["formulario_checklist_id"]:
         form = db.query(FormularioDinamico).filter(FormularioDinamico.id == update_data["formulario_checklist_id"]).first()
         if not form or form.estado_workflow != "aprobado" or not form.activo:
@@ -747,6 +786,8 @@ def crear_hallazgo_auditoria(
         raise HTTPException(status_code=403, detail="No tienes permiso para registrar hallazgos")
 
     hallazgo_data = hallazgo.model_dump()
+    if hallazgo_data.get("responsable_respuesta_id"):
+        _validar_usuario_activo(db, hallazgo_data["responsable_respuesta_id"], "responsable de respuesta")
     _validar_etapa_para_hallazgo(
         db,
         hallazgo_data.get("etapa_proceso_id"),
@@ -787,6 +828,8 @@ def actualizar_hallazgo_auditoria(
         )
     
     update_data = hallazgo_update.model_dump(exclude_unset=True)
+    if "responsable_respuesta_id" in update_data and update_data["responsable_respuesta_id"]:
+        _validar_usuario_activo(db, update_data["responsable_respuesta_id"], "responsable de respuesta")
     proceso_objetivo = update_data.get("proceso_id", hallazgo.proceso_id)
     etapa_objetivo = update_data.get("etapa_proceso_id", hallazgo.etapa_proceso_id)
     _validar_etapa_para_hallazgo(db, etapa_objetivo, proceso_objetivo)
