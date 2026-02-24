@@ -24,7 +24,7 @@ from ..utils.notification_service import (
     crear_notificacion_asignacion
 )
 from ..models.sistema import Notificacion
-from ..api.dependencies import require_any_permission
+from ..api.dependencies import require_any_permission, user_has_any_permission
 from ..models.usuario import Usuario
 
 router = APIRouter(prefix="/api/v1", tags=["documentos"])
@@ -43,7 +43,29 @@ def listar_documentos(
     aprobado_por: UUID = None,
     revisado_por: UUID = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["documentos.ver", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission([
+        "documentos.ver",
+        "documentos.crear",
+        "documentos.revisar",
+        "documentos.aprobar",
+        "documentos.anular",
+        "calidad.ver",
+        "auditorias.ver",
+        "auditorias.planificar",
+        "auditorias.ejecutar",
+        "riesgos.identificar",
+        "riesgos.ver",
+        "riesgos.gestion",
+        "capacitaciones.gestion",
+        "usuarios.ver",
+        "usuarios.gestion",
+        "noconformidades.reportar",
+        "noconformidades.gestion",
+        "noconformidades.cerrar",
+        "procesos.admin",
+        "sistema.config",
+        "sistema.admin",
+    ]))
 ):
     """Listar todos los documentos"""
     print(f"DEBUG: listar_documentos - filters: estado={estado}, aprobado_por={aprobado_por}, revisado_por={revisado_por}")
@@ -55,6 +77,19 @@ def listar_documentos(
         joinedload(Documento.versiones).joinedload(VersionDocumento.creador)
     )
     
+    puede_ver_todo_documentos = user_has_any_permission(
+        current_user,
+        ["documentos.ver", "documentos.crear", "documentos.revisar", "documentos.aprobar", "documentos.anular", "sistema.admin"],
+    )
+
+    if not puede_ver_todo_documentos:
+        query = query.filter(Documento.estado == "aprobado")
+        if estado and estado != "aprobado":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Solo puedes consultar documentos públicos aprobados",
+            )
+
     if estado:
         query = query.filter(Documento.estado == estado)
     if tipo_documento:
@@ -99,7 +134,29 @@ def crear_documento(
 def obtener_documento(
     documento_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["documentos.ver", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission([
+        "documentos.ver",
+        "documentos.crear",
+        "documentos.revisar",
+        "documentos.aprobar",
+        "documentos.anular",
+        "calidad.ver",
+        "auditorias.ver",
+        "auditorias.planificar",
+        "auditorias.ejecutar",
+        "riesgos.identificar",
+        "riesgos.ver",
+        "riesgos.gestion",
+        "capacitaciones.gestion",
+        "usuarios.ver",
+        "usuarios.gestion",
+        "noconformidades.reportar",
+        "noconformidades.gestion",
+        "noconformidades.cerrar",
+        "procesos.admin",
+        "sistema.config",
+        "sistema.admin",
+    ]))
 ):
     """Obtener un documento por ID"""
     documento = db.query(Documento).options(
@@ -114,6 +171,17 @@ def obtener_documento(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Documento no encontrado"
         )
+
+    puede_ver_todo_documentos = user_has_any_permission(
+        current_user,
+        ["documentos.ver", "documentos.crear", "documentos.revisar", "documentos.aprobar", "documentos.anular", "sistema.admin"],
+    )
+    if not puede_ver_todo_documentos and documento.estado != "aprobado":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo puedes consultar documentos públicos aprobados",
+        )
+
     return documento
 
 
