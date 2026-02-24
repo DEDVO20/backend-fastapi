@@ -43,12 +43,48 @@ from ..models.usuario import Usuario
 
 router = APIRouter(prefix="/api/v1", tags=["sistema"])
 
+ISO_AUDITORIA_CAMPOS_REQUERIDOS = {
+    "clausula_iso": "Cláusula ISO 9001 aplicable",
+    "criterio_auditoria": "Criterio de auditoría",
+    "evidencia_objetiva": "Evidencia objetiva",
+    "resultado_auditoria": "Resultado (Conforme/No conforme)",
+    "conclusion_auditoria": "Conclusión de auditoría",
+}
+
 
 def _validar_tipo_campo_con_opciones(tipo_campo: str, opciones):
     if tipo_campo in {"select", "radio", "checkbox", "multiselect"} and not opciones:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Los campos de selección requieren opciones.",
+        )
+
+
+def _es_formulario_iso_auditoria(formulario: FormularioDinamico) -> bool:
+    return (
+        str(formulario.modulo).strip().lower() == "auditorias"
+        and str(formulario.entidad_tipo).strip().lower() == "auditoria"
+    )
+
+
+def _validar_formulario_iso_completo(db: Session, formulario: FormularioDinamico) -> None:
+    if not _es_formulario_iso_auditoria(formulario):
+        return
+
+    campos = db.query(CampoFormulario).filter(
+        CampoFormulario.formulario_id == formulario.id,
+        CampoFormulario.activo.is_(True),
+    ).all()
+    nombres = {str(c.nombre).strip().lower() for c in campos}
+    faltantes = [campo for campo in ISO_AUDITORIA_CAMPOS_REQUERIDOS.keys() if campo not in nombres]
+    if faltantes:
+        etiquetas = ", ".join(ISO_AUDITORIA_CAMPOS_REQUERIDOS[c] for c in faltantes)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "El formulario de auditoría ISO 9001 no está completo. "
+                f"Faltan campos obligatorios: {etiquetas}"
+            ),
         )
 
 
@@ -435,7 +471,13 @@ def crear_formulario_dinamico(
     if existente:
         raise HTTPException(status_code=400, detail="Ya existe un formulario con ese código.")
     nuevo = FormularioDinamico(**formulario.model_dump())
+    if _es_formulario_iso_auditoria(nuevo):
+        nuevo.modulo = "auditorias"
+        nuevo.entidad_tipo = "auditoria"
     db.add(nuevo)
+    db.flush()
+    if nuevo.activo:
+        _validar_formulario_iso_completo(db, nuevo)
     db.commit()
     db.refresh(nuevo)
     return nuevo
@@ -467,6 +509,12 @@ def actualizar_formulario_dinamico(
     update_data = formulario_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(formulario, field, value)
+
+    if _es_formulario_iso_auditoria(formulario):
+        formulario.modulo = "auditorias"
+        formulario.entidad_tipo = "auditoria"
+    if formulario.activo:
+        _validar_formulario_iso_completo(db, formulario)
 
     db.commit()
     db.refresh(formulario)
@@ -520,6 +568,13 @@ def crear_campo_formulario(
         formulario = db.query(FormularioDinamico).filter(FormularioDinamico.id == campo.formulario_id).first()
         if not formulario:
             raise HTTPException(status_code=404, detail="Formulario dinámico no encontrado.")
+        if _es_formulario_iso_auditoria(formulario):
+            nombre = str(campo.nombre).strip().lower()
+            if nombre in ISO_AUDITORIA_CAMPOS_REQUERIDOS and not campo.requerido:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"El campo ISO obligatorio '{nombre}' debe marcarse como requerido.",
+                )
 
     nuevo_campo = CampoFormulario(**campo.model_dump())
     db.add(nuevo_campo)
@@ -547,6 +602,16 @@ def actualizar_campo_formulario(
     for field, value in update_data.items():
         setattr(campo, field, value)
 
+    if campo.formulario_id:
+        formulario = db.query(FormularioDinamico).filter(FormularioDinamico.id == campo.formulario_id).first()
+        if formulario and _es_formulario_iso_auditoria(formulario):
+            nombre = str(campo.nombre).strip().lower()
+            if nombre in ISO_AUDITORIA_CAMPOS_REQUERIDOS and not campo.requerido:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"El campo ISO obligatorio '{nombre}' debe mantenerse como requerido.",
+                )
+
     db.commit()
     db.refresh(campo)
     return campo
@@ -561,6 +626,18 @@ def eliminar_campo_formulario(
     campo = db.query(CampoFormulario).filter(CampoFormulario.id == campo_id).first()
     if not campo:
         raise HTTPException(status_code=404, detail="Campo no encontrado.")
+    if campo.formulario_id:
+        formulario = db.query(FormularioDinamico).filter(FormularioDinamico.id == campo.formulario_id).first()
+        if formulario and _es_formulario_iso_auditoria(formulario):
+            nombre = str(campo.nombre).strip().lower()
+            if nombre in ISO_AUDITORIA_CAMPOS_REQUERIDOS:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"No puede eliminar el campo ISO obligatorio '{nombre}'. "
+                        "Desactive el formulario o reemplácelo por equivalente."
+                    ),
+                )
     db.delete(campo)
     db.commit()
     return None
@@ -603,6 +680,12 @@ def crear_respuesta_formulario(
     campo = db.query(CampoFormulario).filter(CampoFormulario.id == respuesta.campo_formulario_id).first()
     if not campo:
         raise HTTPException(status_code=404, detail="Campo de formulario no encontrado.")
+
+    if campo.requerido and not (respuesta.valor and str(respuesta.valor).strip()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El campo '{campo.etiqueta}' es obligatorio.",
+        )
 
     payload = respuesta.model_dump()
     if not payload.get("usuario_respuesta_id"):
