@@ -23,7 +23,7 @@ from ..schemas.capacitacion import (
     UsuarioSinCapacitacionObligatoriaResponse,
     ReporteCapacitacionAuditoriaResponse,
 )
-from ..api.dependencies import get_current_user
+from ..api.dependencies import get_current_user, require_any_permission
 from ..services.capacitacion_service import CapacitacionService
 
 router = APIRouter(prefix="/api/v1", tags=["capacitaciones"])
@@ -106,7 +106,8 @@ def listar_capacitaciones(
     proceso_id: UUID = None,
     relacionada_con_hallazgo_id: UUID = None,
     relacionada_con_riesgo_id: UUID = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "sistema.admin"]))
 ):
     """Listar capacitaciones"""
     query = db.query(Capacitacion)
@@ -132,7 +133,7 @@ def listar_capacitaciones(
 def crear_capacitacion(
     capacitacion: CapacitacionCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "sistema.admin"]))
 ):
     """Crear una nueva capacitación"""
     # Verificar código único
@@ -169,7 +170,7 @@ def crear_capacitacion(
 def obtener_capacitacion(
     capacitacion_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "sistema.admin"]))
 ):
     """Obtener una capacitación por ID"""
     capacitacion = db.query(Capacitacion).filter(Capacitacion.id == capacitacion_id).first()
@@ -185,7 +186,8 @@ def obtener_capacitacion(
 def actualizar_capacitacion(
     capacitacion_id: UUID,
     capacitacion_update: CapacitacionUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "sistema.admin"]))
 ):
     """Actualizar una capacitación"""
     capacitacion = db.query(Capacitacion).filter(Capacitacion.id == capacitacion_id).first()

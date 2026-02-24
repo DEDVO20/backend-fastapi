@@ -23,7 +23,7 @@ from ..schemas.usuario import (
     RolPermisoCreate
 )
 from passlib.context import CryptContext
-from ..api.dependencies import get_current_user
+from ..api.dependencies import get_current_user, require_any_permission
 
 router = APIRouter(prefix="/api/v1", tags=["usuarios"])
 
@@ -45,7 +45,7 @@ def listar_areas(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["areas.gestionar", "usuarios.gestion", "sistema.admin"]))
 ):
     """Listar todas las áreas con sus responsables asignados"""
     from sqlalchemy.orm import joinedload
@@ -61,7 +61,7 @@ def listar_areas(
 def crear_area(
     area: AreaCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["areas.gestionar", "usuarios.gestion", "sistema.admin"]))
 ):
     """Crear una nueva área"""
     # Verificar si el código ya existe
@@ -84,7 +84,7 @@ def crear_area(
 def obtener_area(
     area_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["areas.gestionar", "usuarios.gestion", "sistema.admin"]))
 ):
     """Obtener un área por ID"""
     area = db.query(Area).filter(Area.id == area_id).first()
@@ -101,7 +101,7 @@ def actualizar_area(
     area_id: UUID, 
     area_update: AreaUpdate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["areas.gestionar", "usuarios.gestion", "sistema.admin"]))
 ):
     """Actualizar un área"""
     area = db.query(Area).filter(Area.id == area_id).first()
@@ -125,7 +125,7 @@ def actualizar_area(
 def eliminar_area(
     area_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["areas.gestionar", "usuarios.gestion", "sistema.admin"]))
 ):
     """Eliminar un área y sus relaciones"""
     area = db.query(Area).filter(Area.id == area_id).first()
@@ -194,7 +194,7 @@ def listar_roles(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["usuarios.gestion", "sistema.admin"]))
 ):
     """Listar todos los roles"""
     from sqlalchemy.orm import joinedload
@@ -208,7 +208,7 @@ def listar_roles(
 def crear_rol(
     rol: RolCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["usuarios.gestion", "sistema.admin"]))
 ):
     """Crear un nuevo rol"""
     # Verificar si la clave ya existe
@@ -230,7 +230,7 @@ def crear_rol(
 def obtener_rol(
     rol_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["usuarios.gestion", "sistema.admin"]))
 ):
     """Obtener un rol por ID"""
     from sqlalchemy.orm import joinedload
@@ -249,7 +249,7 @@ def actualizar_rol(
     rol_id: UUID, 
     rol_update: RolUpdate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["usuarios.gestion", "sistema.admin"]))
 ):
     """Actualizar un rol"""
     rol = db.query(Rol).filter(Rol.id == rol_id).first()
@@ -272,7 +272,7 @@ def actualizar_rol(
 def eliminar_rol(
     rol_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["usuarios.gestion", "sistema.admin"]))
 ):
     """Eliminar un rol y sus relaciones"""
     rol = db.query(Rol).filter(Rol.id == rol_id).first()
@@ -317,7 +317,7 @@ def listar_permisos(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["usuarios.gestion", "sistema.admin"]))
 ):
     """Listar todos los permisos"""
     permisos = db.query(Permiso).offset(skip).limit(limit).all()
@@ -329,7 +329,7 @@ def asignar_permisos_rol(
     rol_id: UUID, 
     permisos_data: dict,  # Espera {"permisoIds": ["id1", "id2"]}
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["usuarios.gestion", "sistema.admin"]))
 ):
     """Asignar permisos a un rol (reemplaza los existentes)"""
     rol = db.query(Rol).filter(Rol.id == rol_id).first()
@@ -365,7 +365,8 @@ def listar_usuarios(
     skip: int = 0,
     limit: int = 100,
     activo: bool = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_any_permission(["usuarios.ver", "usuarios.gestion", "sistema.admin"]))
 ):
     """Listar todos los usuarios"""
     query = db.query(Usuario)
@@ -381,7 +382,7 @@ def listar_usuarios(
 def crear_usuario(
     usuario: UsuarioCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["usuarios.crear", "usuarios.gestion", "sistema.admin"]))
 ):
     """Crear un nuevo usuario"""
     # Verificar si el documento ya existe
@@ -425,7 +426,7 @@ def crear_usuario(
 def obtener_usuario(
     usuario_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["usuarios.ver", "usuarios.gestion", "sistema.admin"]))
 ):
     """Obtener un usuario por ID con sus permisos"""
     from sqlalchemy.orm import joinedload
@@ -452,7 +453,7 @@ def actualizar_usuario(
     usuario_id: UUID, 
     usuario_update: UsuarioUpdate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["usuarios.editar", "usuarios.gestion", "sistema.admin"]))
 ):
     """Actualizar un usuario"""
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
@@ -493,7 +494,7 @@ def actualizar_usuario(
 def eliminar_usuario(
     usuario_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["usuarios.eliminar", "usuarios.gestion", "sistema.admin"]))
 ):
     """Eliminar un usuario (eliminación suave - marcar como inactivo)"""
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
@@ -517,7 +518,7 @@ def eliminar_usuario(
 async def carga_masiva_usuarios(
     file: UploadFile,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["usuarios.crear", "usuarios.gestion", "sistema.admin"]))
 ):
     """
     Carga masiva de usuarios desde archivo Excel o CSV
