@@ -55,3 +55,39 @@ class EvaluacionCompetenciaResponse(EvaluacionCompetenciaBase):
     competencia: Optional[CompetenciaResponse] = None
     
     model_config = ConfigDict(from_attributes=True)
+
+
+class EtapaCompetenciaBase(BaseModel):
+    etapa_id: UUID
+    competencia_id: UUID
+    nivel_requerido: str = Field(..., max_length=50)
+
+
+class EtapaCompetenciaCreate(EtapaCompetenciaBase):
+    pass
+
+
+class EtapaCompetenciaResponse(EtapaCompetenciaBase):
+    id: UUID
+    creado_en: datetime
+    actualizado_en: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RiesgoCompetenciaCriticaBase(BaseModel):
+    riesgo_id: UUID
+    competencia_id: UUID
+    nivel_minimo: str = Field(..., max_length=50)
+
+
+class RiesgoCompetenciaCriticaCreate(RiesgoCompetenciaCriticaBase):
+    pass
+
+
+class RiesgoCompetenciaCriticaResponse(RiesgoCompetenciaCriticaBase):
+    id: UUID
+    creado_en: datetime
+    actualizado_en: datetime
+
+    model_config = ConfigDict(from_attributes=True)

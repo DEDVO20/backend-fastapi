@@ -57,15 +57,20 @@ class BrechaCompetencia(BaseModel):
 
     usuario_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False)
     competencia_id = Column(UUID(as_uuid=True), ForeignKey("competencias.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False)
+    etapa_id = Column(UUID(as_uuid=True), ForeignKey("etapa_procesos.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    riesgo_id = Column(UUID(as_uuid=True), ForeignKey("riesgos.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     nivel_requerido = Column(String(50), nullable=False)
     nivel_actual = Column(String(50), nullable=False)
-    estado = Column(String(50), nullable=False, default="pendiente")  # pendiente, en_capacitacion, resuelta
+    nivel_riesgo = Column(String(50), nullable=True)
+    estado = Column(String(50), nullable=False, default="abierta")  # abierta, en_capacitacion, cerrada
     capacitacion_id = Column(UUID(as_uuid=True), ForeignKey("capacitaciones.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     fecha_deteccion = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     fecha_resolucion = Column(DateTime(timezone=True), nullable=True)
 
     usuario = relationship("Usuario", foreign_keys=[usuario_id])
     competencia = relationship("Competencia")
+    etapa = relationship("EtapaProceso")
+    riesgo = relationship("Riesgo")
     capacitacion = relationship("Capacitacion")
 
     def __repr__(self):

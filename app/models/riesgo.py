@@ -21,6 +21,7 @@ class Riesgo(BaseModel):
     probabilidad = Column(Integer, nullable=True)  # Escala 1-5
     impacto = Column(Integer, nullable=True)  # Escala 1-5
     nivel_riesgo = Column(String(50), nullable=True)  # Bajo, Medio, Alto, Crítico
+    nivel_residual = Column(Integer, nullable=True)  # Nivel residual ajustado por controles/factor humano
     causas = Column(Text, nullable=True)
     consecuencias = Column(Text, nullable=True)
     responsable_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
@@ -35,6 +36,11 @@ class Riesgo(BaseModel):
     responsable = relationship("Usuario", back_populates="riesgos_responsable", foreign_keys=[responsable_id])
     controles = relationship("ControlRiesgo", back_populates="riesgo")
     historial_evaluaciones = relationship("EvaluacionRiesgoHistorial", back_populates="riesgo", cascade="all, delete-orphan")
+    competencias_criticas = relationship(
+        "RiesgoCompetenciaCritica",
+        back_populates="riesgo",
+        cascade="all, delete-orphan",
+    )
     
     # Índices
     __table_args__ = (
@@ -86,3 +92,32 @@ class EvaluacionRiesgoHistorial(BaseModel):
 
     def __repr__(self):
         return f"<EvaluacionRiesgoHistorial(riesgo_id={self.riesgo_id}, nivel={self.nivel_nuevo})>"
+
+
+class RiesgoCompetenciaCritica(BaseModel):
+    """Competencias mínimas críticas para un riesgo."""
+    __tablename__ = "riesgo_competencias_criticas"
+
+    riesgo_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("riesgos.id", onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=False,
+    )
+    competencia_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("competencias.id", onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=False,
+    )
+    nivel_minimo = Column(String(50), nullable=False)
+
+    riesgo = relationship("Riesgo", back_populates="competencias_criticas")
+    competencia = relationship("Competencia")
+
+    __table_args__ = (
+        Index("idx_riesgo_comp_crit_riesgo", "riesgo_id"),
+        Index("idx_riesgo_comp_crit_competencia", "competencia_id"),
+        Index("idx_riesgo_comp_crit_nivel", "nivel_minimo"),
+    )
+
+    def __repr__(self):
+        return f"<RiesgoCompetenciaCritica(riesgo={self.riesgo_id}, competencia={self.competencia_id})>"

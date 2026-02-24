@@ -19,6 +19,7 @@ from .usuario import (
 from .proceso import (
     Proceso,
     EtapaProceso,
+    EtapaCompetencia,
     InstanciaProceso,
     ParticipanteProceso,
     ResponsableProceso,
@@ -56,6 +57,7 @@ from .riesgo import (
     Riesgo,
     ControlRiesgo,
     EvaluacionRiesgoHistorial,
+    RiesgoCompetenciaCritica,
 )
 
 # Importar modelos de capacitación
@@ -100,6 +102,7 @@ __all__ = [
     # Procesos
     "Proceso",
     "EtapaProceso",
+    "EtapaCompetencia",
     "InstanciaProceso",
     "ParticipanteProceso",
     "ResponsableProceso",
@@ -125,6 +128,7 @@ __all__ = [
     "Riesgo",
     "ControlRiesgo",
     "EvaluacionRiesgoHistorial",
+    "RiesgoCompetenciaCritica",
     # Capacitación
     "Capacitacion",
     "AsistenciaCapacitacion",

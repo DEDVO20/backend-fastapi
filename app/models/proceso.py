@@ -88,6 +88,11 @@ class EtapaProceso(BaseModel):
     proceso = relationship("Proceso", back_populates="etapas")
     responsable = relationship("Usuario", back_populates="etapas_responsable", foreign_keys=[responsable_id])
     hallazgos = relationship("HallazgoAuditoria", back_populates="etapa_proceso")
+    competencias_requeridas = relationship(
+        "EtapaCompetencia",
+        back_populates="etapa",
+        cascade="all, delete-orphan",
+    )
     
     def __repr__(self):
         return f"<EtapaProceso(nombre={self.nombre}, orden={self.orden})>"
@@ -178,6 +183,35 @@ class ResponsableProceso(BaseModel):
 
     def __repr__(self):
         return f"<ResponsableProceso(proceso={self.proceso_id}, usuario={self.usuario_id}, rol={self.rol})>"
+
+
+class EtapaCompetencia(BaseModel):
+    """Competencias requeridas por etapa de proceso."""
+    __tablename__ = "etapa_competencias"
+
+    etapa_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("etapa_procesos.id", onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=False,
+    )
+    competencia_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("competencias.id", onupdate="CASCADE", ondelete="CASCADE"),
+        nullable=False,
+    )
+    nivel_requerido = Column(String(50), nullable=False)
+
+    etapa = relationship("EtapaProceso", back_populates="competencias_requeridas")
+    competencia = relationship("Competencia")
+
+    __table_args__ = (
+        UniqueConstraint("etapa_id", "competencia_id", name="uq_etapa_competencias"),
+        Index("idx_etapa_competencias_etapa", "etapa_id"),
+        Index("idx_etapa_competencias_competencia", "competencia_id"),
+    )
+
+    def __repr__(self):
+        return f"<EtapaCompetencia(etapa={self.etapa_id}, competencia={self.competencia_id})>"
 
 
 class AccionProceso(BaseModel):

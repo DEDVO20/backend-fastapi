@@ -18,6 +18,7 @@ class RiesgoBase(BaseModel):
     probabilidad: Optional[int] = Field(None, ge=1, le=5)
     impacto: Optional[int] = Field(None, ge=1, le=5)
     nivel_riesgo: Optional[str] = Field(None, max_length=50)
+    nivel_residual: Optional[int] = None
     causas: Optional[str] = None
     consecuencias: Optional[str] = None
     responsable_id: Optional[UUID] = None
@@ -39,6 +40,7 @@ class RiesgoUpdate(BaseModel):
     probabilidad: Optional[int] = Field(None, ge=1, le=5)
     impacto: Optional[int] = Field(None, ge=1, le=5)
     nivel_riesgo: Optional[str] = Field(None, max_length=50)
+    nivel_residual: Optional[int] = None
     causas: Optional[str] = None
     consecuencias: Optional[str] = None
     responsable_id: Optional[UUID] = None
