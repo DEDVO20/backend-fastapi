@@ -55,12 +55,14 @@ class TicketBase(BaseModel):
     titulo: str
     descripcion: str
     categoria: str
-    prioridad: str
+    prioridad: Optional[str] = None
 
 
 class TicketCreate(TicketBase):
     """Schema para crear un ticket"""
     area_destino_id: Optional[UUID] = None
+    documento_publico_id: Optional[UUID] = None
+    archivo_adjunto_url: Optional[str] = None
 
 
 class TicketUpdate(BaseModel):
@@ -72,12 +74,19 @@ class TicketUpdate(BaseModel):
     estado: Optional[str] = None
     asignado_a: Optional[UUID] = None
     area_destino_id: Optional[UUID] = None
+    documento_publico_id: Optional[UUID] = None
+    archivo_adjunto_url: Optional[str] = None
 
 
 class TicketResolver(BaseModel):
     """Schema para resolver un ticket"""
     solucion: str
     satisfaccion_cliente: Optional[int] = None
+
+
+class TicketDecision(BaseModel):
+    """Schema para aprobar o declinar solicitudes"""
+    comentario: Optional[str] = None
 
 
 class TicketResponse(TicketBase):
@@ -87,6 +96,8 @@ class TicketResponse(TicketBase):
     solicitante_id: UUID
     asignado_a: Optional[UUID] = None
     area_destino_id: Optional[UUID] = None
+    documento_publico_id: Optional[UUID] = None
+    archivo_adjunto_url: Optional[str] = None
     
     # Información de usuarios (nested)
     solicitante: Optional[UsuarioBasic] = None

@@ -18,6 +18,7 @@ from ..schemas.riesgo import (
 )
 from ..api.dependencies import get_current_user
 from ..models.usuario import Usuario
+from ..services.riesgo_service import RiesgoService
 
 router = APIRouter(prefix="/api/v1", tags=["riesgos"])
 
@@ -37,31 +38,32 @@ def listar_riesgos(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Listar riesgos"""
-    query = db.query(Riesgo)
-    
-    if proceso_id:
-        query = query.filter(Riesgo.proceso_id == proceso_id)
-    if estado:
-        query = query.filter(Riesgo.estado == estado)
-    if nivel_riesgo:
-        query = query.filter(Riesgo.nivel_riesgo == nivel_riesgo)
-    
-    # Data Scoping: Verificar si el usuario puede ver riesgos de todas las áreas
-    # Si el usuario es admin o gestor de calidad, puede ver todos los riesgos
-    # De lo contrario, solo ve los riesgos de su área
-    
+    service = RiesgoService(db)
+
+    # Data Scoping por área del usuario
+    area_id_filtro = None
     try:
-        es_admin_o_gestor = any(ur.rol.clave in ['admin', 'gestor_calidad'] for ur in current_user.roles)
-        
+        es_admin_o_gestor = any(
+            ur.rol.clave in ['admin', 'gestor_calidad']
+            for ur in current_user.roles
+        )
         if not es_admin_o_gestor and current_user.area_id:
-            # Filtrar por área del usuario
-            from ..models.proceso import Proceso
-            query = query.join(Proceso).filter(Proceso.area_id == current_user.area_id)
-    except Exception as e:
-        # Si hay error en el filtrado por área, permitir ver todos (fallback seguro)
-        print(f"Error en filtrado por área: {e}")
-    
-    riesgos = query.offset(skip).limit(limit).all()
+            area_id_filtro = current_user.area_id
+    except Exception:
+        pass  # Fallback: ver todos
+
+    riesgos = service.listar(
+        skip=skip,
+        limit=limit,
+        proceso_id=proceso_id,
+        estado=estado,
+        nivel_riesgo=nivel_riesgo,
+    )
+
+    # Filtrar por área si aplica
+    if area_id_filtro:
+        riesgos = [r for r in riesgos if r.proceso and r.proceso.area_id == area_id_filtro]
+
     return riesgos
 
 
@@ -72,6 +74,7 @@ def crear_riesgo(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crear un nuevo riesgo"""
+    service = RiesgoService(db)
     # Verify permission "riesgos.identificar"
     tiene_permiso = any(
         rp.permiso.codigo == "riesgos.identificar" 
@@ -82,19 +85,7 @@ def crear_riesgo(
     if not tiene_permiso:
         raise HTTPException(status_code=403, detail="No tienes permiso para identificar riesgos")
         
-    # Verificar código único
-    db_riesgo = db.query(Riesgo).filter(Riesgo.codigo == riesgo.codigo).first()
-    if db_riesgo:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El código de riesgo ya existe"
-        )
-    
-    nuevo_riesgo = Riesgo(**riesgo.model_dump())
-    db.add(nuevo_riesgo)
-    db.commit()
-    db.refresh(nuevo_riesgo)
-    return nuevo_riesgo
+    return service.crear(riesgo, current_user.id)
 
 
 @router.get("/riesgos/{riesgo_id}", response_model=RiesgoResponse)
@@ -104,13 +95,8 @@ def obtener_riesgo(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtener un riesgo por ID"""
-    riesgo = db.query(Riesgo).filter(Riesgo.id == riesgo_id).first()
-    if not riesgo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Riesgo no encontrado"
-        )
-    return riesgo
+    service = RiesgoService(db)
+    return service.obtener(riesgo_id)
 
 
 @router.put("/riesgos/{riesgo_id}", response_model=RiesgoResponse)
@@ -121,20 +107,8 @@ def actualizar_riesgo(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar un riesgo"""
-    riesgo = db.query(Riesgo).filter(Riesgo.id == riesgo_id).first()
-    if not riesgo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Riesgo no encontrado"
-        )
-    
-    update_data = riesgo_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(riesgo, field, value)
-    
-    db.commit()
-    db.refresh(riesgo)
-    return riesgo
+    service = RiesgoService(db)
+    return service.actualizar(riesgo_id, riesgo_update, current_user.id)
 
 
 @router.delete("/riesgos/{riesgo_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -144,15 +118,8 @@ def eliminar_riesgo(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Eliminar un riesgo"""
-    riesgo = db.query(Riesgo).filter(Riesgo.id == riesgo_id).first()
-    if not riesgo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Riesgo no encontrado"
-        )
-    
-    db.delete(riesgo)
-    db.commit()
+    service = RiesgoService(db)
+    service.eliminar(riesgo_id, current_user.id)
     return None
 
 
@@ -167,10 +134,8 @@ def listar_controles_riesgo(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Listar controles de un riesgo"""
-    controles = db.query(ControlRiesgo).filter(
-        ControlRiesgo.riesgo_id == riesgo_id
-    ).all()
-    return controles
+    service = RiesgoService(db)
+    return service.listar_controles_riesgo(riesgo_id)
 
 
 @router.get("/controles-riesgo", response_model=List[ControlRiesgoResponse])
@@ -183,15 +148,8 @@ def listar_controles(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Listar todos los controles de riesgo"""
-    query = db.query(ControlRiesgo)
-    
-    if activo is not None:
-        query = query.filter(ControlRiesgo.activo == activo)
-    if tipo_control:
-        query = query.filter(ControlRiesgo.tipo_control == tipo_control)
-    
-    controles = query.offset(skip).limit(limit).all()
-    return controles
+    service = RiesgoService(db)
+    return service.listar_controles(skip=skip, limit=limit, activo=activo, tipo_control=tipo_control)
 
 
 @router.post("/controles-riesgo", response_model=ControlRiesgoResponse, status_code=status.HTTP_201_CREATED)
@@ -201,11 +159,8 @@ def crear_control_riesgo(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crear un nuevo control de riesgo"""
-    nuevo_control = ControlRiesgo(**control.model_dump())
-    db.add(nuevo_control)
-    db.commit()
-    db.refresh(nuevo_control)
-    return nuevo_control
+    service = RiesgoService(db)
+    return service.crear_control(control, current_user.id)
 
 
 @router.get("/controles-riesgo/{control_id}", response_model=ControlRiesgoResponse)
@@ -215,13 +170,8 @@ def obtener_control_riesgo(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtener un control de riesgo por ID"""
-    control = db.query(ControlRiesgo).filter(ControlRiesgo.id == control_id).first()
-    if not control:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Control de riesgo no encontrado"
-        )
-    return control
+    service = RiesgoService(db)
+    return service.obtener_control(control_id)
 
 
 @router.put("/controles-riesgo/{control_id}", response_model=ControlRiesgoResponse)
@@ -232,20 +182,8 @@ def actualizar_control_riesgo(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar un control de riesgo"""
-    control = db.query(ControlRiesgo).filter(ControlRiesgo.id == control_id).first()
-    if not control:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Control de riesgo no encontrado"
-        )
-    
-    update_data = control_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(control, field, value)
-    
-    db.commit()
-    db.refresh(control)
-    return control
+    service = RiesgoService(db)
+    return service.actualizar_control(control_id, control_update, current_user.id)
 
 
 @router.delete("/controles-riesgo/{control_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -255,13 +193,6 @@ def eliminar_control_riesgo(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Eliminar un control de riesgo"""
-    control = db.query(ControlRiesgo).filter(ControlRiesgo.id == control_id).first()
-    if not control:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Control de riesgo no encontrado"
-        )
-    
-    db.delete(control)
-    db.commit()
+    service = RiesgoService(db)
+    service.eliminar_control(control_id, current_user.id)
     return None

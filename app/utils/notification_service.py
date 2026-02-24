@@ -147,3 +147,36 @@ def crear_notificacion_ticket_resuelto(
     db.refresh(notificacion)
     
     return notificacion
+
+
+def crear_notificacion_resultado_solicitud(
+    db: Session,
+    usuario_id: UUID,
+    titulo_ticket: str,
+    estado: str,
+    referencia_id: UUID,
+    comentario: str | None = None
+) -> Notificacion:
+    """
+    Crear notificación cuando una solicitud es aprobada o declinada.
+    """
+    accion = "aprobada" if estado == "aprobado" else "declinada"
+    mensaje = f"Tu solicitud '{titulo_ticket}' fue {accion}."
+    if comentario:
+        mensaje = f"{mensaje} Comentario: {comentario}"
+
+    notificacion = Notificacion(
+        usuario_id=usuario_id,
+        titulo=f"Solicitud {accion}",
+        mensaje=mensaje,
+        tipo="info",
+        referencia_tipo="ticket",
+        referencia_id=referencia_id,
+        leida=False
+    )
+
+    db.add(notificacion)
+    db.commit()
+    db.refresh(notificacion)
+
+    return notificacion

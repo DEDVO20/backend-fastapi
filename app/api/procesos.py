@@ -2,12 +2,14 @@
 Endpoints CRUD para gestión de procesos
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 from typing import List
 from uuid import UUID
 
 from ..database import get_db
-from ..models.proceso import Proceso, EtapaProceso, InstanciaProceso, AccionProceso
+from ..models.proceso import Proceso, EtapaProceso, InstanciaProceso, AccionProceso, ResponsableProceso
+from ..models.auditoria import HallazgoAuditoria
 from ..schemas.proceso import (
     ProcesoCreate,
     ProcesoUpdate,
@@ -15,15 +17,21 @@ from ..schemas.proceso import (
     EtapaProcesoCreate,
     EtapaProcesoUpdate,
     EtapaProcesoResponse,
+    EtapaProcesoOrdenItem,
     InstanciaProcesoCreate,
     InstanciaProcesoUpdate,
     InstanciaProcesoResponse,
     AccionProcesoCreate,
     AccionProcesoUpdate,
-    AccionProcesoResponse
+    AccionProcesoResponse,
+    ResponsableProcesoCreate,
+    ResponsableProcesoUpdate,
+    ResponsableProcesoResponse,
 )
 from ..api.dependencies import get_current_user
 from ..models.usuario import Usuario
+from ..services.proceso_service import ProcesoService
+from ..services.competency_risk_automation_service import CompetencyRiskAutomationService
 
 router = APIRouter(prefix="/api/v1", tags=["procesos"])
 
@@ -42,17 +50,8 @@ def listar_procesos(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Listar todos los procesos"""
-    query = db.query(Proceso).options(
-        joinedload(Proceso.area),
-        joinedload(Proceso.responsable)
-    )
-    
-    if estado:
-        query = query.filter(Proceso.estado == estado)
-    if area_id:
-        query = query.filter(Proceso.area_id == area_id)
-    
-    procesos = query.offset(skip).limit(limit).all()
+    service = ProcesoService(db)
+    procesos = service.listar(skip=skip, limit=limit, estado=estado, area_id=area_id)
     result = []
     for proceso in procesos:
         proceso_data = ProcesoResponse.model_validate(proceso)
@@ -70,19 +69,8 @@ def crear_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crear un nuevo proceso"""
-    # Verificar si el código ya existe
-    db_proceso = db.query(Proceso).filter(Proceso.codigo == proceso.codigo).first()
-    if db_proceso:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El código de proceso ya existe"
-        )
-    
-    nuevo_proceso = Proceso(**proceso.model_dump())
-    db.add(nuevo_proceso)
-    db.commit()
-    db.refresh(nuevo_proceso)
-    return nuevo_proceso
+    service = ProcesoService(db)
+    return service.crear_proceso(proceso, current_user.id)
 
 
 @router.get("/procesos/{proceso_id}", response_model=ProcesoResponse)
@@ -92,17 +80,8 @@ def obtener_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Obtener un proceso por ID"""
-    proceso = db.query(Proceso).options(
-        joinedload(Proceso.area),
-        joinedload(Proceso.responsable)
-    ).filter(Proceso.id == proceso_id).first()
-    
-    if not proceso:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Proceso no encontrado"
-        )
-    
+    service = ProcesoService(db)
+    proceso = service.obtener(proceso_id)
     proceso_data = ProcesoResponse.model_validate(proceso)
     proceso_data.area_nombre = proceso.area.nombre if proceso.area else None
     proceso_data.responsable_nombre = f"{proceso.responsable.nombre} {proceso.responsable.primer_apellido}" if proceso.responsable else None
@@ -118,20 +97,8 @@ def actualizar_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar un proceso"""
-    proceso = db.query(Proceso).filter(Proceso.id == proceso_id).first()
-    if not proceso:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Proceso no encontrado"
-        )
-    
-    update_data = proceso_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(proceso, field, value)
-    
-    db.commit()
-    db.refresh(proceso)
-    return proceso
+    service = ProcesoService(db)
+    return service.actualizar_proceso(proceso_id, proceso_update, current_user.id)
 
 
 @router.delete("/procesos/{proceso_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -141,15 +108,8 @@ def eliminar_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Eliminar un proceso"""
-    proceso = db.query(Proceso).filter(Proceso.id == proceso_id).first()
-    if not proceso:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Proceso no encontrado"
-        )
-    
-    db.delete(proceso)
-    db.commit()
+    service = ProcesoService(db)
+    service.eliminar_proceso(proceso_id, current_user.id)
     return None
 
 
@@ -164,10 +124,37 @@ def listar_etapas_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Listar etapas de un proceso"""
-    etapas = db.query(EtapaProceso).filter(
-        EtapaProceso.proceso_id == proceso_id
+    etapas = db.query(EtapaProceso).options(
+        joinedload(EtapaProceso.responsable)
+    ).filter(
+        EtapaProceso.proceso_id == proceso_id,
+        EtapaProceso.activo.is_(True)
     ).order_by(EtapaProceso.orden).all()
-    return etapas
+
+    if not etapas:
+        return []
+
+    etapa_ids = [etapa.id for etapa in etapas]
+    hallazgos_por_etapa = dict(
+        db.query(
+            HallazgoAuditoria.etapa_proceso_id,
+            func.count(HallazgoAuditoria.id)
+        ).filter(
+            HallazgoAuditoria.etapa_proceso_id.in_(etapa_ids)
+        ).group_by(HallazgoAuditoria.etapa_proceso_id).all()
+    )
+
+    resultado = []
+    for etapa in etapas:
+        etapa_data = EtapaProcesoResponse.model_validate(etapa)
+        etapa_data.responsable_nombre = (
+            f"{etapa.responsable.nombre} {etapa.responsable.primer_apellido}".strip()
+            if etapa.responsable else None
+        )
+        etapa_data.hallazgos_count = hallazgos_por_etapa.get(etapa.id, 0)
+        resultado.append(etapa_data)
+
+    return resultado
 
 
 @router.post("/etapas", response_model=EtapaProcesoResponse, status_code=status.HTTP_201_CREATED)
@@ -177,11 +164,8 @@ def crear_etapa_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Crear una nueva etapa de proceso"""
-    nueva_etapa = EtapaProceso(**etapa.model_dump())
-    db.add(nueva_etapa)
-    db.commit()
-    db.refresh(nueva_etapa)
-    return nueva_etapa
+    service = ProcesoService(db)
+    return service.crear_etapa(etapa, current_user.id)
 
 
 @router.put("/etapas/{etapa_id}", response_model=EtapaProcesoResponse)
@@ -192,20 +176,60 @@ def actualizar_etapa_proceso(
     current_user: Usuario = Depends(get_current_user)
 ):
     """Actualizar una etapa de proceso"""
-    etapa = db.query(EtapaProceso).filter(EtapaProceso.id == etapa_id).first()
-    if not etapa:
+    service = ProcesoService(db)
+    return service.actualizar_etapa(etapa_id, etapa_update, current_user.id)
+
+
+@router.delete("/etapas/{etapa_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_etapa_proceso(
+    etapa_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Eliminar una etapa de proceso"""
+    service = ProcesoService(db)
+    service.eliminar_etapa(etapa_id, current_user.id)
+    return None
+
+
+@router.patch("/procesos/{proceso_id}/etapas/reordenar", status_code=status.HTTP_204_NO_CONTENT)
+def reordenar_etapas_proceso(
+    proceso_id: UUID,
+    orden: List[EtapaProcesoOrdenItem],
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Reordenar etapas de un proceso en operación masiva"""
+    if not orden:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Etapa no encontrada"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debe enviar al menos una etapa para reordenar"
         )
-    
-    update_data = etapa_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(etapa, field, value)
-    
+
+    ids_payload = [item.id for item in orden]
+    if len(ids_payload) != len(set(ids_payload)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se permiten IDs de etapa duplicados en el reordenamiento"
+        )
+
+    etapas = db.query(EtapaProceso).filter(
+        EtapaProceso.proceso_id == proceso_id,
+        EtapaProceso.id.in_(ids_payload)
+    ).all()
+
+    if len(etapas) != len(ids_payload):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Una o más etapas no pertenecen al proceso o no existen"
+        )
+
+    etapas_por_id = {etapa.id: etapa for etapa in etapas}
+    for item in orden:
+        etapas_por_id[item.id].orden = item.orden
+
     db.commit()
-    db.refresh(etapa)
-    return etapa
+    return None
 
 
 # =================================
@@ -326,3 +350,203 @@ def actualizar_accion_proceso(
     db.commit()
     db.refresh(accion)
     return accion
+
+
+# =========================================
+# Endpoints de Responsables Formales
+# ISO 9001:2015 Cláusula 5.3
+# =========================================
+
+@router.get("/procesos/{proceso_id}/responsables", response_model=List[ResponsableProcesoResponse])
+def listar_responsables_proceso(
+    proceso_id: UUID,
+    rol: str = None,
+    solo_vigentes: bool = True,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Listar todos los responsables formales de un proceso"""
+    from datetime import datetime
+
+    query = db.query(ResponsableProceso).filter(
+        ResponsableProceso.proceso_id == proceso_id
+    )
+    if rol:
+        query = query.filter(ResponsableProceso.rol == rol)
+    if solo_vigentes:
+        query = query.filter(
+            (ResponsableProceso.vigente_hasta == None) |
+            (ResponsableProceso.vigente_hasta > datetime.utcnow())
+        )
+
+    responsables = query.options(
+        joinedload(ResponsableProceso.usuario),
+        joinedload(ResponsableProceso.proceso)
+    ).order_by(ResponsableProceso.es_principal.desc(), ResponsableProceso.fecha_asignacion).all()
+
+    result = []
+    for r in responsables:
+        resp = ResponsableProcesoResponse.model_validate(r)
+        if r.usuario:
+            resp.usuario_nombre = r.usuario.nombre_completo
+            resp.usuario_correo = r.usuario.correo_electronico
+        if r.proceso:
+            resp.proceso_nombre = r.proceso.nombre
+            resp.proceso_codigo = r.proceso.codigo
+        result.append(resp)
+
+    return result
+
+
+@router.post("/procesos/{proceso_id}/responsables", response_model=ResponsableProcesoResponse, status_code=status.HTTP_201_CREATED)
+def asignar_responsable_proceso(
+    proceso_id: UUID,
+    data: ResponsableProcesoCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Asignar un responsable formal al proceso"""
+    # Validar proceso existe
+    proceso = db.query(Proceso).filter(Proceso.id == proceso_id).first()
+    if not proceso:
+        raise HTTPException(status_code=404, detail="Proceso no encontrado")
+
+    # Validar usuario existe
+    usuario = db.query(Usuario).filter(Usuario.id == data.usuario_id).first()
+    if not usuario:
+        raise HTTPException(status_code=400, detail="El usuario especificado no existe")
+
+    # Validar unicidad (proceso + usuario + rol)
+    existente = db.query(ResponsableProceso).filter(
+        ResponsableProceso.proceso_id == proceso_id,
+        ResponsableProceso.usuario_id == data.usuario_id,
+        ResponsableProceso.rol == data.rol
+    ).first()
+    if existente:
+        raise HTTPException(
+            status_code=400,
+            detail=f"El usuario ya tiene el rol '{data.rol}' en este proceso"
+        )
+
+    # Si es_principal, desmarcar el principal anterior
+    if data.es_principal:
+        db.query(ResponsableProceso).filter(
+            ResponsableProceso.proceso_id == proceso_id,
+            ResponsableProceso.es_principal == True
+        ).update({"es_principal": False})
+
+    responsable = ResponsableProceso(
+        proceso_id=proceso_id,
+        usuario_id=data.usuario_id,
+        rol=data.rol,
+        es_principal=data.es_principal,
+        fecha_asignacion=data.fecha_asignacion,
+        vigente_hasta=data.vigente_hasta,
+        observaciones=data.observaciones,
+    )
+    db.add(responsable)
+    automation = CompetencyRiskAutomationService(db)
+    automation.evaluar_usuario_en_proceso(data.usuario_id, proceso_id)
+    db.commit()
+    db.refresh(responsable)
+
+    # Cargar relaciones para la respuesta
+    db.refresh(responsable, ["usuario", "proceso"])
+    resp = ResponsableProcesoResponse.model_validate(responsable)
+    if responsable.usuario:
+        resp.usuario_nombre = responsable.usuario.nombre_completo
+        resp.usuario_correo = responsable.usuario.correo_electronico
+    if responsable.proceso:
+        resp.proceso_nombre = responsable.proceso.nombre
+        resp.proceso_codigo = responsable.proceso.codigo
+    return resp
+
+
+@router.put("/responsables-proceso/{responsable_id}", response_model=ResponsableProcesoResponse)
+def actualizar_responsable_proceso(
+    responsable_id: UUID,
+    data: ResponsableProcesoUpdate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Actualizar la asignación de un responsable"""
+    responsable = db.query(ResponsableProceso).filter(
+        ResponsableProceso.id == responsable_id
+    ).first()
+    if not responsable:
+        raise HTTPException(status_code=404, detail="Asignación no encontrada")
+
+    update_data = data.model_dump(exclude_unset=True)
+
+    # Si se marca como principal, desmarcar los demás
+    if update_data.get("es_principal") and not responsable.es_principal:
+        db.query(ResponsableProceso).filter(
+            ResponsableProceso.proceso_id == responsable.proceso_id,
+            ResponsableProceso.id != responsable_id,
+            ResponsableProceso.es_principal == True
+        ).update({"es_principal": False})
+
+    for key, value in update_data.items():
+        setattr(responsable, key, value)
+
+    db.commit()
+    db.refresh(responsable, ["usuario", "proceso"])
+
+    resp = ResponsableProcesoResponse.model_validate(responsable)
+    if responsable.usuario:
+        resp.usuario_nombre = responsable.usuario.nombre_completo
+        resp.usuario_correo = responsable.usuario.correo_electronico
+    if responsable.proceso:
+        resp.proceso_nombre = responsable.proceso.nombre
+        resp.proceso_codigo = responsable.proceso.codigo
+    return resp
+
+
+@router.delete("/responsables-proceso/{responsable_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_responsable_proceso(
+    responsable_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Eliminar la asignación de un responsable"""
+    responsable = db.query(ResponsableProceso).filter(
+        ResponsableProceso.id == responsable_id
+    ).first()
+    if not responsable:
+        raise HTTPException(status_code=404, detail="Asignación no encontrada")
+
+    db.delete(responsable)
+    db.commit()
+    return None
+
+
+@router.get("/usuarios/{usuario_id}/procesos-asignados", response_model=List[ResponsableProcesoResponse])
+def obtener_procesos_asignados_usuario(
+    usuario_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    """Obtener todos los procesos donde el usuario tiene un rol formal"""
+    from datetime import datetime
+
+    asignaciones = db.query(ResponsableProceso).filter(
+        ResponsableProceso.usuario_id == usuario_id,
+        (ResponsableProceso.vigente_hasta == None) |
+        (ResponsableProceso.vigente_hasta > datetime.utcnow())
+    ).options(
+        joinedload(ResponsableProceso.proceso),
+        joinedload(ResponsableProceso.usuario)
+    ).all()
+
+    result = []
+    for r in asignaciones:
+        resp = ResponsableProcesoResponse.model_validate(r)
+        if r.usuario:
+            resp.usuario_nombre = r.usuario.nombre_completo
+            resp.usuario_correo = r.usuario.correo_electronico
+        if r.proceso:
+            resp.proceso_nombre = r.proceso.nombre
+            resp.proceso_codigo = r.proceso.codigo
+        result.append(resp)
+
+    return result

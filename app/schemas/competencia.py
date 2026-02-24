@@ -30,6 +30,7 @@ class CompetenciaResponse(CompetenciaBase):
 class EvaluacionCompetenciaBase(BaseModel):
     usuario_id: UUID
     competencia_id: UUID
+    nivel_requerido: Optional[str] = Field(None, max_length=50)
     nivel: str = Field(..., max_length=50)  # Básico, Intermedio, Avanzado
     estado: str = Field(..., max_length=50) # Pendiente, En Desarrollo, Reforzada, Desarrollada
     fecha_evaluacion: datetime
@@ -53,4 +54,40 @@ class EvaluacionCompetenciaResponse(EvaluacionCompetenciaBase):
     # Nested info for display
     competencia: Optional[CompetenciaResponse] = None
     
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EtapaCompetenciaBase(BaseModel):
+    etapa_id: UUID
+    competencia_id: UUID
+    nivel_requerido: str = Field(..., max_length=50)
+
+
+class EtapaCompetenciaCreate(EtapaCompetenciaBase):
+    pass
+
+
+class EtapaCompetenciaResponse(EtapaCompetenciaBase):
+    id: UUID
+    creado_en: datetime
+    actualizado_en: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RiesgoCompetenciaCriticaBase(BaseModel):
+    riesgo_id: UUID
+    competencia_id: UUID
+    nivel_minimo: str = Field(..., max_length=50)
+
+
+class RiesgoCompetenciaCriticaCreate(RiesgoCompetenciaCriticaBase):
+    pass
+
+
+class RiesgoCompetenciaCriticaResponse(RiesgoCompetenciaCriticaBase):
+    id: UUID
+    creado_en: datetime
+    actualizado_en: datetime
+
     model_config = ConfigDict(from_attributes=True)

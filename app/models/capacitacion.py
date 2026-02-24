@@ -36,7 +36,7 @@ class Capacitacion(BaseModel):
     archivo_evidencia = Column(Text, nullable=True)
     
     # Relaciones
-    responsable = relationship("Usuario", back_populates="capacitaciones_responsable")
+    responsable = relationship("Usuario", back_populates="capacitaciones_responsable", foreign_keys=[responsable_id])
     area = relationship("Area")
     asistencias = relationship("AsistenciaCapacitacion", back_populates="capacitacion")
     
@@ -66,7 +66,7 @@ class AsistenciaCapacitacion(BaseModel):
     
     # Relaciones
     capacitacion = relationship("Capacitacion", back_populates="asistencias")
-    usuario = relationship("Usuario", back_populates="asistencias")
+    usuario = relationship("Usuario", back_populates="asistencias", foreign_keys=[usuario_id])
     
     # Constraint único
     __table_args__ = (

@@ -12,7 +12,8 @@ from datetime import datetime
 from ..database import get_db
 from ..models.auditoria import Auditoria, HallazgoAuditoria, ProgramaAuditoria
 from ..models.calidad import AccionCorrectiva
-from ..models.proceso import Proceso
+from ..models.proceso import Proceso, EtapaProceso
+from ..models.sistema import CampoFormulario, RespuestaFormulario, FormularioDinamico
 from ..schemas.auditoria import (
     AuditoriaCreate,
     AuditoriaUpdate,
@@ -104,6 +105,28 @@ def _validar_proceso_para_auditoria(db: Session, proceso_id: Optional[UUID]) -> 
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El proceso asociado a la auditoría no existe.",
+        )
+
+
+def _validar_etapa_para_hallazgo(
+    db: Session,
+    etapa_proceso_id: Optional[UUID],
+    proceso_id: Optional[UUID]
+) -> None:
+    if not etapa_proceso_id:
+        return
+
+    etapa = db.query(EtapaProceso).filter(EtapaProceso.id == etapa_proceso_id).first()
+    if not etapa:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La etapa de proceso asociada al hallazgo no existe.",
+        )
+
+    if proceso_id and etapa.proceso_id != proceso_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La etapa seleccionada no pertenece al proceso del hallazgo.",
         )
 
 # ======================
@@ -279,6 +302,118 @@ def resumen_programa_auditoria(
         "avance_porcentaje": avance_porcentaje
     }
 
+
+@router.get("/auditorias/{auditoria_id}/reporte-clausulas")
+def reporte_clausulas_auditoria(
+    auditoria_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    auditoria = db.query(Auditoria).filter(Auditoria.id == auditoria_id).first()
+    if not auditoria:
+        raise HTTPException(status_code=404, detail="Auditoría no encontrada")
+
+    respuestas = db.query(RespuestaFormulario).filter(RespuestaFormulario.auditoria_id == auditoria_id).all()
+    if not respuestas:
+        return {"auditoria_id": str(auditoria_id), "clausulas": []}
+
+    campo_ids = [r.campo_formulario_id for r in respuestas]
+    campos = db.query(CampoFormulario).filter(CampoFormulario.id.in_(campo_ids)).all()
+    campo_por_id = {c.id: c for c in campos}
+
+    resultado_map: dict[str, dict] = {}
+    for r in respuestas:
+        campo = campo_por_id.get(r.campo_formulario_id)
+        if not campo:
+            continue
+        clausula = (campo.clausula_iso or "sin_clausula").strip()
+        bucket = resultado_map.setdefault(
+            clausula,
+            {"clausula": clausula, "total": 0, "conformes": 0, "no_conformes": 0, "observaciones": 0, "cobertura_pct": 0.0},
+        )
+        bucket["total"] += 1
+        valor = (r.valor or "").strip().lower()
+        if valor in {"conforme", "cumple", "si", "sí", "true"}:
+            bucket["conformes"] += 1
+        elif valor in {"no_conforme", "no cumple", "no", "false"}:
+            bucket["no_conformes"] += 1
+        elif valor:
+            bucket["observaciones"] += 1
+
+    for item in resultado_map.values():
+        total = item["total"] or 1
+        item["cobertura_pct"] = round(((item["conformes"] + item["no_conformes"] + item["observaciones"]) / total) * 100, 2)
+
+    return {
+        "auditoria_id": str(auditoria_id),
+        "formulario_checklist_id": str(auditoria.formulario_checklist_id) if auditoria.formulario_checklist_id else None,
+        "formulario_checklist_version": auditoria.formulario_checklist_version,
+        "clausulas": sorted(resultado_map.values(), key=lambda x: x["clausula"]),
+    }
+
+
+@router.get("/auditorias-kpi/formularios")
+def kpi_eficacia_formularios(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    auditorias_cerradas = db.query(Auditoria).filter(Auditoria.estado == "cerrada").all()
+    total_auditorias = len(auditorias_cerradas)
+    if total_auditorias == 0:
+        return {
+            "porcentaje_campos_completos": 0.0,
+            "porcentaje_hallazgos_por_clausula": 0.0,
+            "tiempo_cierre_promedio_dias": 0.0,
+            "reincidencia_no_conformidades": 0.0,
+        }
+
+    respuestas = db.query(RespuestaFormulario).all()
+    campos = db.query(CampoFormulario).all()
+    campo_por_id = {c.id: c for c in campos}
+    req_respuestas = 0
+    req_completas = 0
+    clausulas_con_hallazgos = set()
+    clausulas_totales = set()
+    for r in respuestas:
+        campo = campo_por_id.get(r.campo_formulario_id)
+        if not campo:
+            continue
+        if campo.clausula_iso:
+            clausulas_totales.add(campo.clausula_iso.strip())
+        if campo.requerido:
+            req_respuestas += 1
+            if (r.valor or "").strip():
+                req_completas += 1
+
+    hallazgos = db.query(HallazgoAuditoria).all()
+    for h in hallazgos:
+        if h.clausula_norma:
+            clausulas_con_hallazgos.add(h.clausula_norma.strip())
+
+    porcentaje_campos = round((req_completas / max(req_respuestas, 1)) * 100, 2)
+    porcentaje_hallazgos_clausula = round((len(clausulas_con_hallazgos) / max(len(clausulas_totales), 1)) * 100, 2)
+
+    tiempos = []
+    for a in auditorias_cerradas:
+        if a.fecha_inicio and a.fecha_fin:
+            tiempos.append((a.fecha_fin - a.fecha_inicio).days)
+    tiempo_promedio = round(sum(tiempos) / len(tiempos), 2) if tiempos else 0.0
+
+    hallazgos_nc = [h for h in hallazgos if h.tipo_hallazgo in {"no_conformidad_mayor", "no_conformidad_menor"} and h.clausula_norma]
+    contador: dict[str, int] = {}
+    for h in hallazgos_nc:
+        key = h.clausula_norma.strip()
+        contador[key] = contador.get(key, 0) + 1
+    reincidentes = len([k for k, v in contador.items() if v > 1])
+    reincidencia = round((reincidentes / max(len(contador), 1)) * 100, 2)
+
+    return {
+        "porcentaje_campos_completos": porcentaje_campos,
+        "porcentaje_hallazgos_por_clausula": porcentaje_hallazgos_clausula,
+        "tiempo_cierre_promedio_dias": tiempo_promedio,
+        "reincidencia_no_conformidades": reincidencia,
+    }
+
 @router.post("/auditorias/{auditoria_id}/iniciar", response_model=AuditoriaResponse)
 def iniciar_auditoria(
     auditoria_id: UUID, 
@@ -436,6 +571,11 @@ def crear_auditoria(
         auditoria_data.get("fecha_planificada")
     )
     _validar_proceso_para_auditoria(db, auditoria_data.get("proceso_id"))
+    if auditoria_data.get("formulario_checklist_id"):
+        form = db.query(FormularioDinamico).filter(FormularioDinamico.id == auditoria_data["formulario_checklist_id"]).first()
+        if not form or form.estado_workflow != "aprobado" or not form.activo:
+            raise HTTPException(status_code=400, detail="Solo puede asignar formularios de checklist aprobados y activos.")
+        auditoria_data["formulario_checklist_version"] = form.version
 
     nueva_auditoria = Auditoria(**auditoria_data)
     db.add(nueva_auditoria)
@@ -503,6 +643,11 @@ def actualizar_auditoria(
     _validar_programa_para_auditoria(db, programa_id_objetivo, fecha_planificada_objetivo)
     proceso_id_objetivo = update_data.get("proceso_id", auditoria.proceso_id)
     _validar_proceso_para_auditoria(db, proceso_id_objetivo)
+    if "formulario_checklist_id" in update_data and update_data["formulario_checklist_id"]:
+        form = db.query(FormularioDinamico).filter(FormularioDinamico.id == update_data["formulario_checklist_id"]).first()
+        if not form or form.estado_workflow != "aprobado" or not form.activo:
+            raise HTTPException(status_code=400, detail="Solo puede asignar formularios de checklist aprobados y activos.")
+        update_data["formulario_checklist_version"] = form.version
 
     if "norma_referencia" in update_data and not update_data["norma_referencia"]:
         update_data["norma_referencia"] = "ISO 9001:2015"
@@ -601,11 +746,13 @@ def crear_hallazgo_auditoria(
     if not tiene_permiso:
         raise HTTPException(status_code=403, detail="No tienes permiso para registrar hallazgos")
 
-    nuevo_hallazgo = HallazgoAuditoria(**hallazgo.model_dump())
-    db.add(nuevo_hallazgo)
-    db.commit()
-    db.refresh(nuevo_hallazgo)
-    return nuevo_hallazgo
+    hallazgo_data = hallazgo.model_dump()
+    _validar_etapa_para_hallazgo(
+        db,
+        hallazgo_data.get("etapa_proceso_id"),
+        hallazgo_data.get("proceso_id"),
+    )
+    return HallazgoService.crear_hallazgo(db, hallazgo_data, current_user.id)
 
 
 @router.get("/hallazgos-auditoria/{hallazgo_id}", response_model=HallazgoAuditoriaResponse)
@@ -640,6 +787,10 @@ def actualizar_hallazgo_auditoria(
         )
     
     update_data = hallazgo_update.model_dump(exclude_unset=True)
+    proceso_objetivo = update_data.get("proceso_id", hallazgo.proceso_id)
+    etapa_objetivo = update_data.get("etapa_proceso_id", hallazgo.etapa_proceso_id)
+    _validar_etapa_para_hallazgo(db, etapa_objetivo, proceso_objetivo)
+
     for field, value in update_data.items():
         setattr(hallazgo, field, value)
     

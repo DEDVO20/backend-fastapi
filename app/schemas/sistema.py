@@ -35,6 +35,20 @@ class NotificacionResponse(NotificacionBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AuditLogResponse(BaseModel):
+    id: UUID
+    tabla: str
+    registro_id: UUID
+    accion: str
+    usuario_id: Optional[UUID] = None
+    cambios_json: Optional[Any] = None
+    fecha: datetime
+    creado_en: datetime
+    actualizado_en: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 # Configuracion Schemas
 class ConfiguracionBase(BaseModel):
     clave: str = Field(..., max_length=100)
@@ -75,6 +89,12 @@ class FormularioDinamicoBase(BaseModel):
     proceso_id: Optional[UUID] = None
     activo: bool = True
     version: int = 1
+    estado_workflow: str = Field(default="borrador", max_length=30)
+    vigente_desde: Optional[datetime] = None
+    vigente_hasta: Optional[datetime] = None
+    aprobado_por: Optional[UUID] = None
+    fecha_aprobacion: Optional[datetime] = None
+    parent_formulario_id: Optional[UUID] = None
 
 
 class FormularioDinamicoCreate(FormularioDinamicoBase):
@@ -89,6 +109,12 @@ class FormularioDinamicoUpdate(BaseModel):
     proceso_id: Optional[UUID] = None
     activo: Optional[bool] = None
     version: Optional[int] = None
+    estado_workflow: Optional[str] = Field(None, max_length=30)
+    vigente_desde: Optional[datetime] = None
+    vigente_hasta: Optional[datetime] = None
+    aprobado_por: Optional[UUID] = None
+    fecha_aprobacion: Optional[datetime] = None
+    parent_formulario_id: Optional[UUID] = None
 
 
 class FormularioDinamicoResponse(FormularioDinamicoBase):
@@ -110,6 +136,10 @@ class CampoFormularioBase(BaseModel):
     orden: int = 1
     activo: bool = True
     validaciones: Optional[Any] = None
+    seccion_iso: Optional[str] = Field(None, max_length=100)
+    clausula_iso: Optional[str] = Field(None, max_length=50)
+    subclausula_iso: Optional[str] = Field(None, max_length=50)
+    evidencia_requerida: bool = False
 
 
 class CampoFormularioCreate(CampoFormularioBase):
@@ -127,6 +157,10 @@ class CampoFormularioUpdate(BaseModel):
     orden: Optional[int] = None
     activo: Optional[bool] = None
     validaciones: Optional[Any] = None
+    seccion_iso: Optional[str] = Field(None, max_length=100)
+    clausula_iso: Optional[str] = Field(None, max_length=50)
+    subclausula_iso: Optional[str] = Field(None, max_length=50)
+    evidencia_requerida: Optional[bool] = None
 
 
 class CampoFormularioResponse(CampoFormularioBase):
@@ -144,6 +178,9 @@ class RespuestaFormularioBase(BaseModel):
     valor: Optional[str] = None
     archivo_adjunto: Optional[str] = None
     usuario_respuesta_id: Optional[UUID] = None
+    evidencia_hash: Optional[str] = Field(None, max_length=128)
+    evidencia_fecha: Optional[datetime] = None
+    evidencia_usuario_id: Optional[UUID] = None
 
 
 class RespuestaFormularioCreate(RespuestaFormularioBase):
@@ -154,6 +191,9 @@ class RespuestaFormularioUpdate(BaseModel):
     valor: Optional[str] = None
     archivo_adjunto: Optional[str] = None
     usuario_respuesta_id: Optional[UUID] = None
+    evidencia_hash: Optional[str] = Field(None, max_length=128)
+    evidencia_fecha: Optional[datetime] = None
+    evidencia_usuario_id: Optional[UUID] = None
 
 
 class RespuestaFormularioResponse(RespuestaFormularioBase):

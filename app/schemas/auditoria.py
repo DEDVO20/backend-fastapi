@@ -82,6 +82,8 @@ class AuditoriaBase(BaseModel):
     creado_por: Optional[UUID] = Field(None, alias="creadoPor")
     informe_final: Optional[str] = Field(None, alias="informeFinal")
     programa_id: UUID = Field(..., alias="programaId")
+    formulario_checklist_id: Optional[UUID] = Field(None, alias="formularioChecklistId")
+    formulario_checklist_version: Optional[int] = Field(None, alias="formularioChecklistVersion")
 
 
 class AuditoriaCreate(AuditoriaBase):
@@ -105,6 +107,8 @@ class AuditoriaUpdate(BaseModel):
     proceso_id: Optional[UUID] = Field(None, alias="procesoId")
     informe_final: Optional[str] = Field(None, alias="informeFinal")
     programa_id: Optional[UUID] = Field(None, alias="programaId")
+    formulario_checklist_id: Optional[UUID] = Field(None, alias="formularioChecklistId")
+    formulario_checklist_version: Optional[int] = Field(None, alias="formularioChecklistVersion")
 
 
 class AuditoriaResponse(AuditoriaBase):
@@ -125,6 +129,7 @@ class HallazgoAuditoriaBase(BaseModel):
     descripcion: str
     tipo_hallazgo: str = Field(..., max_length=50, alias="tipo")
     proceso_id: Optional[UUID] = None
+    etapa_proceso_id: Optional[UUID] = Field(None, alias="etapaProcesoId")
     clausula_norma: Optional[str] = Field(None, max_length=100, alias="clausulaIso")
     evidencia: Optional[str] = None
     responsable_respuesta_id: Optional[UUID] = Field(None, alias="responsableId")
@@ -148,6 +153,7 @@ class HallazgoAuditoriaUpdate(BaseModel):
     descripcion: Optional[str] = None
     tipo_hallazgo: Optional[str] = Field(None, max_length=50, alias="tipo")
     proceso_id: Optional[UUID] = None
+    etapa_proceso_id: Optional[UUID] = Field(None, alias="etapaProcesoId")
     clausula_norma: Optional[str] = Field(None, max_length=100, alias="clausulaIso")
     evidencia: Optional[str] = None
     responsable_respuesta_id: Optional[UUID] = Field(None, alias="responsableId")

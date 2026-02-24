@@ -54,7 +54,7 @@ class VersionDocumento(BaseModel):
     
     # Relaciones
     documento = relationship("Documento", back_populates="versiones")
-    creador = relationship("Usuario", back_populates="versiones_documentos")
+    creador = relationship("Usuario", back_populates="versiones_documentos", foreign_keys=[creado_por])
     
     # Nota: solo tiene creado_en
     def __repr__(self):

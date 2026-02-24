@@ -24,6 +24,7 @@ from ..schemas.capacitacion import (
     ReporteCapacitacionAuditoriaResponse,
 )
 from ..api.dependencies import get_current_user
+from ..services.capacitacion_service import CapacitacionService
 
 router = APIRouter(prefix="/api/v1", tags=["capacitaciones"])
 
@@ -262,6 +263,16 @@ def finalizar_capacitacion(
     db.commit()
     db.refresh(capacitacion)
     return capacitacion
+
+
+@router.post("/capacitaciones/{capacitacion_id}/cerrar", response_model=CapacitacionResponse)
+def cerrar_capacitacion(
+    capacitacion_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    service = CapacitacionService(db)
+    return service.cerrar_capacitacion(capacitacion_id, current_user.id)
 
 
 @router.post("/capacitaciones/{capacitacion_id}/marcar-mi-asistencia", response_model=AsistenciaCapacitacionResponse)

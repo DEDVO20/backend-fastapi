@@ -15,8 +15,11 @@ from ..models.calidad import NoConformidad, ObjetivoCalidad, Indicador
 from ..models.riesgo import Riesgo
 from ..models.documento import Documento
 from ..models.auditoria import Auditoria, HallazgoAuditoria
+from ..models.competencia import BrechaCompetencia
+from ..models.proceso import Proceso, EtapaProceso
 
 router = APIRouter(prefix="/api/v1/analytics", tags=["analytics"])
+ESTADOS_BRECHA_ABIERTA = ("abierta", "pendiente", "en_capacitacion")
 
 @router.get("/calidad")
 def get_calidad_metrics(
@@ -115,4 +118,53 @@ def get_auditorias_stats(
     return {
         "hallazgos_por_tipo": {tipo: count for tipo, count in hallazgos_stats},
         "total_auditorias": total_auditorias
+    }
+
+
+@router.get("/competencias/riesgo-humano")
+def get_competencias_riesgo_humano(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    """KPIs estratégicos de brechas de competencia y riesgo humano."""
+    brechas_abiertas = db.query(func.count(BrechaCompetencia.id)).filter(
+        BrechaCompetencia.estado.in_(ESTADOS_BRECHA_ABIERTA),
+        BrechaCompetencia.activo.is_(True),
+    ).scalar() or 0
+
+    brechas_criticas = db.query(func.count(BrechaCompetencia.id)).filter(
+        BrechaCompetencia.estado.in_(ESTADOS_BRECHA_ABIERTA),
+        BrechaCompetencia.riesgo_id.isnot(None),
+        BrechaCompetencia.activo.is_(True),
+    ).scalar() or 0
+
+    total_riesgos = db.query(func.count(Riesgo.id)).filter(Riesgo.activo.is_(True)).scalar() or 0
+    riesgos_con_incremento = db.query(func.count(Riesgo.id)).filter(
+        Riesgo.activo.is_(True),
+        Riesgo.nivel_residual.isnot(None),
+        Riesgo.probabilidad.isnot(None),
+        Riesgo.impacto.isnot(None),
+        Riesgo.nivel_residual > (Riesgo.probabilidad * Riesgo.impacto),
+    ).scalar() or 0
+
+    procesos_totales = db.query(func.count(Proceso.id)).filter(Proceso.activo.is_(True)).scalar() or 0
+    procesos_vulnerables = db.query(func.count(func.distinct(EtapaProceso.proceso_id))).join(
+        BrechaCompetencia,
+        BrechaCompetencia.etapa_id == EtapaProceso.id,
+    ).filter(
+        EtapaProceso.activo.is_(True),
+        BrechaCompetencia.estado.in_(ESTADOS_BRECHA_ABIERTA),
+    ).scalar() or 0
+
+    indice_riesgo_humano = round((brechas_criticas / max(total_riesgos, 1)) * 100, 2)
+    cobertura_competencias = round(((total_riesgos - riesgos_con_incremento) / max(total_riesgos, 1)) * 100, 2)
+
+    return {
+        "brechas_abiertas": int(brechas_abiertas),
+        "brechas_criticas": int(brechas_criticas),
+        "riesgos_con_incremento_por_factor_humano": int(riesgos_con_incremento),
+        "indice_riesgo_humano": indice_riesgo_humano,
+        "procesos_vulnerables": int(procesos_vulnerables),
+        "total_procesos": int(procesos_totales),
+        "cobertura_competencias": cobertura_competencias,
     }

@@ -19,8 +19,10 @@ from .usuario import (
 from .proceso import (
     Proceso,
     EtapaProceso,
+    EtapaCompetencia,
     InstanciaProceso,
     ParticipanteProceso,
+    ResponsableProceso,
     AccionProceso
 )
 
@@ -34,6 +36,7 @@ from .documento import (
 # Importar modelos de calidad
 from .calidad import (
     Indicador,
+    MedicionIndicador,
     NoConformidad,
     AccionCorrectiva,
     ObjetivoCalidad,
@@ -47,11 +50,14 @@ from .auditoria import (
     ProgramaAuditoria
 )
 from .historial import HistorialEstado
+from .audit_log import AuditLog
 
 # Importar modelos de riesgos
 from .riesgo import (
     Riesgo,
-    ControlRiesgo
+    ControlRiesgo,
+    EvaluacionRiesgoHistorial,
+    RiesgoCompetenciaCritica,
 )
 
 # Importar modelos de capacitación
@@ -63,7 +69,8 @@ from .capacitacion import (
 # Importar modelos de competencias
 from .competencia import (
     Competencia,
-    EvaluacionCompetencia
+    EvaluacionCompetencia,
+    BrechaCompetencia,
 )
 
 # Importar modelos de Tickets
@@ -95,8 +102,10 @@ __all__ = [
     # Procesos
     "Proceso",
     "EtapaProceso",
+    "EtapaCompetencia",
     "InstanciaProceso",
     "ParticipanteProceso",
+    "ResponsableProceso",
     "AccionProceso",
     # Documentos
     "Documento",
@@ -104,6 +113,7 @@ __all__ = [
     "DocumentoProceso",
     # Calidad
     "Indicador",
+    "MedicionIndicador",
     "NoConformidad",
     "AccionCorrectiva",
     "ObjetivoCalidad",
@@ -113,15 +123,19 @@ __all__ = [
     "HallazgoAuditoria",
     "ProgramaAuditoria",
     "HistorialEstado",
+    "AuditLog",
     # Riesgos
     "Riesgo",
     "ControlRiesgo",
+    "EvaluacionRiesgoHistorial",
+    "RiesgoCompetenciaCritica",
     # Capacitación
     "Capacitacion",
     "AsistenciaCapacitacion",
     # Competencias
     "Competencia",
     "EvaluacionCompetencia",
+    "BrechaCompetencia",
     # Tickets
     "Ticket",
     "EstadoTicket",

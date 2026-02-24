@@ -5,8 +5,9 @@ from fastapi import HTTPException, status
 from typing import List, Optional
 
 from ...models.auditoria import Auditoria, HallazgoAuditoria, ProgramaAuditoria
-from ...models.calidad import NoConformidad
+from ...models.calidad import NoConformidad, AccionCorrectiva
 from ...models.historial import HistorialEstado
+from ...models.sistema import CampoFormulario, RespuestaFormulario
 from ...models.usuario import Usuario
 
 class AuditoriaService:
@@ -89,6 +90,56 @@ class AuditoriaService:
         auditoria = db.query(Auditoria).filter(Auditoria.id == auditoria_id).first()
         if not auditoria:
              raise HTTPException(status_code=404, detail="Auditoría no encontrada")
+
+        if not auditoria.informe_final:
+            raise HTTPException(status_code=400, detail="Debe adjuntar el informe final antes de cerrar")
+
+        # Validación ISO de checklist aplicado
+        if not auditoria.formulario_checklist_id or not auditoria.formulario_checklist_version:
+            raise HTTPException(
+                status_code=400,
+                detail="La auditoría debe tener un checklist de formulario versionado aplicado.",
+            )
+
+        campos = db.query(CampoFormulario).filter(
+            CampoFormulario.formulario_id == auditoria.formulario_checklist_id,
+            CampoFormulario.activo.is_(True),
+        ).all()
+        respuestas = db.query(RespuestaFormulario).filter(
+            RespuestaFormulario.auditoria_id == auditoria_id,
+        ).all()
+        respuestas_por_campo = {r.campo_formulario_id: r for r in respuestas}
+
+        faltantes = []
+        faltantes_conclusion = False
+        faltantes_evidencia = []
+        for campo in campos:
+            respuesta = respuestas_por_campo.get(campo.id)
+            valor = (respuesta.valor or "").strip() if respuesta else ""
+            evidencia = (respuesta.archivo_adjunto or "").strip() if respuesta else ""
+
+            if campo.requerido and not valor:
+                faltantes.append(campo.etiqueta)
+            if campo.nombre and campo.nombre.strip().lower() == "conclusion_auditoria" and not valor:
+                faltantes_conclusion = True
+            if campo.evidencia_requerida and not evidencia:
+                faltantes_evidencia.append(campo.etiqueta)
+
+        if faltantes:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No puede cerrar: hay campos obligatorios vacíos ({len(faltantes)}).",
+            )
+        if faltantes_conclusion:
+            raise HTTPException(
+                status_code=400,
+                detail="No puede cerrar: falta la conclusión de auditoría.",
+            )
+        if faltantes_evidencia:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No puede cerrar: hay campos que exigen evidencia adjunta ({len(faltantes_evidencia)}).",
+            )
              
         # Verificar que no haya hallazgos abiertos (especialmente No Conformidades sin cerrar)
         hallazgos_abiertos = db.query(HallazgoAuditoria).filter(
@@ -109,8 +160,25 @@ class AuditoriaService:
         if nc_abiertas > 0:
             raise HTTPException(status_code=400, detail="No se puede cerrar la auditoría con No Conformidades abiertas")
 
+        # Hallazgos con NC deben tener al menos una acción correctiva asociada
+        hallazgos_con_nc = db.query(HallazgoAuditoria).filter(
+            HallazgoAuditoria.auditoria_id == auditoria_id,
+            HallazgoAuditoria.no_conformidad_id.isnot(None),
+        ).all()
+        for h in hallazgos_con_nc:
+            acciones = db.query(AccionCorrectiva).filter(
+                AccionCorrectiva.no_conformidad_id == h.no_conformidad_id,
+            ).count()
+            if acciones == 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"No puede cerrar: el hallazgo {h.codigo} no tiene acción correctiva registrada.",
+                )
+
         estado_anterior = auditoria.estado
         auditoria.estado = 'cerrada'
+        if not auditoria.fecha_fin:
+            auditoria.fecha_fin = datetime.now()
         
         historial = HistorialEstado(
             entidad_tipo='auditoria',
