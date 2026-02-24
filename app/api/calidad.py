@@ -824,7 +824,28 @@ def eliminar_objetivo_calidad(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Objetivo de calidad no encontrado"
         )
-    
+
+    seguimientos_count = db.query(SeguimientoObjetivo).filter(
+        SeguimientoObjetivo.objetivo_calidad_id == objetivo_id
+    ).count()
+    if seguimientos_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede eliminar el objetivo porque tiene seguimientos registrados"
+        )
+
+    if objetivo.estado in {"en_curso", "cumplido"}:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"No se puede eliminar un objetivo en estado '{objetivo.estado}'. Debe cancelarlo primero"
+        )
+
+    if objetivo.estado != "cancelado":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Solo se pueden eliminar objetivos en estado 'cancelado'"
+        )
+
     db.delete(objetivo)
     db.commit()
     return None
