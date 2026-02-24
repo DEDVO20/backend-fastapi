@@ -545,6 +545,20 @@ def actualizar_formulario_dinamico(
         )
 
     update_data = formulario_update.model_dump(exclude_unset=True)
+    if "estado_workflow" in update_data:
+        estado_actual = (formulario.estado_workflow or "borrador").strip().lower()
+        estado_nuevo = (update_data["estado_workflow"] or "").strip().lower()
+        transiciones = {
+            "borrador": {"revision", "obsoleto", "borrador"},
+            "revision": {"aprobado", "borrador", "obsoleto", "revision"},
+            "aprobado": {"obsoleto", "aprobado"},
+            "obsoleto": {"obsoleto"},
+        }
+        if estado_nuevo not in transiciones.get(estado_actual, set()):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Transición de estado no permitida: {estado_actual} -> {estado_nuevo}",
+            )
     for field, value in update_data.items():
         setattr(formulario, field, value)
 

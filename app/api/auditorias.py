@@ -13,7 +13,7 @@ from ..database import get_db
 from ..models.auditoria import Auditoria, HallazgoAuditoria, ProgramaAuditoria
 from ..models.calidad import AccionCorrectiva
 from ..models.proceso import Proceso, EtapaProceso
-from ..models.sistema import CampoFormulario, RespuestaFormulario
+from ..models.sistema import CampoFormulario, RespuestaFormulario, FormularioDinamico
 from ..schemas.auditoria import (
     AuditoriaCreate,
     AuditoriaUpdate,
@@ -571,6 +571,11 @@ def crear_auditoria(
         auditoria_data.get("fecha_planificada")
     )
     _validar_proceso_para_auditoria(db, auditoria_data.get("proceso_id"))
+    if auditoria_data.get("formulario_checklist_id"):
+        form = db.query(FormularioDinamico).filter(FormularioDinamico.id == auditoria_data["formulario_checklist_id"]).first()
+        if not form or form.estado_workflow != "aprobado" or not form.activo:
+            raise HTTPException(status_code=400, detail="Solo puede asignar formularios de checklist aprobados y activos.")
+        auditoria_data["formulario_checklist_version"] = form.version
 
     nueva_auditoria = Auditoria(**auditoria_data)
     db.add(nueva_auditoria)
@@ -638,6 +643,11 @@ def actualizar_auditoria(
     _validar_programa_para_auditoria(db, programa_id_objetivo, fecha_planificada_objetivo)
     proceso_id_objetivo = update_data.get("proceso_id", auditoria.proceso_id)
     _validar_proceso_para_auditoria(db, proceso_id_objetivo)
+    if "formulario_checklist_id" in update_data and update_data["formulario_checklist_id"]:
+        form = db.query(FormularioDinamico).filter(FormularioDinamico.id == update_data["formulario_checklist_id"]).first()
+        if not form or form.estado_workflow != "aprobado" or not form.activo:
+            raise HTTPException(status_code=400, detail="Solo puede asignar formularios de checklist aprobados y activos.")
+        update_data["formulario_checklist_version"] = form.version
 
     if "norma_referencia" in update_data and not update_data["norma_referencia"]:
         update_data["norma_referencia"] = "ISO 9001:2015"
