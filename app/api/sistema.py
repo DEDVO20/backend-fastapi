@@ -7,6 +7,8 @@ from sqlalchemy.exc import IntegrityError
 from typing import List
 from uuid import UUID
 from datetime import datetime
+import hashlib
+import json
 
 from ..database import get_db
 from ..models.sistema import (
@@ -50,6 +52,15 @@ ISO_AUDITORIA_CAMPOS_REQUERIDOS = {
     "resultado_auditoria": "Resultado (Conforme/No conforme)",
     "conclusion_auditoria": "Conclusión de auditoría",
 }
+ISO_SECCIONES_VALIDAS = {
+    "contexto",
+    "liderazgo",
+    "planificacion",
+    "apoyo",
+    "operacion",
+    "evaluacion",
+    "mejora",
+}
 
 
 def _validar_tipo_campo_con_opciones(tipo_campo: str, opciones):
@@ -85,6 +96,22 @@ def _validar_formulario_iso_completo(db: Session, formulario: FormularioDinamico
                 "El formulario de auditoría ISO 9001 no está completo. "
                 f"Faltan campos obligatorios: {etiquetas}"
             ),
+        )
+
+    faltan_clausula = [c.etiqueta for c in campos if not (c.clausula_iso and str(c.clausula_iso).strip())]
+    if faltan_clausula:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cada pregunta debe tener cláusula ISO asignada antes de aprobar.",
+        )
+
+    secciones_invalidas = [
+        c.etiqueta for c in campos if c.seccion_iso and str(c.seccion_iso).strip().lower() not in ISO_SECCIONES_VALIDAS
+    ]
+    if secciones_invalidas:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Sección ISO inválida en campos: {', '.join(secciones_invalidas)}",
         )
 
 
@@ -474,6 +501,8 @@ def crear_formulario_dinamico(
     if _es_formulario_iso_auditoria(nuevo):
         nuevo.modulo = "auditorias"
         nuevo.entidad_tipo = "auditoria"
+        nuevo.estado_workflow = "borrador"
+        nuevo.activo = False
     db.add(nuevo)
     db.flush()
     if nuevo.activo:
@@ -506,6 +535,12 @@ def actualizar_formulario_dinamico(
     if not formulario:
         raise HTTPException(status_code=404, detail="Formulario dinámico no encontrado.")
 
+    if formulario.activo and formulario.estado_workflow == "aprobado":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se puede editar una plantilla aprobada y activa. Cree una nueva versión.",
+        )
+
     update_data = formulario_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(formulario, field, value)
@@ -513,7 +548,7 @@ def actualizar_formulario_dinamico(
     if _es_formulario_iso_auditoria(formulario):
         formulario.modulo = "auditorias"
         formulario.entidad_tipo = "auditoria"
-    if formulario.activo:
+    if formulario.activo and formulario.estado_workflow == "aprobado":
         _validar_formulario_iso_completo(db, formulario)
 
     db.commit()
@@ -530,9 +565,105 @@ def eliminar_formulario_dinamico(
     formulario = db.query(FormularioDinamico).filter(FormularioDinamico.id == formulario_id).first()
     if not formulario:
         raise HTTPException(status_code=404, detail="Formulario dinámico no encontrado.")
+    if formulario.estado_workflow == "aprobado" and formulario.activo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se puede eliminar una plantilla aprobada activa. Márquela obsoleta.",
+        )
     db.delete(formulario)
     db.commit()
     return None
+
+
+@router.post("/formularios-dinamicos/{formulario_id}/nueva-version", response_model=FormularioDinamicoResponse, status_code=status.HTTP_201_CREATED)
+def crear_nueva_version_formulario(
+    formulario_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    actual = db.query(FormularioDinamico).filter(FormularioDinamico.id == formulario_id).first()
+    if not actual:
+        raise HTTPException(status_code=404, detail="Formulario dinámico no encontrado.")
+
+    nuevo = FormularioDinamico(
+        codigo=f"{actual.codigo}-v{actual.version + 1}",
+        nombre=actual.nombre,
+        descripcion=actual.descripcion,
+        modulo=actual.modulo,
+        entidad_tipo=actual.entidad_tipo,
+        proceso_id=actual.proceso_id,
+        activo=False,
+        version=actual.version + 1,
+        estado_workflow="borrador",
+        parent_formulario_id=actual.id,
+    )
+    db.add(nuevo)
+    db.flush()
+
+    campos_actuales = db.query(CampoFormulario).filter(CampoFormulario.formulario_id == actual.id).order_by(CampoFormulario.orden.asc()).all()
+    for c in campos_actuales:
+        db.add(
+            CampoFormulario(
+                formulario_id=nuevo.id,
+                proceso_id=c.proceso_id,
+                nombre=c.nombre,
+                etiqueta=c.etiqueta,
+                tipo_campo=c.tipo_campo,
+                requerido=c.requerido,
+                opciones=c.opciones,
+                orden=c.orden,
+                activo=c.activo,
+                validaciones=c.validaciones,
+                seccion_iso=c.seccion_iso,
+                clausula_iso=c.clausula_iso,
+                subclausula_iso=c.subclausula_iso,
+                evidencia_requerida=c.evidencia_requerida,
+            )
+        )
+
+    db.commit()
+    db.refresh(nuevo)
+    return nuevo
+
+
+@router.post("/formularios-dinamicos/{formulario_id}/aprobar", response_model=FormularioDinamicoResponse)
+def aprobar_formulario_dinamico(
+    formulario_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user),
+):
+    formulario = db.query(FormularioDinamico).filter(FormularioDinamico.id == formulario_id).first()
+    if not formulario:
+        raise HTTPException(status_code=404, detail="Formulario dinámico no encontrado.")
+
+    _validar_formulario_iso_completo(db, formulario)
+
+    db.query(FormularioDinamico).filter(
+        FormularioDinamico.id != formulario.id,
+        FormularioDinamico.modulo == formulario.modulo,
+        FormularioDinamico.entidad_tipo == formulario.entidad_tipo,
+        FormularioDinamico.proceso_id == formulario.proceso_id,
+        FormularioDinamico.estado_workflow == "aprobado",
+        FormularioDinamico.activo.is_(True),
+    ).update(
+        {
+            "activo": False,
+            "estado_workflow": "obsoleto",
+            "vigente_hasta": datetime.utcnow(),
+        },
+        synchronize_session=False,
+    )
+
+    formulario.estado_workflow = "aprobado"
+    formulario.activo = True
+    formulario.aprobado_por = current_user.id
+    formulario.fecha_aprobacion = datetime.utcnow()
+    formulario.vigente_desde = datetime.utcnow()
+    formulario.vigente_hasta = None
+
+    db.commit()
+    db.refresh(formulario)
+    return formulario
 
 
 # =============================
@@ -564,10 +695,14 @@ def crear_campo_formulario(
     current_user: Usuario = Depends(get_current_user),
 ):
     _validar_tipo_campo_con_opciones(campo.tipo_campo, campo.opciones)
+    if campo.seccion_iso and str(campo.seccion_iso).strip().lower() not in ISO_SECCIONES_VALIDAS:
+        raise HTTPException(status_code=400, detail="seccion_iso no válida para marco ISO.")
     if campo.formulario_id:
         formulario = db.query(FormularioDinamico).filter(FormularioDinamico.id == campo.formulario_id).first()
         if not formulario:
             raise HTTPException(status_code=404, detail="Formulario dinámico no encontrado.")
+        if formulario.estado_workflow == "aprobado" and formulario.activo:
+            raise HTTPException(status_code=400, detail="No puede editar campos en una plantilla aprobada activa.")
         if _es_formulario_iso_auditoria(formulario):
             nombre = str(campo.nombre).strip().lower()
             if nombre in ISO_AUDITORIA_CAMPOS_REQUERIDOS and not campo.requerido:
@@ -593,6 +728,10 @@ def actualizar_campo_formulario(
     campo = db.query(CampoFormulario).filter(CampoFormulario.id == campo_id).first()
     if not campo:
         raise HTTPException(status_code=404, detail="Campo no encontrado.")
+    if campo.formulario_id:
+        formulario_campo = db.query(FormularioDinamico).filter(FormularioDinamico.id == campo.formulario_id).first()
+        if formulario_campo and formulario_campo.estado_workflow == "aprobado" and formulario_campo.activo:
+            raise HTTPException(status_code=400, detail="No puede editar campos en una plantilla aprobada activa.")
 
     update_data = campo_update.model_dump(exclude_unset=True)
     tipo_objetivo = update_data.get("tipo_campo", campo.tipo_campo)
@@ -628,6 +767,8 @@ def eliminar_campo_formulario(
         raise HTTPException(status_code=404, detail="Campo no encontrado.")
     if campo.formulario_id:
         formulario = db.query(FormularioDinamico).filter(FormularioDinamico.id == campo.formulario_id).first()
+        if formulario and formulario.estado_workflow == "aprobado" and formulario.activo:
+            raise HTTPException(status_code=400, detail="No puede eliminar campos en una plantilla aprobada activa.")
         if formulario and _es_formulario_iso_auditoria(formulario):
             nombre = str(campo.nombre).strip().lower()
             if nombre in ISO_AUDITORIA_CAMPOS_REQUERIDOS:
@@ -686,10 +827,28 @@ def crear_respuesta_formulario(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"El campo '{campo.etiqueta}' es obligatorio.",
         )
+    if campo.evidencia_requerida and not (respuesta.archivo_adjunto and str(respuesta.archivo_adjunto).strip()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El campo '{campo.etiqueta}' requiere evidencia adjunta.",
+        )
 
     payload = respuesta.model_dump()
     if not payload.get("usuario_respuesta_id"):
         payload["usuario_respuesta_id"] = current_user.id
+    if payload.get("archivo_adjunto"):
+        hash_input = json.dumps(
+            {
+                "campo": str(respuesta.campo_formulario_id),
+                "auditoria": str(respuesta.auditoria_id) if respuesta.auditoria_id else None,
+                "archivo": payload.get("archivo_adjunto"),
+                "valor": payload.get("valor"),
+            },
+            sort_keys=True,
+        )
+        payload["evidencia_hash"] = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
+        payload["evidencia_fecha"] = datetime.utcnow()
+        payload["evidencia_usuario_id"] = current_user.id
 
     nueva_respuesta = RespuestaFormulario(**payload)
     db.add(nueva_respuesta)
@@ -710,8 +869,31 @@ def actualizar_respuesta_formulario(
         raise HTTPException(status_code=404, detail="Respuesta no encontrada.")
 
     update_data = respuesta_update.model_dump(exclude_unset=True)
+    campo = db.query(CampoFormulario).filter(CampoFormulario.id == respuesta.campo_formulario_id).first()
+    if campo and campo.requerido:
+        valor_objetivo = update_data.get("valor", respuesta.valor)
+        if not (valor_objetivo and str(valor_objetivo).strip()):
+            raise HTTPException(status_code=400, detail=f"El campo '{campo.etiqueta}' es obligatorio.")
+    if campo and campo.evidencia_requerida:
+        evidencia_objetivo = update_data.get("archivo_adjunto", respuesta.archivo_adjunto)
+        if not (evidencia_objetivo and str(evidencia_objetivo).strip()):
+            raise HTTPException(status_code=400, detail=f"El campo '{campo.etiqueta}' requiere evidencia adjunta.")
+
     if "usuario_respuesta_id" not in update_data:
         update_data["usuario_respuesta_id"] = current_user.id
+    if update_data.get("archivo_adjunto"):
+        hash_input = json.dumps(
+            {
+                "campo": str(respuesta.campo_formulario_id),
+                "auditoria": str(respuesta.auditoria_id) if respuesta.auditoria_id else None,
+                "archivo": update_data.get("archivo_adjunto"),
+                "valor": update_data.get("valor", respuesta.valor),
+            },
+            sort_keys=True,
+        )
+        update_data["evidencia_hash"] = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
+        update_data["evidencia_fecha"] = datetime.utcnow()
+        update_data["evidencia_usuario_id"] = current_user.id
 
     for field, value in update_data.items():
         setattr(respuesta, field, value)
