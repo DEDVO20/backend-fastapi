@@ -1,14 +1,14 @@
 
 from io import BytesIO
-from typing import List, Any, Dict
+from typing import List, Any
 from datetime import datetime
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
 
-from ..models.auditoria import Auditoria, HallazgoAuditoria
+from ..models.auditoria import Auditoria
 from ..models.calidad import NoConformidad
 
 class PDFService:
@@ -33,22 +33,27 @@ class PDFService:
         flowables = []
         styles = getSampleStyleSheet()
         normal_style = styles['Normal']
+        fecha_planificada = (
+            auditoria.fecha_planificada.strftime("%Y-%m-%d %H:%M")
+            if auditoria.fecha_planificada
+            else "Sin fecha planificada"
+        )
 
         # Header
         flowables.extend(PDFService.create_header_flowables(
-            f"Informe de Auditoría: {auditoria.codigo}",
-            f"Fecha: {auditoria.fecha_programada}"
+            f"Informe de Auditoría: {auditoria.codigo or 'N/A'}",
+            f"Fecha: {fecha_planificada}"
         ))
 
         # Metadata Table
         data = [
             ["ID Auditoría", str(auditoria.id)],
-            ["Código", auditoria.codigo],
-            ["Objetivo", auditoria.objetivo],
-            ["Alcance", auditoria.alcance],
+            ["Código", auditoria.codigo or "N/A"],
+            ["Objetivo", auditoria.objetivo or "N/A"],
+            ["Alcance", auditoria.alcance or "N/A"],
             ["Auditor Líder", auditoria.auditor_lider.nombre_completo if auditoria.auditor_lider else "N/A"],
-            ["Estado", auditoria.estado],
-            ["Criterios", auditoria.criterios or "N/A"],
+            ["Estado", auditoria.estado or "N/A"],
+            ["Norma de Referencia", auditoria.norma_referencia or "N/A"],
         ]
         
         t = Table(data, colWidths=[2*inch, 4*inch])

@@ -82,10 +82,10 @@ def crear_indicador(
             detail="El código de indicador ya existe"
         )
     
-    payload = indicador.model_dump()
-    payload["creado_por"] = current_user.id
-
-    nuevo_indicador = Indicador(**payload)
+    data = indicador.model_dump()
+    if 'activo' in data and isinstance(data['activo'], bool):
+        data['activo'] = 1 if data['activo'] else 0
+    nuevo_indicador = Indicador(**data)
     db.add(nuevo_indicador)
     db.commit()
     db.refresh(nuevo_indicador)
@@ -125,6 +125,9 @@ def actualizar_indicador(
     
     update_data = indicador_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
+        # Convertir activo de bool a int (la columna es Integer, no Boolean)
+        if field == 'activo' and isinstance(value, bool):
+            value = 1 if value else 0
         setattr(indicador, field, value)
     
     db.commit()
