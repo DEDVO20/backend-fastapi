@@ -10,7 +10,7 @@ from ..database import get_db
 from ..models.ticket import Ticket, EstadoTicket
 from ..models.usuario import Usuario
 from ..schemas.ticket import TicketCreate, TicketUpdate, TicketResponse, TicketResolver, TicketDecision
-from .auth import get_current_user
+from ..api.dependencies import require_any_permission
 from ..utils.notification_service import (
     crear_notificacion_asignacion,
     crear_notificacion_ticket_resuelto,
@@ -53,7 +53,7 @@ def _inferir_prioridad(categoria: str, titulo: str, descripcion: str) -> str:
 def create_ticket(
     ticket: TicketCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.ver","documentos.crear","documentos.revisar","calidad.ver","auditorias.ver","auditorias.planificar","auditorias.ejecutar","riesgos.identificar","capacitaciones.gestion","usuarios.ver","sistema.admin"]))
 ):
     """Crear un nuevo ticket"""
     if not ticket.area_destino_id:
@@ -142,7 +142,7 @@ def list_tickets(
     limit: int = 100,
     estado: str = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.ver","documentos.crear","documentos.revisar","calidad.ver","auditorias.ver","auditorias.planificar","auditorias.ejecutar","riesgos.identificar","capacitaciones.gestion","usuarios.ver","sistema.admin"]))
 ):
     """Listar tickets según el rol y área del usuario"""
     from sqlalchemy import or_
@@ -189,7 +189,7 @@ def list_tickets(
 def get_ticket(
     ticket_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.ver","documentos.crear","documentos.revisar","calidad.ver","auditorias.ver","auditorias.planificar","auditorias.ejecutar","riesgos.identificar","capacitaciones.gestion","usuarios.ver","sistema.admin"]))
 ):
     """Obtener un ticket por ID"""
     from sqlalchemy.orm import joinedload
@@ -222,7 +222,7 @@ def update_ticket(
     ticket_id: UUID,
     ticket_update: TicketUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.ver","documentos.crear","documentos.revisar","calidad.ver","auditorias.ver","auditorias.planificar","auditorias.ejecutar","riesgos.identificar","capacitaciones.gestion","usuarios.ver","sistema.admin"]))
 ):
     """Actualizar un ticket"""
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
@@ -271,7 +271,7 @@ def resolver_ticket(
     ticket_id: UUID,
     resolucion: TicketResolver,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.ver","documentos.crear","documentos.revisar","calidad.ver","auditorias.ver","auditorias.planificar","auditorias.ejecutar","riesgos.identificar","capacitaciones.gestion","usuarios.ver","sistema.admin"]))
 ):
     """Resolver un ticket"""
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
@@ -323,7 +323,7 @@ def aprobar_ticket(
     ticket_id: UUID,
     decision: TicketDecision,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.ver","documentos.crear","documentos.revisar","calidad.ver","auditorias.ver","auditorias.planificar","auditorias.ejecutar","riesgos.identificar","capacitaciones.gestion","usuarios.ver","sistema.admin"]))
 ):
     """Aprobar solicitud de ticket (flujo de documentos públicos)"""
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
@@ -359,7 +359,7 @@ def declinar_ticket(
     ticket_id: UUID,
     decision: TicketDecision,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.ver","documentos.crear","documentos.revisar","calidad.ver","auditorias.ver","auditorias.planificar","auditorias.ejecutar","riesgos.identificar","capacitaciones.gestion","usuarios.ver","sistema.admin"]))
 ):
     """Declinar solicitud de ticket (flujo de documentos públicos)"""
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()

@@ -34,7 +34,7 @@ from ..schemas.calidad import (
     SeguimientoObjetivoUpdate,
     SeguimientoObjetivoResponse
 )
-from ..api.dependencies import get_current_user
+from ..api.dependencies import require_any_permission
 from ..models.usuario import Usuario, Area
 from ..services.calidad_service import CalidadService
 from ..services.indicador_service import IndicadorService
@@ -68,7 +68,7 @@ def listar_indicadores(
     proceso_id: UUID = None,
     activo: bool = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Listar indicadores de desempeño"""
     query = db.query(Indicador)
@@ -86,7 +86,7 @@ def listar_indicadores(
 def crear_indicador(
     indicador: IndicadorCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Crear un nuevo indicador"""
     # Verificar código único
@@ -114,7 +114,7 @@ def crear_indicador(
 def obtener_indicador(
     indicador_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Obtener un indicador por ID"""
     indicador = db.query(Indicador).filter(Indicador.id == indicador_id).first()
@@ -131,7 +131,7 @@ def actualizar_indicador(
     indicador_id: UUID,
     indicador_update: IndicadorUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Actualizar un indicador"""
     indicador = db.query(Indicador).filter(Indicador.id == indicador_id).first()
@@ -160,7 +160,7 @@ def actualizar_indicador(
 def eliminar_indicador(
     indicador_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Eliminar un indicador"""
     indicador = db.query(Indicador).filter(Indicador.id == indicador_id).first()
@@ -180,7 +180,7 @@ def registrar_medicion_indicador(
     indicador_id: UUID,
     medicion: MedicionIndicadorCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"])),
 ):
     service = IndicadorService(db)
     return service.registrar_medicion(indicador_id, medicion.model_dump(), current_user.id)
@@ -190,7 +190,7 @@ def registrar_medicion_indicador(
 def historial_mediciones_indicador(
     indicador_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"])),
 ):
     service = IndicadorService(db)
     return service.historial(indicador_id)
@@ -200,7 +200,7 @@ def historial_mediciones_indicador(
 def tendencia_indicador(
     indicador_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"])),
 ):
     service = IndicadorService(db)
     return service.tendencia(indicador_id)
@@ -218,7 +218,7 @@ def listar_no_conformidades(
     estado: str = None,
     tipo: str = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["noconformidades.reportar", "noconformidades.gestion", "noconformidades.cerrar", "sistema.admin"]))
 ):
     """Listar no conformidades"""
     query = db.query(NoConformidad)
@@ -242,7 +242,7 @@ def listar_no_conformidades(
 def crear_no_conformidad(
     nc: NoConformidadCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["noconformidades.reportar", "sistema.admin"]))
 ):
     """Crear una nueva no conformidad"""
     # Verify permission "noconformidades.reportar"
@@ -288,7 +288,7 @@ def crear_no_conformidad(
 def obtener_no_conformidad(
     nc_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["noconformidades.reportar", "noconformidades.gestion", "noconformidades.cerrar", "sistema.admin"]))
 ):
     """Obtener una no conformidad por ID"""
     nc = db.query(NoConformidad).options(
@@ -310,7 +310,7 @@ def actualizar_no_conformidad(
     nc_id: UUID,
     nc_update: NoConformidadUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["noconformidades.gestion", "sistema.admin"]))
 ):
     """Actualizar una no conformidad"""
     nc = db.query(NoConformidad).filter(NoConformidad.id == nc_id).first()
@@ -346,7 +346,7 @@ def actualizar_no_conformidad(
 def eliminar_no_conformidad(
     nc_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["noconformidades.gestion", "sistema.admin"]))
 ):
     """Eliminar una no conformidad"""
     nc = db.query(NoConformidad).filter(NoConformidad.id == nc_id).first()
@@ -372,7 +372,7 @@ def listar_acciones_correctivas(
     no_conformidad_id: UUID = None,
     estado: str = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["noconformidades.gestion", "noconformidades.cerrar", "sistema.admin"]))
 ):
     """Listar acciones correctivas"""
     query = db.query(AccionCorrectiva).options(
@@ -395,7 +395,7 @@ def listar_acciones_correctivas(
 def crear_accion_correctiva(
     accion: AccionCorrectivaCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["noconformidades.gestion", "sistema.admin"]))
 ):
     """Crear una nueva acción correctiva"""
     # Verificar código único
@@ -426,7 +426,7 @@ def crear_accion_correctiva(
 def obtener_accion_correctiva(
     accion_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["noconformidades.gestion", "noconformidades.cerrar", "sistema.admin"]))
 ):
     """Obtener una acción correctiva por ID"""
     accion = db.query(AccionCorrectiva).options(
@@ -448,7 +448,7 @@ def actualizar_accion_correctiva(
     accion_id: UUID,
     accion_update: AccionCorrectivaUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["noconformidades.gestion", "sistema.admin"]))
 ):
     """Actualizar una acción correctiva"""
     accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.id == accion_id).first()
@@ -480,7 +480,7 @@ def cambiar_estado_accion_correctiva(
     accion_id: UUID,
     estado_update: AccionCorrectivaEstadoUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["noconformidades.gestion", "noconformidades.cerrar", "sistema.admin"]))
 ):
     """Cambiar estado de una acción correctiva"""
     accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.id == accion_id).first()
@@ -501,7 +501,7 @@ def implementar_accion_correctiva(
     accion_id: UUID,
     implementacion: AccionCorrectivaImplementacion,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["noconformidades.gestion", "sistema.admin"]))
 ):
     """Implementar una acción correctiva"""
     accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.id == accion_id).first()
@@ -550,7 +550,7 @@ def verificar_accion_correctiva(
     accion_id: UUID,
     verificacion: AccionCorrectivaVerificacion,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["noconformidades.cerrar", "sistema.admin"]))
 ):
     """Verificar una acción correctiva"""
     # Verify permission "noconformidades.cerrar"
@@ -588,7 +588,7 @@ async def crear_comentario_accion(
     accion_id: UUID,
     comentario: AccionCorrectivaComentarioCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["noconformidades.gestion", "noconformidades.cerrar", "sistema.admin"]))
 ):
     """Agregar un comentario a una acción correctiva"""
     # Verificar que la acción existe con sus responsables cargados
@@ -635,7 +635,7 @@ def actualizar_estado_accion(
     accion_id: UUID,
     estado: str = Body(..., embed=True),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["noconformidades.gestion", "noconformidades.cerrar", "sistema.admin"]))
 ):
     """Actualizar manualmente el estado de una acción correctiva (ej. cerrar)"""
     # Verificar permisos (se podría refinar, por ahora cualquiera con acceso al modulo)
@@ -681,7 +681,7 @@ def listar_objetivos_calidad(
     area_id: UUID = None,
     estado: str = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Listar objetivos de calidad"""
     query = db.query(ObjetivoCalidad).options(
@@ -724,7 +724,7 @@ def listar_objetivos_calidad(
 def crear_objetivo_calidad(
     objetivo: ObjetivoCalidadCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Crear un nuevo objetivo de calidad"""
     codigo_normalizado = objetivo.codigo.strip().upper()
@@ -775,7 +775,7 @@ def crear_objetivo_calidad(
 def obtener_objetivo_calidad(
     objetivo_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Obtener un objetivo de calidad por ID"""
     objetivo = db.query(ObjetivoCalidad).options(
@@ -795,7 +795,7 @@ def actualizar_objetivo_calidad(
     objetivo_id: UUID,
     objetivo_update: ObjetivoCalidadUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Actualizar un objetivo de calidad"""
     objetivo = db.query(ObjetivoCalidad).filter(ObjetivoCalidad.id == objetivo_id).first()
@@ -854,7 +854,7 @@ def actualizar_objetivo_calidad(
 def eliminar_objetivo_calidad(
     objetivo_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Eliminar un objetivo de calidad"""
     objetivo = db.query(ObjetivoCalidad).filter(ObjetivoCalidad.id == objetivo_id).first()
@@ -902,7 +902,7 @@ def listar_seguimientos_objetivo(
     objetivo_id: UUID = None,
     # TODO: filtrar por fecha?
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Listar seguimientos de objetivos"""
     query = db.query(SeguimientoObjetivo)
@@ -921,7 +921,7 @@ def listar_seguimientos_objetivo(
 def crear_seguimiento_objetivo(
     seguimiento: SeguimientoObjetivoCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Crear un nuevo seguimiento de objetivo"""
     # Verificar que el objetivo existe
@@ -965,7 +965,7 @@ def actualizar_seguimiento_objetivo(
     seguimiento_id: UUID,
     seguimiento_update: SeguimientoObjetivoUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Actualizar un seguimiento de objetivo"""
     seguimiento = db.query(SeguimientoObjetivo).filter(SeguimientoObjetivo.id == seguimiento_id).first()
@@ -991,7 +991,7 @@ def actualizar_seguimiento_objetivo(
 def eliminar_seguimiento_objetivo(
     seguimiento_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Eliminar un seguimiento de objetivo"""
     seguimiento = db.query(SeguimientoObjetivo).filter(SeguimientoObjetivo.id == seguimiento_id).first()

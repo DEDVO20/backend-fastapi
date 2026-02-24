@@ -15,7 +15,7 @@ from ..schemas.competencia import (
     EtapaCompetenciaCreate, EtapaCompetenciaResponse,
     RiesgoCompetenciaCriticaCreate, RiesgoCompetenciaCriticaResponse,
 )
-from .auth import get_current_user
+from ..api.dependencies import require_any_permission
 from ..models.usuario import Usuario
 from ..services.competencia_service import CompetenciaService
 from ..services.competency_risk_automation_service import CompetencyRiskAutomationService
@@ -29,12 +29,12 @@ router = APIRouter(
 # --- Gestor de Competencias (Catálogo) ---
 
 @router.get("/", response_model=List[CompetenciaResponse])
-def read_competencias(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+def read_competencias(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "procesos.admin", "riesgos.gestion", "sistema.admin"]))):
     competencias = db.query(Competencia).order_by(Competencia.nombre).offset(skip).limit(limit).all()
     return competencias
 
 @router.post("/", response_model=CompetenciaResponse, status_code=status.HTTP_201_CREATED)
-def create_competencia(competencia: CompetenciaCreate, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+def create_competencia(competencia: CompetenciaCreate, db: Session = Depends(get_db), current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "procesos.admin", "riesgos.gestion", "sistema.admin"]))):
     db_competencia = db.query(Competencia).filter(Competencia.nombre == competencia.nombre).first()
     if db_competencia:
         raise HTTPException(status_code=400, detail="Competencia already exists")
@@ -46,14 +46,14 @@ def create_competencia(competencia: CompetenciaCreate, db: Session = Depends(get
     return nuevo_item
 
 @router.get("/{id}", response_model=CompetenciaResponse)
-def read_competencia(id: UUID, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+def read_competencia(id: UUID, db: Session = Depends(get_db), current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "procesos.admin", "riesgos.gestion", "sistema.admin"]))):
     db_competencia = db.query(Competencia).filter(Competencia.id == id).first()
     if db_competencia is None:
         raise HTTPException(status_code=404, detail="Competencia not found")
     return db_competencia
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_competencia(id: UUID, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+def delete_competencia(id: UUID, db: Session = Depends(get_db), current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "procesos.admin", "riesgos.gestion", "sistema.admin"]))):
     db_competencia = db.query(Competencia).filter(Competencia.id == id).first()
     if db_competencia is None:
         raise HTTPException(status_code=404, detail="Competencia not found")
@@ -71,7 +71,7 @@ def listar_evaluaciones(
     usuario_id: Optional[UUID] = None,
     competencia_id: Optional[UUID] = None,
     db: Session = Depends(get_db), 
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "procesos.admin", "riesgos.gestion", "sistema.admin"]))
 ):
     query = db.query(EvaluacionCompetencia)
     
@@ -84,12 +84,12 @@ def listar_evaluaciones(
     return evaluaciones
 
 @router.post("/evaluar", response_model=EvaluacionCompetenciaResponse, status_code=status.HTTP_201_CREATED)
-def evaluar_competencia(evaluacion: EvaluacionCompetenciaCreate, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+def evaluar_competencia(evaluacion: EvaluacionCompetenciaCreate, db: Session = Depends(get_db), current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "procesos.admin", "riesgos.gestion", "sistema.admin"]))):
     service = CompetenciaService(db)
     return service.evaluar_competencia(evaluacion.model_dump(), current_user.id)
 
 @router.delete("/evaluaciones/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_evaluacion(id: UUID, db: Session = Depends(get_db), current_user: Usuario = Depends(get_current_user)):
+def delete_evaluacion(id: UUID, db: Session = Depends(get_db), current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "procesos.admin", "riesgos.gestion", "sistema.admin"]))):
     db_evaluacion = db.query(EvaluacionCompetencia).filter(EvaluacionCompetencia.id == id).first()
     if db_evaluacion is None:
         raise HTTPException(status_code=404, detail="Evaluacion not found")
@@ -103,7 +103,7 @@ def delete_evaluacion(id: UUID, db: Session = Depends(get_db), current_user: Usu
 def listar_competencias_etapa(
     etapa_id: Optional[UUID] = Query(default=None),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "procesos.admin", "riesgos.gestion", "sistema.admin"])),
 ):
     query = db.query(EtapaCompetencia).filter(EtapaCompetencia.activo.is_(True))
     if etapa_id:
@@ -115,7 +115,7 @@ def listar_competencias_etapa(
 def crear_competencia_etapa(
     payload: EtapaCompetenciaCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "procesos.admin", "riesgos.gestion", "sistema.admin"])),
 ):
     existente = db.query(EtapaCompetencia).filter(
         EtapaCompetencia.etapa_id == payload.etapa_id,
@@ -147,7 +147,7 @@ def crear_competencia_etapa(
 def eliminar_competencia_etapa(
     id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "procesos.admin", "riesgos.gestion", "sistema.admin"])),
 ):
     item = db.query(EtapaCompetencia).filter(EtapaCompetencia.id == id).first()
     if not item:
@@ -161,7 +161,7 @@ def eliminar_competencia_etapa(
 def listar_competencias_criticas_riesgo(
     riesgo_id: Optional[UUID] = Query(default=None),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "procesos.admin", "riesgos.gestion", "sistema.admin"])),
 ):
     query = db.query(RiesgoCompetenciaCritica).filter(RiesgoCompetenciaCritica.activo.is_(True))
     if riesgo_id:
@@ -173,7 +173,7 @@ def listar_competencias_criticas_riesgo(
 def crear_competencia_critica_riesgo(
     payload: RiesgoCompetenciaCriticaCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "procesos.admin", "riesgos.gestion", "sistema.admin"])),
 ):
     existente = db.query(RiesgoCompetenciaCritica).filter(
         RiesgoCompetenciaCritica.riesgo_id == payload.riesgo_id,
@@ -198,7 +198,7 @@ def crear_competencia_critica_riesgo(
 def eliminar_competencia_critica_riesgo(
     id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "procesos.admin", "riesgos.gestion", "sistema.admin"])),
 ):
     item = db.query(RiesgoCompetenciaCritica).filter(RiesgoCompetenciaCritica.id == id).first()
     if not item:

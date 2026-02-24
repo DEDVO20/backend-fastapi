@@ -3,7 +3,7 @@ from typing import Optional
 import uuid
 import mimetypes
 from ..utils.supabase_client import upload_file_bytes
-from .dependencies import get_current_user
+from .dependencies import require_any_permission
 from ..models.usuario import Usuario
 
 router = APIRouter(
@@ -12,10 +12,19 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
+ACCESO_USUARIO_AUTENTICADO_PERMISSIONS = [
+    "sistema.admin",
+    "calidad.ver",
+    "documentos.crear",
+    "auditorias.ver",
+    "capacitaciones.gestion",
+    "documentos.ver",
+]
+
 @router.post("/evidencia", response_model=dict)
 async def upload_evidencia(
     file: UploadFile = File(...),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(ACCESO_USUARIO_AUTENTICADO_PERMISSIONS))
 ):
     """
     Sube un archivo de evidencia (pdf, imagen, doc) y devuelve la URL pública.
@@ -63,27 +72,11 @@ async def upload_evidencia(
 @router.post("/logo", response_model=dict)
 async def upload_logo(
     file: UploadFile = File(...),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["sistema.admin", "sistema.config"]))
 ):
     """
     Sube el logo del sistema (solo admin).
     """
-    # Verificar permisos de administrador
-    permisos = [p.permiso.nombre for rol in current_user.roles for p in rol.rol.permisos]
-    
-    # Lista de permisos que permiten subir el logo del sistema
-    permisos_permitidos = [
-        "sistema.admin",           # Administrador del sistema
-        "sistema.configurar",      # Configuración del sistema
-        "sistema.config",          # Alias de configuración
-    ]
-    
-    if not any(permiso in permisos for permiso in permisos_permitidos):
-        raise HTTPException(
-            status_code=403, 
-            detail=f"No tienes permisos para realizar esta acción. Permisos requeridos: {', '.join(permisos_permitidos)}"
-        )
-
     # Validar que sea imagen
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="El archivo debe ser una imagen")

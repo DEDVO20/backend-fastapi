@@ -23,7 +23,7 @@ from ..schemas.usuario import (
     RolPermisoCreate
 )
 from passlib.context import CryptContext
-from ..api.dependencies import get_current_user, require_any_permission
+from ..api.dependencies import get_current_user, require_any_permission, user_has_any_permission
 
 router = APIRouter(prefix="/api/v1", tags=["usuarios"])
 
@@ -638,7 +638,7 @@ async def subir_foto_perfil(
     usuario_id: UUID,
     file: UploadFile,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["usuarios.editar", "usuarios.gestion", "sistema.admin", "documentos.ver", "documentos.crear", "auditorias.ver", "calidad.ver", "capacitaciones.gestion"]))
 ):
     """Subir o actualizar foto de perfil del usuario"""
     from fastapi import UploadFile
@@ -650,6 +650,11 @@ async def subir_foto_perfil(
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    es_mi_perfil = usuario.id == current_user.id
+    puede_editar_usuarios = user_has_any_permission(current_user, ["usuarios.editar", "usuarios.gestion", "sistema.admin"])
+    if not es_mi_perfil and not puede_editar_usuarios:
+        raise HTTPException(status_code=403, detail="No autorizado para actualizar esta foto de perfil")
     
     try:
         file_content = await file.read()
@@ -693,7 +698,7 @@ async def subir_foto_perfil(
 def eliminar_foto_perfil(
     usuario_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["usuarios.editar", "usuarios.gestion", "sistema.admin", "documentos.ver", "documentos.crear", "auditorias.ver", "calidad.ver", "capacitaciones.gestion"]))
 ):
     """Eliminar foto de perfil del usuario"""
     from ..utils.supabase_client import delete_avatar, get_file_name_from_url
@@ -701,6 +706,11 @@ def eliminar_foto_perfil(
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    es_mi_perfil = usuario.id == current_user.id
+    puede_editar_usuarios = user_has_any_permission(current_user, ["usuarios.editar", "usuarios.gestion", "sistema.admin"])
+    if not es_mi_perfil and not puede_editar_usuarios:
+        raise HTTPException(status_code=403, detail="No autorizado para eliminar esta foto de perfil")
     
     if not usuario.foto_url:
         raise HTTPException(status_code=400, detail="No tiene foto de perfil")

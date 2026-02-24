@@ -16,7 +16,7 @@ from ..schemas.riesgo import (
     ControlRiesgoUpdate,
     ControlRiesgoResponse
 )
-from ..api.dependencies import get_current_user
+from ..api.dependencies import require_any_permission
 from ..models.usuario import Usuario
 from ..services.riesgo_service import RiesgoService
 
@@ -35,7 +35,7 @@ def listar_riesgos(
     estado: str = None,
     nivel_riesgo: str = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["riesgos.ver", "riesgos.gestion", "sistema.admin"]))
 ):
     """Listar riesgos"""
     service = RiesgoService(db)
@@ -71,7 +71,7 @@ def listar_riesgos(
 def crear_riesgo(
     riesgo: RiesgoCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["riesgos.identificar", "sistema.admin"]))
 ):
     """Crear un nuevo riesgo"""
     service = RiesgoService(db)
@@ -92,7 +92,7 @@ def crear_riesgo(
 def obtener_riesgo(
     riesgo_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["riesgos.ver", "riesgos.gestion", "sistema.admin"]))
 ):
     """Obtener un riesgo por ID"""
     service = RiesgoService(db)
@@ -104,7 +104,7 @@ def actualizar_riesgo(
     riesgo_id: UUID,
     riesgo_update: RiesgoUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["riesgos.gestion", "sistema.admin"]))
 ):
     """Actualizar un riesgo"""
     service = RiesgoService(db)
@@ -115,7 +115,7 @@ def actualizar_riesgo(
 def eliminar_riesgo(
     riesgo_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["riesgos.gestion", "sistema.admin"]))
 ):
     """Eliminar un riesgo"""
     service = RiesgoService(db)
@@ -131,7 +131,7 @@ def eliminar_riesgo(
 def listar_controles_riesgo(
     riesgo_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["riesgos.ver", "riesgos.gestion", "sistema.admin"]))
 ):
     """Listar controles de un riesgo"""
     service = RiesgoService(db)
@@ -145,7 +145,7 @@ def listar_controles(
     activo: bool = None,
     tipo_control: str = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["riesgos.ver", "riesgos.gestion", "sistema.admin"]))
 ):
     """Listar todos los controles de riesgo"""
     service = RiesgoService(db)
@@ -156,7 +156,7 @@ def listar_controles(
 def crear_control_riesgo(
     control: ControlRiesgoCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["riesgos.gestion", "sistema.admin"]))
 ):
     """Crear un nuevo control de riesgo"""
     service = RiesgoService(db)
@@ -167,7 +167,7 @@ def crear_control_riesgo(
 def obtener_control_riesgo(
     control_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["riesgos.ver", "riesgos.gestion", "sistema.admin"]))
 ):
     """Obtener un control de riesgo por ID"""
     service = RiesgoService(db)
@@ -179,7 +179,7 @@ def actualizar_control_riesgo(
     control_id: UUID,
     control_update: ControlRiesgoUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["riesgos.gestion", "sistema.admin"]))
 ):
     """Actualizar un control de riesgo"""
     service = RiesgoService(db)
@@ -190,7 +190,7 @@ def actualizar_control_riesgo(
 def eliminar_control_riesgo(
     control_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["riesgos.gestion", "sistema.admin"]))
 ):
     """Eliminar un control de riesgo"""
     service = RiesgoService(db)

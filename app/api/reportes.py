@@ -8,7 +8,7 @@ from uuid import UUID
 from datetime import datetime
 
 from ..database import get_db
-from ..api.dependencies import get_current_user
+from ..api.dependencies import require_any_permission
 from ..models.usuario import Usuario
 from ..models.auditoria import Auditoria
 from ..models.calidad import NoConformidad
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 @router.get("/list")
 def list_available_reports(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ver", "noconformidades.gestion", "sistema.admin"]))
 ) -> List[Dict[str, Any]]:
     """Devuelve listado unificado de reportes disponibles (Auditorías, NCs)"""
 
@@ -69,7 +69,7 @@ def list_available_reports(
 def descargar_reporte_auditoria(
     auditoria_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ver", "sistema.admin"]))
 ):
     """Generar y descargar PDF de una auditoría"""
     auditoria = db.query(Auditoria).options(
@@ -94,7 +94,7 @@ def descargar_reporte_noconformidades(
     estado: Optional[str] = Query(None),
     year: Optional[int] = Query(None),
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["noconformidades.gestion", "noconformidades.cerrar", "sistema.admin"]))
 ):
     """Generar PDF de listado de No Conformidades"""
     query = db.query(NoConformidad)

@@ -7,7 +7,7 @@ from sqlalchemy import func
 from typing import List, Dict, Any
 
 from ..database import get_db
-from ..api.dependencies import get_current_user
+from ..api.dependencies import require_any_permission
 from ..models.usuario import Usuario
 
 # Models for aggregation
@@ -24,7 +24,7 @@ ESTADOS_BRECHA_ABIERTA = ("abierta", "pendiente", "en_capacitacion")
 @router.get("/calidad")
 def get_calidad_metrics(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Métricas generales de Calidad para el Dashboard"""
     
@@ -48,7 +48,7 @@ def get_calidad_metrics(
 @router.get("/riesgos/stats")
 def get_riesgos_stats(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["riesgos.ver", "riesgos.gestion", "sistema.admin"]))
 ):
     """Estadísticas de Riesgos"""
     total_riesgos = db.query(func.count(Riesgo.id)).scalar()
@@ -60,7 +60,7 @@ def get_riesgos_stats(
 @router.get("/riesgos/heatmap")
 def get_riesgos_heatmap(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["riesgos.ver", "riesgos.gestion", "sistema.admin"]))
 ):
     """Datos para la Matriz de Calor de Riesgos (Probabilidad vs Impacto)"""
     
@@ -88,7 +88,7 @@ def get_riesgos_heatmap(
 @router.get("/documentos/stats")
 def get_documentos_stats(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.ver", "sistema.admin"]))
 ):
     """Estadísticas de Documentos"""
     
@@ -104,7 +104,7 @@ def get_documentos_stats(
 @router.get("/auditorias/stats")
 def get_auditorias_stats(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ver", "sistema.admin"]))
 ):
     """Estadísticas de Auditorías y Hallazgos"""
     
@@ -124,7 +124,7 @@ def get_auditorias_stats(
 @router.get("/competencias/riesgo-humano")
 def get_competencias_riesgo_humano(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "riesgos.gestion", "sistema.admin"])),
 ):
     """KPIs estratégicos de brechas de competencia y riesgo humano."""
     brechas_abiertas = db.query(func.count(BrechaCompetencia.id)).filter(

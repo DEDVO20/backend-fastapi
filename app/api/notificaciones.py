@@ -10,10 +10,19 @@ from datetime import datetime
 from ..database import get_db
 from ..models.sistema import Notificacion
 from ..schemas.notificacion import NotificacionCreate, NotificacionUpdate, NotificacionResponse
-from .auth import get_current_user
+from ..api.dependencies import require_any_permission
 from ..models.usuario import Usuario
 
 router = APIRouter(prefix="/api/v1/notificaciones", tags=["notificaciones"])
+
+ACCESO_USUARIO_AUTENTICADO_PERMISSIONS = [
+    "sistema.admin",
+    "calidad.ver",
+    "documentos.crear",
+    "auditorias.ver",
+    "capacitaciones.gestion",
+    "documentos.ver",
+]
 
 
 @router.get("/", response_model=List[NotificacionResponse])
@@ -22,7 +31,7 @@ def listar_notificaciones(
     limit: int = 50,
     solo_no_leidas: bool = False,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(ACCESO_USUARIO_AUTENTICADO_PERMISSIONS))
 ):
     """Listar notificaciones del usuario actual"""
     try:
@@ -49,7 +58,7 @@ def listar_notificaciones(
 @router.get("/no-leidas/count", response_model=dict)
 def contar_no_leidas(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(ACCESO_USUARIO_AUTENTICADO_PERMISSIONS))
 ):
     """Contar notificaciones no leídas del usuario actual"""
     try:
@@ -69,7 +78,7 @@ def contar_no_leidas(
 def marcar_como_leida(
     notificacion_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(ACCESO_USUARIO_AUTENTICADO_PERMISSIONS))
 ):
     """Marcar una notificación como leída"""
     try:
@@ -113,7 +122,7 @@ def marcar_como_leida(
 @router.put("/marcar-todas-leidas", response_model=dict)
 def marcar_todas_leidas(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(ACCESO_USUARIO_AUTENTICADO_PERMISSIONS))
 ):
     """Marcar todas las notificaciones del usuario como leídas"""
     count = db.query(Notificacion).filter(
@@ -133,7 +142,7 @@ def marcar_todas_leidas(
 def eliminar_notificacion(
     notificacion_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(ACCESO_USUARIO_AUTENTICADO_PERMISSIONS))
 ):
     """Eliminar una notificación"""
     notificacion = db.query(Notificacion).filter(
