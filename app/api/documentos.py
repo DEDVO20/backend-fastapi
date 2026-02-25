@@ -24,7 +24,7 @@ from ..utils.notification_service import (
     crear_notificacion_asignacion
 )
 from ..models.sistema import Notificacion
-from ..api.dependencies import get_current_user
+from ..api.dependencies import require_any_permission, user_has_any_permission
 from ..models.usuario import Usuario
 
 router = APIRouter(prefix="/api/v1", tags=["documentos"])
@@ -43,7 +43,29 @@ def listar_documentos(
     aprobado_por: UUID = None,
     revisado_por: UUID = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission([
+        "documentos.ver",
+        "documentos.crear",
+        "documentos.revisar",
+        "documentos.aprobar",
+        "documentos.anular",
+        "calidad.ver",
+        "auditorias.ver",
+        "auditorias.planificar",
+        "auditorias.ejecutar",
+        "riesgos.identificar",
+        "riesgos.ver",
+        "riesgos.gestion",
+        "capacitaciones.gestion",
+        "usuarios.ver",
+        "usuarios.gestion",
+        "noconformidades.reportar",
+        "noconformidades.gestion",
+        "noconformidades.cerrar",
+        "procesos.admin",
+        "sistema.config",
+        "sistema.admin",
+    ]))
 ):
     """Listar todos los documentos"""
     print(f"DEBUG: listar_documentos - filters: estado={estado}, aprobado_por={aprobado_por}, revisado_por={revisado_por}")
@@ -55,6 +77,19 @@ def listar_documentos(
         joinedload(Documento.versiones).joinedload(VersionDocumento.creador)
     )
     
+    puede_ver_todo_documentos = user_has_any_permission(
+        current_user,
+        ["documentos.ver", "documentos.crear", "documentos.revisar", "documentos.aprobar", "documentos.anular", "sistema.admin"],
+    )
+
+    if not puede_ver_todo_documentos:
+        query = query.filter(Documento.estado == "aprobado")
+        if estado and estado != "aprobado":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Solo puedes consultar documentos públicos aprobados",
+            )
+
     if estado:
         query = query.filter(Documento.estado == estado)
     if tipo_documento:
@@ -73,7 +108,7 @@ def listar_documentos(
 def crear_documento(
     documento: DocumentoCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.crear", "sistema.admin"]))
 ):
     """Crear un nuevo documento"""
     # Verificar código único
@@ -99,7 +134,29 @@ def crear_documento(
 def obtener_documento(
     documento_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission([
+        "documentos.ver",
+        "documentos.crear",
+        "documentos.revisar",
+        "documentos.aprobar",
+        "documentos.anular",
+        "calidad.ver",
+        "auditorias.ver",
+        "auditorias.planificar",
+        "auditorias.ejecutar",
+        "riesgos.identificar",
+        "riesgos.ver",
+        "riesgos.gestion",
+        "capacitaciones.gestion",
+        "usuarios.ver",
+        "usuarios.gestion",
+        "noconformidades.reportar",
+        "noconformidades.gestion",
+        "noconformidades.cerrar",
+        "procesos.admin",
+        "sistema.config",
+        "sistema.admin",
+    ]))
 ):
     """Obtener un documento por ID"""
     documento = db.query(Documento).options(
@@ -114,6 +171,17 @@ def obtener_documento(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Documento no encontrado"
         )
+
+    puede_ver_todo_documentos = user_has_any_permission(
+        current_user,
+        ["documentos.ver", "documentos.crear", "documentos.revisar", "documentos.aprobar", "documentos.anular", "sistema.admin"],
+    )
+    if not puede_ver_todo_documentos and documento.estado != "aprobado":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo puedes consultar documentos públicos aprobados",
+        )
+
     return documento
 
 
@@ -122,7 +190,7 @@ def actualizar_documento(
     documento_id: UUID,
     documento_update: DocumentoUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.revisar", "sistema.admin"]))
 ):
     """Actualizar un documento"""
     documento = db.query(Documento).filter(Documento.id == documento_id).first()
@@ -200,7 +268,7 @@ def actualizar_documento(
 def eliminar_documento(
     documento_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.anular", "sistema.admin"]))
 ):
     """Eliminar un documento y sus relaciones"""
     documento = db.query(Documento).filter(Documento.id == documento_id).first()
@@ -254,7 +322,7 @@ def eliminar_documento(
 def listar_versiones_documento(
     documento_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.ver", "sistema.admin"]))
 ):
     """Listar versiones de un documento"""
     versiones = db.query(VersionDocumento).options(
@@ -269,7 +337,7 @@ def listar_versiones_documento(
 def crear_version_documento(
     version: VersionDocumentoCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.crear", "sistema.admin"]))
 ):
     """Crear una nueva versión de documento"""
     # Asignar el creador automáticamente
@@ -291,7 +359,7 @@ def crear_version_documento(
 def listar_procesos_documento(
     documento_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.ver", "sistema.admin"]))
 ):
     """Listar procesos asociados a un documento"""
     relaciones = db.query(DocumentoProceso).filter(
@@ -304,7 +372,7 @@ def listar_procesos_documento(
 def asociar_documento_proceso(
     relacion: DocumentoProcesoCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.crear", "sistema.admin"]))
 ):
     """Asociar un documento con un proceso"""
     # Verificar que no exista la relación
@@ -334,7 +402,7 @@ def solicitar_revision_documento(
     documento_id: UUID,
     revisor_id: UUID, # ID del usuario que revisará
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.crear", "sistema.admin"]))
 ):
     """Solicitar revisión de un documento"""
     documento = db.query(Documento).filter(Documento.id == documento_id).first()
@@ -369,7 +437,7 @@ def solicitar_revision_documento(
 def solicitar_aprobacion_documento(
     documento_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.crear", "sistema.admin"]))
 ):
     """Solicitar aprobación de un documento (al aprobador asignado)"""
     documento = db.query(Documento).filter(Documento.id == documento_id).first()
@@ -401,7 +469,7 @@ def solicitar_aprobacion_documento(
 def aprobar_documento(
     documento_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.aprobar", "sistema.admin"]))
 ):
     """Aprobar un documento"""
     documento = db.query(Documento).filter(Documento.id == documento_id).first()
@@ -457,7 +525,7 @@ def rechazar_documento(
     documento_id: UUID,
     motivo: str,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["documentos.aprobar", "sistema.admin"]))
 ):
     """Rechazar un documento"""
     documento = db.query(Documento).filter(Documento.id == documento_id).first()

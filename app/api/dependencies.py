@@ -1,10 +1,10 @@
 """
-Dependencias de autenticación
+Dependencias de autenticación y autorización.
 """
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from typing import Optional
+from typing import Optional, Iterable, Set
 
 from ..database import get_db
 from ..models.usuario import Usuario
@@ -101,3 +101,41 @@ async def get_current_active_user(
             detail="Usuario inactivo"
         )
     return current_user
+
+
+PERMISSION_ALIASES: dict[str, set[str]] = {
+    "sistema.config": {"sistema.config", "sistema.configurar"},
+    "usuarios.gestion": {"usuarios.gestion", "usuarios.crear", "usuarios.editar", "usuarios.eliminar"},
+    "areas.gestionar": {"areas.gestionar", "procesos.admin"},
+    "noconformidades.gestion": {"noconformidades.gestion", "no_conformidades.gestionar", "acciones_correctivas.gestionar"},
+    "noconformidades.reportar": {"noconformidades.reportar"},
+    "noconformidades.cerrar": {"noconformidades.cerrar"},
+    "riesgos.gestion": {"riesgos.gestion", "riesgos.administrar"},
+    "capacitaciones.gestion": {"capacitaciones.gestion", "capacitaciones.gestionar"},
+}
+
+
+def _expand_permission_codes(required_permissions: Iterable[str]) -> Set[str]:
+    expanded: Set[str] = set()
+    for code in required_permissions:
+        expanded.update(PERMISSION_ALIASES.get(code, {code}))
+    return expanded
+
+
+def user_has_any_permission(current_user: Usuario, required_permissions: Iterable[str]) -> bool:
+    user_perms = set(getattr(current_user, "permisos_codes", []) or [])
+    if "sistema.admin" in user_perms:
+        return True
+    return bool(user_perms.intersection(_expand_permission_codes(required_permissions)))
+
+
+def require_any_permission(required_permissions: list[str]):
+    async def dependency(current_user: Usuario = Depends(get_current_user)) -> Usuario:
+        if not user_has_any_permission(current_user, required_permissions):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tiene permisos para esta operación",
+            )
+        return current_user
+
+    return dependency

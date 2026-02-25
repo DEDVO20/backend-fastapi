@@ -40,7 +40,7 @@ from ..schemas.sistema import (
     RespuestaFormularioResponse,
     AuditLogResponse,
 )
-from ..api.dependencies import get_current_user
+from ..api.dependencies import require_any_permission
 from ..models.usuario import Usuario
 
 router = APIRouter(prefix="/api/v1", tags=["sistema"])
@@ -61,6 +61,21 @@ ISO_SECCIONES_VALIDAS = {
     "evaluacion",
     "mejora",
 }
+
+
+def _obtener_usuario_activo(db: Session, usuario_id: UUID, campo: str = "usuario") -> Usuario:
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El {campo} seleccionado no existe"
+        )
+    if not usuario.activo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El {campo} seleccionado está inactivo y no puede ser asignado"
+        )
+    return usuario
 
 
 def _validar_tipo_campo_con_opciones(tipo_campo: str, opciones):
@@ -137,7 +152,7 @@ def listar_audit_log(
     fecha_desde: datetime = None,
     fecha_hasta: datetime = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"])),
 ):
     if not _is_admin_user(current_user):
         raise HTTPException(
@@ -171,7 +186,7 @@ def listar_asignaciones(
     area_id: UUID = None,
     usuario_id: UUID = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
 ):
     """Listar asignaciones de responsables"""
     query = db.query(Asignacion).options(
@@ -192,9 +207,11 @@ def listar_asignaciones(
 def crear_asignacion(
     asignacion: AsignacionCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
 ):
     """Crear una nueva asignación de responsable"""
+    _obtener_usuario_activo(db, asignacion.usuario_id)
+
     # Verificar unicidad
     db_asignacion = db.query(Asignacion).filter(
         Asignacion.area_id == asignacion.area_id,
@@ -228,7 +245,7 @@ def crear_asignacion(
 def eliminar_asignacion(
     asignacion_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
 ):
     """Eliminar una asignación"""
     asignacion = db.query(Asignacion).filter(Asignacion.id == asignacion_id).first()
@@ -255,7 +272,7 @@ def listar_notificaciones(
     leida: bool = None,
     tipo: str = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
 ):
     """Listar notificaciones del usuario autenticado."""
     if usuario_id and usuario_id != current_user.id:
@@ -279,7 +296,7 @@ def listar_notificaciones(
 def crear_notificacion(
     notificacion: NotificacionCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
 ):
     """Crear una nueva notificación"""
     nueva_notificacion = Notificacion(**notificacion.model_dump())
@@ -293,7 +310,7 @@ def crear_notificacion(
 def obtener_notificacion(
     notificacion_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
 ):
     """Obtener una notificación propia por ID."""
     notificacion = db.query(Notificacion).filter(
@@ -313,7 +330,7 @@ def actualizar_notificacion(
     notificacion_id: UUID,
     notificacion_update: NotificacionUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
 ):
     """Actualizar una notificación propia (marcar como leída)."""
     notificacion = db.query(Notificacion).filter(
@@ -339,7 +356,7 @@ def actualizar_notificacion(
 def eliminar_notificacion(
     notificacion_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
 ):
     """Eliminar una notificación propia."""
     notificacion = db.query(Notificacion).filter(
@@ -367,7 +384,7 @@ def listar_configuraciones(
     categoria: str = None,
     activa: bool = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
 ):
     """Listar configuraciones del sistema"""
     query = db.query(Configuracion)
@@ -385,7 +402,7 @@ def listar_configuraciones(
 def crear_configuracion(
     configuracion: ConfiguracionCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
 ):
     """Crear una nueva configuración"""
     # Verificar clave única
@@ -407,7 +424,7 @@ def crear_configuracion(
 def obtener_configuracion(
     clave: str, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
 ):
     """Obtener una configuración por clave"""
     configuracion = db.query(Configuracion).filter(Configuracion.clave == clave).first()
@@ -424,7 +441,7 @@ def actualizar_configuracion(
     clave: str,
     configuracion_update: ConfiguracionUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
 ):
     """Actualizar una configuración"""
     configuracion = db.query(Configuracion).filter(Configuracion.clave == clave).first()
@@ -447,7 +464,7 @@ def actualizar_configuracion(
 def eliminar_configuracion(
     clave: str, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
 ):
     """Eliminar una configuración"""
     configuracion = db.query(Configuracion).filter(Configuracion.clave == clave).first()
@@ -475,7 +492,7 @@ def listar_formularios_dinamicos(
     activo: bool = None,
     estado_workflow: str = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"])),
 ):
     query = db.query(FormularioDinamico)
     if modulo:
@@ -495,7 +512,7 @@ def listar_formularios_dinamicos(
 def crear_formulario_dinamico(
     formulario: FormularioDinamicoCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"])),
 ):
     existente = db.query(FormularioDinamico).filter(FormularioDinamico.codigo == formulario.codigo).first()
     if existente:
@@ -519,7 +536,7 @@ def crear_formulario_dinamico(
 def obtener_formulario_dinamico(
     formulario_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"])),
 ):
     formulario = db.query(FormularioDinamico).filter(FormularioDinamico.id == formulario_id).first()
     if not formulario:
@@ -532,7 +549,7 @@ def actualizar_formulario_dinamico(
     formulario_id: UUID,
     formulario_update: FormularioDinamicoUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"])),
 ):
     formulario = db.query(FormularioDinamico).filter(FormularioDinamico.id == formulario_id).first()
     if not formulario:
@@ -577,7 +594,7 @@ def actualizar_formulario_dinamico(
 def eliminar_formulario_dinamico(
     formulario_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"])),
 ):
     formulario = db.query(FormularioDinamico).filter(FormularioDinamico.id == formulario_id).first()
     if not formulario:
@@ -596,7 +613,7 @@ def eliminar_formulario_dinamico(
 def crear_nueva_version_formulario(
     formulario_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"])),
 ):
     actual = db.query(FormularioDinamico).filter(FormularioDinamico.id == formulario_id).first()
     if not actual:
@@ -647,7 +664,7 @@ def crear_nueva_version_formulario(
 def aprobar_formulario_dinamico(
     formulario_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"])),
 ):
     formulario = db.query(FormularioDinamico).filter(FormularioDinamico.id == formulario_id).first()
     if not formulario:
@@ -693,7 +710,7 @@ def listar_campos_formulario(
     proceso_id: UUID = None,
     activo: bool = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"])),
 ):
     query = db.query(CampoFormulario)
     if formulario_id:
@@ -709,7 +726,7 @@ def listar_campos_formulario(
 def crear_campo_formulario(
     campo: CampoFormularioCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"])),
 ):
     _validar_tipo_campo_con_opciones(campo.tipo_campo, campo.opciones)
     if campo.seccion_iso and str(campo.seccion_iso).strip().lower() not in ISO_SECCIONES_VALIDAS:
@@ -740,7 +757,7 @@ def actualizar_campo_formulario(
     campo_id: UUID,
     campo_update: CampoFormularioUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"])),
 ):
     campo = db.query(CampoFormulario).filter(CampoFormulario.id == campo_id).first()
     if not campo:
@@ -777,7 +794,7 @@ def actualizar_campo_formulario(
 def eliminar_campo_formulario(
     campo_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"])),
 ):
     campo = db.query(CampoFormulario).filter(CampoFormulario.id == campo_id).first()
     if not campo:
@@ -811,7 +828,7 @@ def listar_respuestas_formulario(
     instancia_proceso_id: UUID = None,
     campo_formulario_id: UUID = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"])),
 ):
     query = db.query(RespuestaFormulario)
     if auditoria_id:
@@ -827,7 +844,7 @@ def listar_respuestas_formulario(
 def crear_respuesta_formulario(
     respuesta: RespuestaFormularioCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"])),
 ):
     if not respuesta.auditoria_id and not respuesta.instancia_proceso_id:
         raise HTTPException(
@@ -879,7 +896,7 @@ def actualizar_respuesta_formulario(
     respuesta_id: UUID,
     respuesta_update: RespuestaFormularioUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"])),
 ):
     respuesta = db.query(RespuestaFormulario).filter(RespuestaFormulario.id == respuesta_id).first()
     if not respuesta:

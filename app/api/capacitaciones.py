@@ -23,10 +23,20 @@ from ..schemas.capacitacion import (
     UsuarioSinCapacitacionObligatoriaResponse,
     ReporteCapacitacionAuditoriaResponse,
 )
-from ..api.dependencies import get_current_user
+from ..api.dependencies import require_any_permission
 from ..services.capacitacion_service import CapacitacionService
 
 router = APIRouter(prefix="/api/v1", tags=["capacitaciones"])
+
+GESTION_CAPACITACIONES_PERMISSIONS = ["capacitaciones.gestion", "sistema.admin"]
+ACCESO_USUARIO_AUTENTICADO_PERMISSIONS = [
+    "sistema.admin",
+    "calidad.ver",
+    "documentos.crear",
+    "auditorias.ver",
+    "capacitaciones.gestion",
+    "documentos.ver",
+]
 
 
 def _utcnow() -> datetime:
@@ -106,7 +116,8 @@ def listar_capacitaciones(
     proceso_id: UUID = None,
     relacionada_con_hallazgo_id: UUID = None,
     relacionada_con_riesgo_id: UUID = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "sistema.admin"]))
 ):
     """Listar capacitaciones"""
     query = db.query(Capacitacion)
@@ -132,7 +143,7 @@ def listar_capacitaciones(
 def crear_capacitacion(
     capacitacion: CapacitacionCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "sistema.admin"]))
 ):
     """Crear una nueva capacitación"""
     # Verificar código único
@@ -169,7 +180,7 @@ def crear_capacitacion(
 def obtener_capacitacion(
     capacitacion_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "sistema.admin"]))
 ):
     """Obtener una capacitación por ID"""
     capacitacion = db.query(Capacitacion).filter(Capacitacion.id == capacitacion_id).first()
@@ -185,7 +196,8 @@ def obtener_capacitacion(
 def actualizar_capacitacion(
     capacitacion_id: UUID,
     capacitacion_update: CapacitacionUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "sistema.admin"]))
 ):
     """Actualizar una capacitación"""
     capacitacion = db.query(Capacitacion).filter(Capacitacion.id == capacitacion_id).first()
@@ -223,7 +235,7 @@ def actualizar_capacitacion(
 def iniciar_capacitacion(
     capacitacion_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(GESTION_CAPACITACIONES_PERMISSIONS)),
 ):
     capacitacion = db.query(Capacitacion).filter(Capacitacion.id == capacitacion_id).first()
     if not capacitacion:
@@ -247,7 +259,7 @@ def iniciar_capacitacion(
 def finalizar_capacitacion(
     capacitacion_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(GESTION_CAPACITACIONES_PERMISSIONS)),
 ):
     capacitacion = db.query(Capacitacion).filter(Capacitacion.id == capacitacion_id).first()
     if not capacitacion:
@@ -269,7 +281,7 @@ def finalizar_capacitacion(
 def cerrar_capacitacion(
     capacitacion_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(GESTION_CAPACITACIONES_PERMISSIONS)),
 ):
     service = CapacitacionService(db)
     return service.cerrar_capacitacion(capacitacion_id, current_user.id)
@@ -279,7 +291,7 @@ def cerrar_capacitacion(
 def marcar_mi_asistencia(
     capacitacion_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(ACCESO_USUARIO_AUTENTICADO_PERMISSIONS)),
 ):
     capacitacion = db.query(Capacitacion).filter(Capacitacion.id == capacitacion_id).first()
     if not capacitacion:
@@ -314,7 +326,7 @@ def marcar_mi_asistencia(
 def eliminar_capacitacion(
     capacitacion_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(GESTION_CAPACITACIONES_PERMISSIONS))
 ):
     """Eliminar una capacitación"""
     capacitacion = db.query(Capacitacion).filter(Capacitacion.id == capacitacion_id).first()
@@ -337,7 +349,7 @@ def eliminar_capacitacion(
 def listar_asistencias_capacitacion(
     capacitacion_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(GESTION_CAPACITACIONES_PERMISSIONS))
 ):
     """Listar asistencias de una capacitación"""
     asistencias = db.query(AsistenciaCapacitacion).filter(
@@ -352,7 +364,8 @@ def listar_asistencias(
     limit: int = 100,
     usuario_id: UUID = None,
     asistio: bool = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_any_permission(GESTION_CAPACITACIONES_PERMISSIONS))
 ):
     """Listar todas las asistencias"""
     query = db.query(AsistenciaCapacitacion)
@@ -370,7 +383,7 @@ def listar_asistencias(
 def crear_asistencia_capacitacion(
     asistencia: AsistenciaCapacitacionCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(GESTION_CAPACITACIONES_PERMISSIONS))
 ):
     """Registrar asistencia a una capacitación"""
     db_capacitacion = db.query(Capacitacion).filter(Capacitacion.id == asistencia.capacitacion_id).first()
@@ -408,7 +421,7 @@ def crear_asistencia_capacitacion(
 def obtener_asistencia_capacitacion(
     asistencia_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(GESTION_CAPACITACIONES_PERMISSIONS))
 ):
     """Obtener una asistencia por ID"""
     asistencia = db.query(AsistenciaCapacitacion).filter(AsistenciaCapacitacion.id == asistencia_id).first()
@@ -424,7 +437,8 @@ def obtener_asistencia_capacitacion(
 def actualizar_asistencia_capacitacion(
     asistencia_id: UUID,
     asistencia_update: AsistenciaCapacitacionUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_any_permission(GESTION_CAPACITACIONES_PERMISSIONS))
 ):
     """Actualizar una asistencia"""
     asistencia = db.query(AsistenciaCapacitacion).filter(AsistenciaCapacitacion.id == asistencia_id).first()
@@ -451,7 +465,7 @@ def actualizar_asistencia_capacitacion(
 def resumen_asistencia_capacitacion(
     capacitacion_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(GESTION_CAPACITACIONES_PERMISSIONS))
 ):
     capacitacion = db.query(Capacitacion).filter(Capacitacion.id == capacitacion_id).first()
     if not capacitacion:
@@ -493,7 +507,7 @@ def resumen_asistencia_capacitacion(
 def historial_capacitaciones_usuario(
     usuario_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(ACCESO_USUARIO_AUTENTICADO_PERMISSIONS))
 ):
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
@@ -531,7 +545,7 @@ def historial_capacitaciones_usuario(
 @router.get("/capacitaciones-obligatorias/usuarios-pendientes", response_model=List[UsuarioSinCapacitacionObligatoriaResponse])
 def usuarios_sin_capacitacion_obligatoria(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(GESTION_CAPACITACIONES_PERMISSIONS))
 ):
     capacitaciones_obligatorias = db.query(Capacitacion).filter(
         Capacitacion.tipo_capacitacion == "obligatoria",
@@ -569,7 +583,7 @@ def usuarios_sin_capacitacion_obligatoria(
 @router.get("/capacitaciones/reportes/auditoria", response_model=ReporteCapacitacionAuditoriaResponse)
 def reporte_capacitacion_auditoria(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(GESTION_CAPACITACIONES_PERMISSIONS))
 ):
     total_capacitaciones = db.query(Capacitacion).count()
     capacitaciones_programadas = db.query(Capacitacion).filter(Capacitacion.estado == "programada").count()

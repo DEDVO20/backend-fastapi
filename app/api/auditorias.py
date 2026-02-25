@@ -29,11 +29,43 @@ from ..services.auditorias.auditoria_service import AuditoriaService
 from ..services.auditorias.hallazgo_service import HallazgoService
 from ..schemas.calidad import NoConformidadResponse
 from ..utils.notification_service import crear_notificacion_asignacion
-from ..api.dependencies import get_current_user
+from ..api.dependencies import require_any_permission
 from ..models.usuario import Usuario
 from ..utils.pdf_generator import PDFGenerator
 
 router = APIRouter(prefix="/api/v1", tags=["auditorias"])
+
+
+def _validar_usuario_activo(db: Session, usuario_id: UUID, campo: str = "usuario") -> Usuario:
+    usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El {campo} seleccionado no existe."
+        )
+    if not usuario.activo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El {campo} seleccionado está inactivo y no puede ser asignado."
+        )
+    return usuario
+
+
+def _validar_equipo_auditor_activo(db: Session, equipo_auditor: Optional[str]) -> None:
+    if not equipo_auditor:
+        return
+    for raw_id in str(equipo_auditor).split(","):
+        raw_id = raw_id.strip()
+        if not raw_id:
+            continue
+        try:
+            usuario_id = UUID(raw_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El campo equipo_auditor contiene un UUID inválido."
+            )
+        _validar_usuario_activo(db, usuario_id, "usuario del equipo auditor")
 
 def _aplicar_reglas_iso_programa(programa_data: dict, current_user: Usuario, programa_actual: ProgramaAuditoria = None) -> dict:
     estado_objetivo = programa_data.get("estado", programa_actual.estado if programa_actual else "borrador")
@@ -139,7 +171,7 @@ def listar_programa_auditorias(
     limit: int = 100,
     anio: int = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ver", "sistema.admin"]))
 ):
     """Listar programas de auditoría"""
     query = db.query(ProgramaAuditoria)
@@ -151,7 +183,7 @@ def listar_programa_auditorias(
 def crear_programa_auditoria(
     programa: ProgramaAuditoriaCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.planificar", "sistema.admin"]))
 ):
     """Crear un nuevo programa anual de auditoría"""
     # Verificar si ya existe un programa para ese año
@@ -173,7 +205,7 @@ def crear_programa_auditoria(
 def obtener_programa_auditoria(
     programa_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ver", "sistema.admin"]))
 ):
     """Obtener un programa de auditoría por ID"""
     programa = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.id == programa_id).first()
@@ -186,7 +218,7 @@ def actualizar_programa_auditoria(
     programa_id: UUID,
     programa_update: ProgramaAuditoriaUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.planificar", "sistema.admin"]))
 ):
     """Actualizar un programa de auditoría"""
     programa = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.id == programa_id).first()
@@ -225,7 +257,7 @@ def actualizar_programa_auditoria(
 def eliminar_programa_auditoria(
     programa_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.planificar", "sistema.admin"]))
 ):
     programa = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.id == programa_id).first()
     if not programa:
@@ -246,7 +278,7 @@ def eliminar_programa_auditoria(
 def resumen_programa_auditoria(
     programa_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ver", "sistema.admin"]))
 ):
     programa = db.query(ProgramaAuditoria).filter(ProgramaAuditoria.id == programa_id).first()
     if not programa:
@@ -307,7 +339,7 @@ def resumen_programa_auditoria(
 def reporte_clausulas_auditoria(
     auditoria_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ver", "sistema.admin"])),
 ):
     auditoria = db.query(Auditoria).filter(Auditoria.id == auditoria_id).first()
     if not auditoria:
@@ -355,7 +387,7 @@ def reporte_clausulas_auditoria(
 @router.get("/auditorias-kpi/formularios")
 def kpi_eficacia_formularios(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user),
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ver", "sistema.admin"])),
 ):
     auditorias_cerradas = db.query(Auditoria).filter(Auditoria.estado == "cerrada").all()
     total_auditorias = len(auditorias_cerradas)
@@ -418,7 +450,7 @@ def kpi_eficacia_formularios(
 def iniciar_auditoria(
     auditoria_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ejecutar", "sistema.admin"]))
 ):
     """Iniciar la ejecución de una auditoría"""
     return AuditoriaService.iniciar_auditoria(db, auditoria_id, current_user.id)
@@ -427,7 +459,7 @@ def iniciar_auditoria(
 def finalizar_auditoria(
     auditoria_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ejecutar", "sistema.admin"]))
 ):
     """Finalizar la ejecución de una auditoría"""
     return AuditoriaService.finalizar_auditoria(db, auditoria_id, current_user.id)
@@ -436,7 +468,7 @@ def finalizar_auditoria(
 def cerrar_auditoria(
     auditoria_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ejecutar", "sistema.admin"]))
 ):
     """Cerrar formalmente una auditoría"""
     return AuditoriaService.cerrar_auditoria(db, auditoria_id, current_user.id)
@@ -447,7 +479,7 @@ def cerrar_auditoria(
 def generar_nc_hallazgo(
     hallazgo_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ejecutar", "sistema.admin"]))
 ):
     """Generar una No Conformidad a partir de un hallazgo"""
     return HallazgoService.generar_nc(db, hallazgo_id, current_user.id)
@@ -457,7 +489,7 @@ def verificar_hallazgo(
     hallazgo_id: UUID, 
     resultado: str,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ejecutar", "sistema.admin"]))
 ):
     """Verificar y cerrar un hallazgo"""
     return HallazgoService.verificar_hallazgo(db, hallazgo_id, current_user.id, resultado)
@@ -467,7 +499,7 @@ def verificar_hallazgo(
 def generar_informe_auditoria(
     auditoria_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ver", "sistema.admin"]))
 ):
     """Generar informe de auditoría en PDF"""
     auditoria = db.query(Auditoria).filter(Auditoria.id == auditoria_id).first()
@@ -521,7 +553,7 @@ def listar_auditorias(
     tipo: str = None,
     proceso_id: UUID = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ver", "sistema.admin"]))
 ):
     """Listar auditorías"""
     query = db.query(Auditoria)
@@ -541,7 +573,7 @@ def listar_auditorias(
 def crear_auditoria(
     auditoria: AuditoriaCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.planificar", "sistema.admin"]))
 ):
     """Crear una nueva auditoría"""
     # Verify permission "auditorias.planificar"
@@ -571,6 +603,9 @@ def crear_auditoria(
         auditoria_data.get("fecha_planificada")
     )
     _validar_proceso_para_auditoria(db, auditoria_data.get("proceso_id"))
+    if auditoria_data.get("auditor_lider_id"):
+        _validar_usuario_activo(db, auditoria_data["auditor_lider_id"], "auditor líder")
+    _validar_equipo_auditor_activo(db, auditoria_data.get("equipo_auditor"))
     if auditoria_data.get("formulario_checklist_id"):
         form = db.query(FormularioDinamico).filter(FormularioDinamico.id == auditoria_data["formulario_checklist_id"]).first()
         if not form or form.estado_workflow != "aprobado" or not form.activo:
@@ -600,7 +635,7 @@ def crear_auditoria(
 def obtener_auditoria(
     auditoria_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ver", "sistema.admin"]))
 ):
     """Obtener una auditoría por ID"""
     auditoria = db.query(Auditoria).options(joinedload(Auditoria.auditor_lider)).filter(Auditoria.id == auditoria_id).first()
@@ -617,7 +652,7 @@ def actualizar_auditoria(
     auditoria_id: UUID,
     auditoria_update: AuditoriaUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.planificar", "sistema.admin"]))
 ):
     """Actualizar una auditoría"""
     auditoria = db.query(Auditoria).filter(Auditoria.id == auditoria_id).first()
@@ -643,6 +678,10 @@ def actualizar_auditoria(
     _validar_programa_para_auditoria(db, programa_id_objetivo, fecha_planificada_objetivo)
     proceso_id_objetivo = update_data.get("proceso_id", auditoria.proceso_id)
     _validar_proceso_para_auditoria(db, proceso_id_objetivo)
+    if "auditor_lider_id" in update_data and update_data["auditor_lider_id"]:
+        _validar_usuario_activo(db, update_data["auditor_lider_id"], "auditor líder")
+    if "equipo_auditor" in update_data:
+        _validar_equipo_auditor_activo(db, update_data.get("equipo_auditor"))
     if "formulario_checklist_id" in update_data and update_data["formulario_checklist_id"]:
         form = db.query(FormularioDinamico).filter(FormularioDinamico.id == update_data["formulario_checklist_id"]).first()
         if not form or form.estado_workflow != "aprobado" or not form.activo:
@@ -676,7 +715,7 @@ def actualizar_auditoria(
 def eliminar_auditoria(
     auditoria_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.planificar", "sistema.admin"]))
 ):
     """Eliminar una auditoría"""
     auditoria = db.query(Auditoria).filter(Auditoria.id == auditoria_id).first()
@@ -699,7 +738,7 @@ def eliminar_auditoria(
 def listar_hallazgos_auditoria(
     auditoria_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ver", "auditorias.ejecutar", "sistema.admin"]))
 ):
     """Listar hallazgos de una auditoría"""
     hallazgos = db.query(HallazgoAuditoria).filter(
@@ -715,7 +754,7 @@ def listar_hallazgos(
     estado: str = None,
     tipo_hallazgo: str = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ver", "auditorias.ejecutar", "sistema.admin"]))
 ):
     """Listar todos los hallazgos"""
     query = db.query(HallazgoAuditoria)
@@ -733,7 +772,7 @@ def listar_hallazgos(
 def crear_hallazgo_auditoria(
     hallazgo: HallazgoAuditoriaCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ejecutar", "sistema.admin"]))
 ):
     """Crear un nuevo hallazgo de auditoría"""
     # Verify permission "auditorias.ejecutar"
@@ -747,6 +786,8 @@ def crear_hallazgo_auditoria(
         raise HTTPException(status_code=403, detail="No tienes permiso para registrar hallazgos")
 
     hallazgo_data = hallazgo.model_dump()
+    if hallazgo_data.get("responsable_respuesta_id"):
+        _validar_usuario_activo(db, hallazgo_data["responsable_respuesta_id"], "responsable de respuesta")
     _validar_etapa_para_hallazgo(
         db,
         hallazgo_data.get("etapa_proceso_id"),
@@ -759,7 +800,7 @@ def crear_hallazgo_auditoria(
 def obtener_hallazgo_auditoria(
     hallazgo_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ver", "auditorias.ejecutar", "sistema.admin"]))
 ):
     """Obtener un hallazgo por ID"""
     hallazgo = db.query(HallazgoAuditoria).filter(HallazgoAuditoria.id == hallazgo_id).first()
@@ -776,7 +817,7 @@ def actualizar_hallazgo_auditoria(
     hallazgo_id: UUID,
     hallazgo_update: HallazgoAuditoriaUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ejecutar", "sistema.admin"]))
 ):
     """Actualizar un hallazgo de auditoría"""
     hallazgo = db.query(HallazgoAuditoria).filter(HallazgoAuditoria.id == hallazgo_id).first()
@@ -787,6 +828,8 @@ def actualizar_hallazgo_auditoria(
         )
     
     update_data = hallazgo_update.model_dump(exclude_unset=True)
+    if "responsable_respuesta_id" in update_data and update_data["responsable_respuesta_id"]:
+        _validar_usuario_activo(db, update_data["responsable_respuesta_id"], "responsable de respuesta")
     proceso_objetivo = update_data.get("proceso_id", hallazgo.proceso_id)
     etapa_objetivo = update_data.get("etapa_proceso_id", hallazgo.etapa_proceso_id)
     _validar_etapa_para_hallazgo(db, etapa_objetivo, proceso_objetivo)
@@ -803,7 +846,7 @@ def actualizar_hallazgo_auditoria(
 def eliminar_hallazgo_auditoria(
     hallazgo_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
+    current_user: Usuario = Depends(require_any_permission(["auditorias.ejecutar", "sistema.admin"]))
 ):
     """Eliminar un hallazgo"""
     hallazgo = db.query(HallazgoAuditoria).filter(HallazgoAuditoria.id == hallazgo_id).first()
