@@ -2,6 +2,7 @@
 Rutas de la API
 """
 from fastapi import APIRouter, Depends
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..config import settings
@@ -25,7 +26,7 @@ async def health_check(db: Session = Depends(get_db)):
     """Health check endpoint"""
     try:
         # Intentar ejecutar una consulta simple para verificar la conexión a la DB
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db_status = "healthy"
     except Exception as e:
         db_status = f"unhealthy: {str(e)}"
