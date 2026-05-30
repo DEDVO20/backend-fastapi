@@ -12,6 +12,7 @@ class RiesgoBase(BaseModel):
     proceso_id: UUID
     etapa_proceso_id: Optional[UUID] = None
     codigo: str = Field(..., max_length=100)
+    nombre: Optional[str] = Field(None, max_length=200)
     descripcion: str
     categoria: Optional[str] = Field(None, max_length=100)
     tipo_riesgo: str = Field(..., max_length=50)
@@ -34,6 +35,7 @@ class RiesgoCreate(RiesgoBase):
 
 class RiesgoUpdate(BaseModel):
     etapa_proceso_id: Optional[UUID] = None
+    nombre: Optional[str] = Field(None, max_length=200)
     descripcion: Optional[str] = None
     categoria: Optional[str] = Field(None, max_length=100)
     tipo_riesgo: Optional[str] = Field(None, max_length=50)

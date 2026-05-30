@@ -77,6 +77,37 @@ async def upload_logo(
     """
     Sube el logo del sistema (solo admin).
     """
+    # Verificar permisos por codigo (no por nombre visible)
+    permisos_usuario = set()
+    try:
+        permisos_usuario = set(getattr(current_user, "permisos_codes", []) or [])
+    except Exception:
+        permisos_usuario = set()
+
+    if not permisos_usuario:
+        for usuario_rol in getattr(current_user, "roles", []) or []:
+            rol = getattr(usuario_rol, "rol", None)
+            if not rol:
+                continue
+            for rol_permiso in getattr(rol, "permisos", []) or []:
+                permiso = getattr(rol_permiso, "permiso", None)
+                codigo = getattr(permiso, "codigo", None)
+                if codigo:
+                    permisos_usuario.add(str(codigo))
+    
+    # Lista de permisos que permiten subir el logo del sistema
+    permisos_permitidos = [
+        "sistema.admin",           # Administrador del sistema
+        "sistema.configurar",      # Configuración del sistema
+        "sistema.config",          # Alias de configuración
+    ]
+    
+    if not any(permiso in permisos_usuario for permiso in permisos_permitidos):
+        raise HTTPException(
+            status_code=403, 
+            detail=f"No tienes permisos para realizar esta acción. Permisos requeridos: {', '.join(permisos_permitidos)}"
+        )
+
     # Validar que sea imagen
     if not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="El archivo debe ser una imagen")

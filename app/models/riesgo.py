@@ -14,6 +14,7 @@ class Riesgo(BaseModel):
     
     proceso_id = Column(UUID(as_uuid=True), ForeignKey("procesos.id", onupdate="CASCADE", ondelete="CASCADE"), nullable=False)
     codigo = Column(String(100), nullable=False, unique=True)
+    nombre = Column(String(200), nullable=True)
     descripcion = Column(Text, nullable=False)
     categoria = Column(String(100), nullable=True)
     tipo_riesgo = Column(String(50), nullable=False)
