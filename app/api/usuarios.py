@@ -1,7 +1,9 @@
 """
 Endpoints CRUD para gestión de usuarios
 """
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile
+import io
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List
 from uuid import UUID
@@ -45,7 +47,7 @@ def listar_areas(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["areas.gestionar", "usuarios.gestion", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(["areas.gestionar", "usuarios.crear", "usuarios.gestion", "sistema.admin"]))
 ):
     """Listar todas las áreas con sus responsables asignados"""
     from sqlalchemy.orm import joinedload
@@ -194,7 +196,7 @@ def listar_roles(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["usuarios.gestion", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(["usuarios.crear", "usuarios.gestion", "sistema.admin"]))
 ):
     """Listar todos los roles"""
     from sqlalchemy.orm import joinedload
@@ -369,13 +371,52 @@ def listar_usuarios(
     current_user: Usuario = Depends(require_any_permission(["usuarios.ver", "usuarios.gestion", "sistema.admin"]))
 ):
     """Listar todos los usuarios"""
-    query = db.query(Usuario)
+    from sqlalchemy.orm import joinedload
+
+    query = db.query(Usuario).options(
+        joinedload(Usuario.area),
+        joinedload(Usuario.roles).joinedload(UsuarioRol.rol),
+    )
     
     if activo is not None:
         query = query.filter(Usuario.activo == activo)
     
     usuarios = query.offset(skip).limit(limit).all()
     return usuarios
+
+
+@router.get("/usuarios/carga-masiva/plantilla")
+def descargar_plantilla_carga_masiva(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_any_permission(["usuarios.crear", "usuarios.gestion", "sistema.admin"]))
+):
+    """Descarga plantilla Excel con ejemplos y catálogos de áreas/roles reales."""
+    from ..utils.carga_masiva import generar_plantilla_excel
+
+    areas = db.query(Area).order_by(Area.codigo).all()
+    roles = db.query(Rol).order_by(Rol.clave).all()
+    contenido = generar_plantilla_excel(areas, roles)
+    return StreamingResponse(
+        io.BytesIO(contenido),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=plantilla_usuarios.xlsx"},
+    )
+
+
+@router.get("/usuarios/carga-masiva/exportar")
+def exportar_usuarios_plataforma(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_any_permission(["usuarios.ver", "usuarios.crear", "usuarios.gestion", "sistema.admin"]))
+):
+    """Exporta los usuarios actuales de la plataforma a Excel."""
+    from ..utils.carga_masiva import generar_exportacion_usuarios
+
+    contenido = generar_exportacion_usuarios(db)
+    return StreamingResponse(
+        io.BytesIO(contenido),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=usuarios_plataforma.xlsx"},
+    )
 
 
 @router.post("/usuarios", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
@@ -516,7 +557,7 @@ def eliminar_usuario(
 
 @router.post("/usuarios/carga-masiva", response_model=dict)
 async def carga_masiva_usuarios(
-    file: UploadFile,
+    file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_any_permission(["usuarios.crear", "usuarios.gestion", "sistema.admin"]))
 ):
@@ -528,7 +569,6 @@ async def carga_masiva_usuarios(
     - correo_electronico, nombre_usuario, contrasena
     - area_codigo, roles (separados por coma), activo
     """
-    from fastapi import UploadFile
     from ..utils.carga_masiva import (
         validar_archivo,
         leer_archivo,
@@ -539,10 +579,8 @@ async def carga_masiva_usuarios(
     from ..schemas.usuario import (
         CargaMasivaResultado,
         CargaMasivaUsuarioExitoso,
-        CargaMasivaErrorDetalle
     )
     
-    # Validar archivo
     valido, mensaje = validar_archivo(file)
     if not valido:
         raise HTTPException(
@@ -551,47 +589,71 @@ async def carga_masiva_usuarios(
         )
     
     try:
-        # Leer contenido del archivo
         contenido = await file.read()
-        
-        # Leer archivo como DataFrame
+        if not contenido:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El archivo está vacío"
+            )
+        if len(contenido) > 5 * 1024 * 1024:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El archivo no puede superar los 5MB"
+            )
+
         df = leer_archivo(contenido, file.filename)
-        
-        # Validar columnas
+
         columnas_faltantes = validar_columnas(df)
         if columnas_faltantes:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Columnas faltantes en el archivo: {', '.join(columnas_faltantes)}"
             )
-        
-        # Validar límite de filas
+
+        if df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El archivo no contiene usuarios para procesar"
+            )
+
         if len(df) > 1000:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="El archivo no puede contener más de 1000 usuarios"
             )
-        
-        # Cargar caches de áreas y roles
+
         areas_cache, roles_cache = cargar_caches(db)
-        
-        # Procesar cada fila
+        if not areas_cache:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No hay áreas registradas. Cree al menos un área antes de cargar usuarios."
+            )
+        if not roles_cache:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No hay roles registrados. Cree al menos un rol antes de cargar usuarios."
+            )
+
         exitosos = []
         errores = []
-        
+        documentos_en_archivo = set()
+        emails_en_archivo = set()
+        usernames_en_archivo = set()
+
         for idx, fila in df.iterrows():
             fila_num = idx + 2  # +2 porque idx empieza en 0 y hay header
-            
             exito, resultado = procesar_fila(
                 fila_num,
                 fila,
                 db,
                 areas_cache,
-                roles_cache
+                roles_cache,
+                documentos_en_archivo,
+                emails_en_archivo,
+                usernames_en_archivo,
             )
-            
+
             if exito:
-                # resultado es el usuario creado
                 exitosos.append(CargaMasivaUsuarioExitoso(
                     fila=fila_num,
                     nombre_usuario=resultado.nombre_usuario,
@@ -599,16 +661,10 @@ async def carga_masiva_usuarios(
                     correo_electronico=resultado.correo_electronico
                 ))
             else:
-                # resultado es lista de errores
                 errores.extend(resultado)
-        
-        # Si hay errores, hacer rollback
-        if errores:
-            db.rollback()
-        else:
-            db.commit()
-        
-        # Preparar respuesta
+
+        db.commit()
+
         resultado = CargaMasivaResultado(
             total_procesados=len(df),
             exitosos=len(exitosos),
@@ -616,10 +672,11 @@ async def carga_masiva_usuarios(
             detalles_exitosos=exitosos,
             detalles_errores=errores
         )
-        
+
         return resultado.model_dump()
-        
+
     except HTTPException:
+        db.rollback()
         raise
     except Exception as e:
         db.rollback()

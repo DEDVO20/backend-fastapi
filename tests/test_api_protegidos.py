@@ -7,6 +7,8 @@ from app.main import app
 
 ENDPOINTS_PROTEGIDOS = [
     ("GET", "/api/v1/usuarios"),
+    ("GET", "/api/v1/usuarios/carga-masiva/plantilla"),
+    ("GET", "/api/v1/usuarios/carga-masiva/exportar"),
     ("GET", "/api/v1/areas"),
     ("GET", "/api/v1/procesos"),
     ("GET", "/api/v1/riesgos"),
