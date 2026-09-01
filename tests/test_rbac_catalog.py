@@ -5,6 +5,7 @@ from app.db.rbac_catalog import (
     MIGRACION_ROLES,
     PERMISOS_OBSOLETOS,
     ROLES,
+    destino_canonico,
     rol_por_clave,
 )
 
@@ -76,6 +77,19 @@ def test_roles_obsoletos_se_migran():
     assert MIGRACION_ROLES["coordinador"] == "lider_proceso"
     assert MIGRACION_ROLES["auxiliar"] == "colaborador"
     assert MIGRACION_ROLES["lider_siso"] == "lider_proceso"
+    assert MIGRACION_ROLES["super"] == "admin"
+    assert MIGRACION_ROLES["recursos"] == "colaborador"
+    assert MIGRACION_ROLES["procesos"] == "lider_proceso"
+    assert MIGRACION_ROLES["usuario"] == "colaborador"
+
+
+def test_destino_canonico_normaliza_claves_de_produccion():
+    assert destino_canonico("SUPER") == "admin"
+    assert destino_canonico("AUDITOR") == "auditor"
+    assert destino_canonico("PROCESOS") == "lider_proceso"
+    assert destino_canonico("RECURSOS") == "colaborador"
+    assert destino_canonico("usuario") == "colaborador"
+    assert destino_canonico("admin") == "admin"
 
 
 def test_permisos_duplicados_historicos_quedan_fuera_del_catalogo():

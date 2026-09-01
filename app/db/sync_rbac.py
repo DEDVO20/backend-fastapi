@@ -3,19 +3,20 @@ Sincroniza roles y permisos con el catálogo SGC-IUDC 2026.
 
 - Crea/actualiza permisos canónicos
 - Reemplaza la matriz de cada rol canónico
-- Migra usuarios de roles obsoletos
+- Migra usuarios de roles obsoletos (incl. SUPER, RECURSOS, PROCESOS, usuario)
 - Elimina roles y permisos que ya no aplican
 """
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.db.rbac_catalog import (
     CLAVES_ROLES_CANONICOS,
-    MIGRACION_ROLES,
     PERMISOS,
     PERMISOS_OBSOLETOS,
     ROLES,
+    destino_canonico,
 )
 from app.models.usuario import Permiso, Rol, RolPermiso, UsuarioRol
 
@@ -31,6 +32,15 @@ def _resultado_vacio() -> Dict[str, Any]:
         "usuarios_migrados": 0,
         "roles": {},
     }
+
+
+def _buscar_rol_por_clave(db: Session, clave: str) -> Optional[Rol]:
+    return (
+        db.query(Rol)
+        .filter(func.lower(Rol.clave) == (clave or "").strip().lower())
+        .order_by(Rol.creado_en.asc())
+        .first()
+    )
 
 
 def _upsert_permisos(db: Session, resultado: Dict[str, Any]) -> Dict[str, Permiso]:
@@ -72,7 +82,7 @@ def _reemplazar_permisos_rol(db: Session, rol: Rol, codigos: List[str], permisos
 def _upsert_roles(db: Session, permisos: Dict[str, Permiso], resultado: Dict[str, Any]) -> Dict[str, Rol]:
     roles: Dict[str, Rol] = {}
     for data in ROLES:
-        rol = db.query(Rol).filter(Rol.clave == data["clave"]).first()
+        rol = _buscar_rol_por_clave(db, data["clave"])
         if not rol:
             rol = Rol(
                 nombre=data["nombre"],
@@ -85,6 +95,7 @@ def _upsert_roles(db: Session, permisos: Dict[str, Permiso], resultado: Dict[str
             resultado["roles_creados"].append(data["clave"])
         else:
             rol.nombre = data["nombre"]
+            rol.clave = data["clave"]
             rol.descripcion = data["descripcion"]
             rol.activo = True
             resultado["roles_actualizados"].append(data["clave"])
@@ -123,12 +134,11 @@ def _eliminar_rol(db: Session, rol: Rol) -> None:
 
 
 def _migrar_y_eliminar_obsoletos(db: Session, roles: Dict[str, Rol], resultado: Dict[str, Any]) -> None:
-    claves_canonicas = set(CLAVES_ROLES_CANONICOS)
+    ids_oficiales = {rol.id for rol in roles.values() if rol is not None}
     for rol in db.query(Rol).all():
-        clave = (rol.clave or "").strip().lower()
-        destino_clave = MIGRACION_ROLES.get(clave)
-        if not destino_clave or clave in claves_canonicas:
+        if rol.id in ids_oficiales:
             continue
+        destino_clave = destino_canonico(rol.clave)
         destino = roles.get(destino_clave)
         if destino:
             resultado["usuarios_migrados"] += _migrar_usuarios(db, rol, destino)
@@ -159,9 +169,8 @@ def sincronizar_rbac_sgc(db: Session) -> Dict[str, Any]:
     _eliminar_permisos_obsoletos(db, resultado)
     db.commit()
 
-    # Recargar roles canónicos tras el commit
     roles_finales = {
-        clave: db.query(Rol).filter(Rol.clave == clave).first()
+        clave: _buscar_rol_por_clave(db, clave)
         for clave in CLAVES_ROLES_CANONICOS
     }
     resultado["roles"] = {k: v for k, v in roles_finales.items() if v}

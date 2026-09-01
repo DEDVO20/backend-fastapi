@@ -56,6 +56,27 @@ async def startup_event():
     print(f"📝 Documentación disponible en: http://localhost:8000/docs")
     print(f"🌍 Entorno: {settings.ENVIRONMENT}")
 
+    if (settings.ENVIRONMENT or "").lower() == "test":
+        return
+
+    try:
+        from .database import SessionLocal
+        from .db.sync_rbac import sincronizar_rbac_sgc
+
+        db = SessionLocal()
+        try:
+            resumen = sincronizar_rbac_sgc(db)
+            print(
+                "✅ RBAC SGC sincronizado | "
+                f"creados={resumen['roles_creados']} "
+                f"eliminados={resumen['roles_eliminados']} "
+                f"migrados={resumen['usuarios_migrados']}"
+            )
+        finally:
+            db.close()
+    except Exception as exc:
+        print(f"⚠️ No se pudo sincronizar el catálogo RBAC al arrancar: {exc}")
+
 
 @app.on_event("shutdown")
 async def shutdown_event():

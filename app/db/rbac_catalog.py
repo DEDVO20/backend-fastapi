@@ -261,11 +261,19 @@ ROLES: List[Dict] = [
 
 CLAVES_ROLES_CANONICOS = [r["clave"] for r in ROLES]
 
-# Roles del seed anterior que se fusionan en el catálogo canónico.
+# Roles históricos (seed y producción) que se fusionan en el catálogo canónico.
 MIGRACION_ROLES: Dict[str, str] = {
     "gestor_calidad": "admin",
+    "super": "admin",
+    "administrador": "admin",
     "coordinador": "lider_proceso",
+    "procesos": "lider_proceso",
+    "dueno_proceso": "lider_proceso",
+    "dueño_proceso": "lider_proceso",
     "auxiliar": "colaborador",
+    "usuario": "colaborador",
+    "recursos": "colaborador",
+    "rrhh": "colaborador",
     "lider_siso": "lider_proceso",
 }
 
@@ -292,3 +300,11 @@ def rol_por_clave(clave: str) -> Dict:
         if rol["clave"] == clave:
             return rol
     raise KeyError(f"Rol canónico desconocido: {clave}")
+
+
+def destino_canonico(clave: str) -> str:
+    """Resuelve una clave de rol (mayúsculas, alias o histórica) al catálogo SGC."""
+    normalizada = (clave or "").strip().lower()
+    if normalizada in CLAVES_ROLES_CANONICOS:
+        return normalizada
+    return MIGRACION_ROLES.get(normalizada, "colaborador")
