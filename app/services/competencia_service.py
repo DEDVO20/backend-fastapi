@@ -8,6 +8,7 @@ from ..models.proceso import EtapaCompetencia, EtapaProceso, ResponsableProceso
 from ..models.usuario import Usuario
 from .competency_risk_automation_service import CompetencyRiskAutomationService
 from ..utils.audit import registrar_auditoria
+from ..utils.notification_service import notificar_asignacion
 
 
 class CompetenciaService:
@@ -137,4 +138,13 @@ class CompetenciaService:
 
         self.db.commit()
         self.db.refresh(evaluacion)
+        notificar_asignacion(
+            self.db,
+            usuario_id=evaluacion.usuario_id,
+            titulo="Evaluación de competencia",
+            mensaje=f"Se registró una evaluación de competencia: {competencia.nombre}",
+            referencia_tipo="competencia",
+            referencia_id=evaluacion.id,
+            actor_id=usuario_id,
+        )
         return evaluacion

@@ -28,7 +28,7 @@ from ..schemas.auditoria import (
 from ..services.auditorias.auditoria_service import AuditoriaService
 from ..services.auditorias.hallazgo_service import HallazgoService
 from ..schemas.calidad import NoConformidadResponse
-from ..utils.notification_service import crear_notificacion_asignacion
+from ..utils.notification_service import crear_notificacion_asignacion, notificar_asignaciones, notificar_asignacion
 from ..api.dependencies import require_any_permission
 from ..models.usuario import Usuario
 from ..utils.pdf_generator import PDFGenerator
@@ -66,6 +66,21 @@ def _validar_equipo_auditor_activo(db: Session, equipo_auditor: Optional[str]) -
                 detail="El campo equipo_auditor contiene un UUID inválido."
             )
         _validar_usuario_activo(db, usuario_id, "usuario del equipo auditor")
+
+
+def _ids_equipo_auditor(equipo_auditor: Optional[str]) -> list[UUID]:
+    ids = []
+    if not equipo_auditor:
+        return ids
+    for raw_id in str(equipo_auditor).split(","):
+        raw_id = raw_id.strip()
+        if not raw_id:
+            continue
+        try:
+            ids.append(UUID(raw_id))
+        except ValueError:
+            continue
+    return ids
 
 def _aplicar_reglas_iso_programa(programa_data: dict, current_user: Usuario, programa_actual: ProgramaAuditoria = None) -> dict:
     estado_objetivo = programa_data.get("estado", programa_actual.estado if programa_actual else "borrador")
@@ -622,11 +637,22 @@ def crear_auditoria(
         crear_notificacion_asignacion(
             db=db,
             usuario_id=nueva_auditoria.auditor_lider_id,
-            titulo="Auditoría Asignada",
-            mensaje=f"Se te ha asignado como Auditor Líder para la auditoría: {nueva_auditoria.codigo}",
+            titulo="Auditoría asignada",
+            mensaje=f"Se te ha asignado como auditor líder de la auditoría {nueva_auditoria.codigo}",
             referencia_tipo="auditoria",
-            referencia_id=nueva_auditoria.id
+            referencia_id=nueva_auditoria.id,
+            actor_id=current_user.id,
         )
+    notificar_asignaciones(
+        db,
+        usuario_ids=_ids_equipo_auditor(nueva_auditoria.equipo_auditor),
+        titulo="Equipo auditor asignado",
+        mensaje=f"Formas parte del equipo de la auditoría {nueva_auditoria.codigo}",
+        referencia_tipo="auditoria",
+        referencia_id=nueva_auditoria.id,
+        actor_id=current_user.id,
+        anteriores=[nueva_auditoria.auditor_lider_id] if nueva_auditoria.auditor_lider_id else None,
+    )
         
     return nueva_auditoria
 
@@ -664,6 +690,7 @@ def actualizar_auditoria(
     
     # Verificar cambio de auditor líder
     previous_auditor_lider = auditoria.auditor_lider_id
+    previous_equipo = auditoria.equipo_auditor
     
     update_data = auditoria_update.model_dump(exclude_unset=True)
 
@@ -702,10 +729,24 @@ def actualizar_auditoria(
         crear_notificacion_asignacion(
             db=db,
             usuario_id=auditoria.auditor_lider_id,
-            titulo="Auditoría Asignada",
-            mensaje=f"Se te ha asignado como Auditor Líder para la auditoría: {auditoria.codigo}",
+            titulo="Auditoría asignada",
+            mensaje=f"Se te ha asignado como auditor líder de la auditoría {auditoria.codigo}",
             referencia_tipo="auditoria",
-            referencia_id=auditoria.id
+            referencia_id=auditoria.id,
+            actor_id=current_user.id,
+            anterior_usuario_id=previous_auditor_lider,
+        )
+    if "equipo_auditor" in update_data:
+        notificar_asignaciones(
+            db,
+            usuario_ids=_ids_equipo_auditor(auditoria.equipo_auditor),
+            titulo="Equipo auditor asignado",
+            mensaje=f"Formas parte del equipo de la auditoría {auditoria.codigo}",
+            referencia_tipo="auditoria",
+            referencia_id=auditoria.id,
+            actor_id=current_user.id,
+            anteriores=_ids_equipo_auditor(str(previous_equipo) if previous_equipo else None)
+            + ([auditoria.auditor_lider_id] if auditoria.auditor_lider_id else []),
         )
         
     return auditoria
@@ -793,7 +834,17 @@ def crear_hallazgo_auditoria(
         hallazgo_data.get("etapa_proceso_id"),
         hallazgo_data.get("proceso_id"),
     )
-    return HallazgoService.crear_hallazgo(db, hallazgo_data, current_user.id)
+    hallazgo = HallazgoService.crear_hallazgo(db, hallazgo_data, current_user.id)
+    notificar_asignacion(
+        db,
+        usuario_id=hallazgo.responsable_respuesta_id,
+        titulo="Hallazgo asignado",
+        mensaje=f"Se te asignó responder el hallazgo {hallazgo.codigo}",
+        referencia_tipo="hallazgo",
+        referencia_id=hallazgo.id,
+        actor_id=current_user.id,
+    )
+    return hallazgo
 
 
 @router.get("/hallazgos-auditoria/{hallazgo_id}", response_model=HallazgoAuditoriaResponse)
@@ -826,7 +877,8 @@ def actualizar_hallazgo_auditoria(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Hallazgo no encontrado"
         )
-    
+
+    anterior_responsable = hallazgo.responsable_respuesta_id
     update_data = hallazgo_update.model_dump(exclude_unset=True)
     if "responsable_respuesta_id" in update_data and update_data["responsable_respuesta_id"]:
         _validar_usuario_activo(db, update_data["responsable_respuesta_id"], "responsable de respuesta")
@@ -839,6 +891,16 @@ def actualizar_hallazgo_auditoria(
     
     db.commit()
     db.refresh(hallazgo)
+    notificar_asignacion(
+        db,
+        usuario_id=hallazgo.responsable_respuesta_id,
+        titulo="Hallazgo asignado",
+        mensaje=f"Se te asignó responder el hallazgo {hallazgo.codigo}",
+        referencia_tipo="hallazgo",
+        referencia_id=hallazgo.id,
+        actor_id=current_user.id,
+        anterior_usuario_id=anterior_responsable,
+    )
     return hallazgo
 
 

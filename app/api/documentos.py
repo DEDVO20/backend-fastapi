@@ -21,7 +21,7 @@ from ..schemas.documento import (
 from ..utils.notification_service import (
     crear_notificacion_revision, 
     crear_notificacion_aprobacion,
-    crear_notificacion_asignacion
+    notificar_asignacion,
 )
 from ..models.sistema import Notificacion
 from ..api.dependencies import require_any_permission, user_has_any_permission
@@ -127,6 +127,26 @@ def crear_documento(
     db.add(nuevo_documento)
     db.commit()
     db.refresh(nuevo_documento)
+    notificar_asignacion(
+        db,
+        usuario_id=getattr(nuevo_documento, "revisado_por", None),
+        titulo="Documento asignado para revisión",
+        mensaje=f"Se te asignó revisar el documento {nuevo_documento.codigo}",
+        referencia_tipo="documento",
+        referencia_id=nuevo_documento.id,
+        actor_id=current_user.id,
+        tipo="revision",
+    )
+    notificar_asignacion(
+        db,
+        usuario_id=getattr(nuevo_documento, "aprobado_por", None),
+        titulo="Documento asignado para aprobación",
+        mensaje=f"Se te asignó aprobar el documento {nuevo_documento.codigo}",
+        referencia_tipo="documento",
+        referencia_id=nuevo_documento.id,
+        actor_id=current_user.id,
+        tipo="aprobacion",
+    )
     return nuevo_documento
 
 
@@ -202,6 +222,8 @@ def actualizar_documento(
     
     try:
         update_data = documento_update.model_dump(exclude_unset=True)
+        anterior_revisor = documento.revisado_por
+        anterior_aprobador = documento.aprobado_por
         
         # PROTECCIÓN: No permitir cambiar el creador (creado_por) nunca
         if 'creado_por' in update_data:
@@ -250,6 +272,28 @@ def actualizar_documento(
         
         db.commit()
         db.refresh(documento)
+        notificar_asignacion(
+            db,
+            usuario_id=documento.revisado_por,
+            titulo="Documento asignado para revisión",
+            mensaje=f"Se te asignó revisar el documento {documento.codigo}",
+            referencia_tipo="documento",
+            referencia_id=documento.id,
+            actor_id=current_user.id,
+            anterior_usuario_id=anterior_revisor,
+            tipo="revision",
+        )
+        notificar_asignacion(
+            db,
+            usuario_id=documento.aprobado_por,
+            titulo="Documento asignado para aprobación",
+            mensaje=f"Se te asignó aprobar el documento {documento.codigo}",
+            referencia_tipo="documento",
+            referencia_id=documento.id,
+            actor_id=current_user.id,
+            anterior_usuario_id=anterior_aprobador,
+            tipo="aprobacion",
+        )
         return documento
 
     except HTTPException:

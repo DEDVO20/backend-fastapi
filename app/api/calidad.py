@@ -36,6 +36,7 @@ from ..schemas.calidad import (
 )
 from ..api.dependencies import require_any_permission
 from ..models.usuario import Usuario, Area
+from ..utils.notification_service import notificar_asignacion
 from ..services.calidad_service import CalidadService
 from ..services.indicador_service import IndicadorService
 
@@ -107,6 +108,15 @@ def crear_indicador(
     db.add(nuevo_indicador)
     db.commit()
     db.refresh(nuevo_indicador)
+    notificar_asignacion(
+        db,
+        usuario_id=nuevo_indicador.responsable_medicion_id,
+        titulo="Indicador asignado",
+        mensaje=f"Se te ha asignado el indicador {nuevo_indicador.codigo}",
+        referencia_tipo="indicador",
+        referencia_id=nuevo_indicador.id,
+        actor_id=current_user.id,
+    )
     return nuevo_indicador
 
 
@@ -141,6 +151,7 @@ def actualizar_indicador(
             detail="Indicador no encontrado"
         )
     
+    anterior_responsable = indicador.responsable_medicion_id
     update_data = indicador_update.model_dump(exclude_unset=True)
     if "responsable_medicion_id" in update_data and update_data["responsable_medicion_id"]:
         _obtener_usuario_activo(db, update_data["responsable_medicion_id"], "responsable de medición")
@@ -153,6 +164,16 @@ def actualizar_indicador(
     
     db.commit()
     db.refresh(indicador)
+    notificar_asignacion(
+        db,
+        usuario_id=indicador.responsable_medicion_id,
+        titulo="Indicador asignado",
+        mensaje=f"Se te ha asignado el indicador {indicador.codigo}",
+        referencia_tipo="indicador",
+        referencia_id=indicador.id,
+        actor_id=current_user.id,
+        anterior_usuario_id=anterior_responsable,
+    )
     return indicador
 
 
@@ -280,7 +301,16 @@ def crear_no_conformidad(
         joinedload(NoConformidad.detector),
         joinedload(NoConformidad.responsable)
     ).filter(NoConformidad.id == nueva_nc.id).first()
-    
+
+    notificar_asignacion(
+        db,
+        usuario_id=nueva_nc.responsable_id,
+        titulo="No conformidad asignada",
+        mensaje=f"Se te ha asignado la no conformidad {nueva_nc.codigo}",
+        referencia_tipo="no_conformidad",
+        referencia_id=nueva_nc.id,
+        actor_id=current_user.id,
+    )
     return nueva_nc
 
 
@@ -319,7 +349,8 @@ def actualizar_no_conformidad(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No conformidad no encontrada"
         )
-    
+
+    anterior_responsable = nc.responsable_id
     update_data = nc_update.model_dump(exclude_unset=True)
     if "detectado_por" in update_data and update_data["detectado_por"]:
         _obtener_usuario_activo(db, update_data["detectado_por"], "usuario detectado por")
@@ -338,7 +369,17 @@ def actualizar_no_conformidad(
         joinedload(NoConformidad.detector),
         joinedload(NoConformidad.responsable)
     ).filter(NoConformidad.id == nc_id).first()
-    
+
+    notificar_asignacion(
+        db,
+        usuario_id=nc.responsable_id,
+        titulo="No conformidad asignada",
+        mensaje=f"Se te ha asignado la no conformidad {nc.codigo}",
+        referencia_tipo="no_conformidad",
+        referencia_id=nc.id,
+        actor_id=current_user.id,
+        anterior_usuario_id=anterior_responsable,
+    )
     return nc
 
 
@@ -419,6 +460,35 @@ def crear_accion_correctiva(
     db.add(nueva_accion)
     db.commit()
     db.refresh(nueva_accion)
+    notificar_asignacion(
+        db,
+        usuario_id=nueva_accion.responsable_id,
+        titulo="Acción correctiva asignada",
+        mensaje=f"Se te ha asignado la acción correctiva {nueva_accion.codigo}",
+        referencia_tipo="accion_correctiva",
+        referencia_id=nueva_accion.id,
+        actor_id=current_user.id,
+    )
+    if nueva_accion.implementado_por:
+        notificar_asignacion(
+            db,
+            usuario_id=nueva_accion.implementado_por,
+            titulo="Implementación asignada",
+            mensaje=f"Se te asignó implementar la acción {nueva_accion.codigo}",
+            referencia_tipo="accion_correctiva",
+            referencia_id=nueva_accion.id,
+            actor_id=current_user.id,
+        )
+    if nueva_accion.verificado_por:
+        notificar_asignacion(
+            db,
+            usuario_id=nueva_accion.verificado_por,
+            titulo="Verificación asignada",
+            mensaje=f"Se te asignó verificar la acción {nueva_accion.codigo}",
+            referencia_tipo="accion_correctiva",
+            referencia_id=nueva_accion.id,
+            actor_id=current_user.id,
+        )
     return nueva_accion
 
 
@@ -457,7 +527,10 @@ def actualizar_accion_correctiva(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Acción correctiva no encontrada"
         )
-    
+
+    anterior_responsable = accion.responsable_id
+    anterior_implementador = accion.implementado_por
+    anterior_verificador = accion.verificado_por
     update_data = accion_update.model_dump(exclude_unset=True)
     for campo, etiqueta in (
         ("responsable_id", "responsable"),
@@ -472,6 +545,36 @@ def actualizar_accion_correctiva(
     
     db.commit()
     db.refresh(accion)
+    notificar_asignacion(
+        db,
+        usuario_id=accion.responsable_id,
+        titulo="Acción correctiva asignada",
+        mensaje=f"Se te ha asignado la acción correctiva {accion.codigo}",
+        referencia_tipo="accion_correctiva",
+        referencia_id=accion.id,
+        actor_id=current_user.id,
+        anterior_usuario_id=anterior_responsable,
+    )
+    notificar_asignacion(
+        db,
+        usuario_id=accion.implementado_por,
+        titulo="Implementación asignada",
+        mensaje=f"Se te asignó implementar la acción {accion.codigo}",
+        referencia_tipo="accion_correctiva",
+        referencia_id=accion.id,
+        actor_id=current_user.id,
+        anterior_usuario_id=anterior_implementador,
+    )
+    notificar_asignacion(
+        db,
+        usuario_id=accion.verificado_por,
+        titulo="Verificación asignada",
+        mensaje=f"Se te asignó verificar la acción {accion.codigo}",
+        referencia_tipo="accion_correctiva",
+        referencia_id=accion.id,
+        actor_id=current_user.id,
+        anterior_usuario_id=anterior_verificador,
+    )
     return accion
 
 
@@ -768,6 +871,15 @@ def crear_objetivo_calidad(
         joinedload(ObjetivoCalidad.area),
         joinedload(ObjetivoCalidad.responsable)
     ).filter(ObjetivoCalidad.id == nuevo_objetivo.id).first()
+    notificar_asignacion(
+        db,
+        usuario_id=nuevo_objetivo.responsable_id,
+        titulo="Objetivo de calidad asignado",
+        mensaje=f"Se te ha asignado el objetivo {nuevo_objetivo.codigo}",
+        referencia_tipo="objetivo",
+        referencia_id=nuevo_objetivo.id,
+        actor_id=current_user.id,
+    )
     return nuevo_objetivo
 
 
@@ -804,7 +916,8 @@ def actualizar_objetivo_calidad(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Objetivo de calidad no encontrado"
         )
-    
+
+    anterior_responsable = objetivo.responsable_id
     update_data = objetivo_update.model_dump(exclude_unset=True)
 
     fecha_inicio = update_data.get("fecha_inicio", objetivo.fecha_inicio)
@@ -847,6 +960,16 @@ def actualizar_objetivo_calidad(
         joinedload(ObjetivoCalidad.area),
         joinedload(ObjetivoCalidad.responsable)
     ).filter(ObjetivoCalidad.id == objetivo_id).first()
+    notificar_asignacion(
+        db,
+        usuario_id=objetivo.responsable_id,
+        titulo="Objetivo de calidad asignado",
+        mensaje=f"Se te ha asignado el objetivo {objetivo.codigo}",
+        referencia_tipo="objetivo",
+        referencia_id=objetivo.id,
+        actor_id=current_user.id,
+        anterior_usuario_id=anterior_responsable,
+    )
     return objetivo
 
 
@@ -956,7 +1079,15 @@ def crear_seguimiento_objetivo(
     
     db.commit()
     db.refresh(nuevo_seguimiento)
-    
+    notificar_asignacion(
+        db,
+        usuario_id=nuevo_seguimiento.responsable_id,
+        titulo="Seguimiento de objetivo asignado",
+        mensaje="Se te ha asignado un seguimiento de objetivo de calidad",
+        referencia_tipo="objetivo",
+        referencia_id=nuevo_seguimiento.objetivo_calidad_id,
+        actor_id=current_user.id,
+    )
     return nuevo_seguimiento
 
 
@@ -974,7 +1105,8 @@ def actualizar_seguimiento_objetivo(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Seguimiento no encontrado"
         )
-    
+
+    anterior_responsable = seguimiento.responsable_id
     update_data = seguimiento_update.model_dump(exclude_unset=True)
     if "responsable_id" in update_data and update_data["responsable_id"]:
         _obtener_usuario_activo(db, update_data["responsable_id"], "responsable")
@@ -984,6 +1116,16 @@ def actualizar_seguimiento_objetivo(
     
     db.commit()
     db.refresh(seguimiento)
+    notificar_asignacion(
+        db,
+        usuario_id=seguimiento.responsable_id,
+        titulo="Seguimiento de objetivo asignado",
+        mensaje="Se te ha asignado un seguimiento de objetivo de calidad",
+        referencia_tipo="objetivo",
+        referencia_id=seguimiento.objetivo_calidad_id,
+        actor_id=current_user.id,
+        anterior_usuario_id=anterior_responsable,
+    )
     return seguimiento
 
 

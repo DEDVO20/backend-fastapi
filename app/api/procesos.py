@@ -32,6 +32,7 @@ from ..api.dependencies import require_any_permission
 from ..models.usuario import Usuario
 from ..services.proceso_service import ProcesoService
 from ..services.competency_risk_automation_service import CompetencyRiskAutomationService
+from ..utils.notification_service import notificar_asignacion
 
 router = APIRouter(prefix="/api/v1", tags=["procesos"])
 
@@ -325,6 +326,15 @@ def crear_accion_proceso(
     db.add(nueva_accion)
     db.commit()
     db.refresh(nueva_accion)
+    notificar_asignacion(
+        db,
+        usuario_id=nueva_accion.responsable_id,
+        titulo="Acción de proceso asignada",
+        mensaje=f"Se te ha asignado la acción {nueva_accion.codigo}",
+        referencia_tipo="proceso",
+        referencia_id=nueva_accion.proceso_id,
+        actor_id=current_user.id,
+    )
     return nueva_accion
 
 
@@ -342,13 +352,24 @@ def actualizar_accion_proceso(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Acción no encontrada"
         )
-    
+
+    anterior_responsable = accion.responsable_id
     update_data = accion_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(accion, field, value)
     
     db.commit()
     db.refresh(accion)
+    notificar_asignacion(
+        db,
+        usuario_id=accion.responsable_id,
+        titulo="Acción de proceso asignada",
+        mensaje=f"Se te ha asignado la acción {accion.codigo}",
+        referencia_tipo="proceso",
+        referencia_id=accion.proceso_id,
+        actor_id=current_user.id,
+        anterior_usuario_id=anterior_responsable,
+    )
     return accion
 
 
@@ -461,6 +482,15 @@ def asignar_responsable_proceso(
     if responsable.proceso:
         resp.proceso_nombre = responsable.proceso.nombre
         resp.proceso_codigo = responsable.proceso.codigo
+    notificar_asignacion(
+        db,
+        usuario_id=data.usuario_id,
+        titulo="Responsable de proceso asignado",
+        mensaje=f"Se te asignó como {data.rol} del proceso {proceso.codigo}",
+        referencia_tipo="proceso",
+        referencia_id=proceso.id,
+        actor_id=current_user.id,
+    )
     return resp
 
 

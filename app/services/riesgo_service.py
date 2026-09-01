@@ -7,6 +7,7 @@ from ..repositories.riesgo import RiesgoRepository
 from ..schemas.riesgo import RiesgoCreate, RiesgoUpdate, ControlRiesgoCreate, ControlRiesgoUpdate
 from .competency_risk_automation_service import CompetencyRiskAutomationService
 from ..utils.audit import registrar_auditoria
+from ..utils.notification_service import notificar_asignacion
 
 
 class RiesgoService:
@@ -81,6 +82,15 @@ class RiesgoService:
         automation.reevaluar_riesgo_critico(riesgo.id)
         self.db.commit()
         self.db.refresh(riesgo)
+        notificar_asignacion(
+            self.db,
+            usuario_id=riesgo.responsable_id,
+            titulo="Riesgo asignado",
+            mensaje=f"Se te ha asignado el riesgo {riesgo.codigo}",
+            referencia_tipo="riesgo",
+            referencia_id=riesgo.id,
+            actor_id=usuario_id,
+        )
         return riesgo
 
     def actualizar(self, riesgo_id: UUID, data: RiesgoUpdate, usuario_id: UUID) -> Riesgo:
@@ -88,6 +98,7 @@ class RiesgoService:
         if not riesgo:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Riesgo no encontrado")
 
+        anterior_responsable = riesgo.responsable_id
         update_data = data.model_dump(exclude_unset=True)
         prob_anterior = riesgo.probabilidad
         imp_anterior = riesgo.impacto
@@ -140,6 +151,16 @@ class RiesgoService:
         automation.reevaluar_riesgo_critico(riesgo_id)
         self.db.commit()
         self.db.refresh(riesgo)
+        notificar_asignacion(
+            self.db,
+            usuario_id=riesgo.responsable_id,
+            titulo="Riesgo asignado",
+            mensaje=f"Se te ha asignado el riesgo {riesgo.codigo}",
+            referencia_tipo="riesgo",
+            referencia_id=riesgo.id,
+            actor_id=usuario_id,
+            anterior_usuario_id=anterior_responsable,
+        )
         return riesgo
 
     def eliminar(self, riesgo_id: UUID, usuario_id: UUID) -> None:
@@ -189,10 +210,20 @@ class RiesgoService:
         )
         self.db.commit()
         self.db.refresh(control)
+        notificar_asignacion(
+            self.db,
+            usuario_id=control.responsable_id,
+            titulo="Control de riesgo asignado",
+            mensaje="Se te ha asignado un control de riesgo",
+            referencia_tipo="control_riesgo",
+            referencia_id=control.id,
+            actor_id=usuario_id,
+        )
         return control
 
     def actualizar_control(self, control_id: UUID, data: ControlRiesgoUpdate, usuario_id: UUID) -> ControlRiesgo:
         control = self.obtener_control(control_id)
+        anterior_responsable = control.responsable_id
         update_data = data.model_dump(exclude_unset=True)
         for key, value in update_data.items():
             setattr(control, key, value)
@@ -206,6 +237,16 @@ class RiesgoService:
         )
         self.db.commit()
         self.db.refresh(control)
+        notificar_asignacion(
+            self.db,
+            usuario_id=control.responsable_id,
+            titulo="Control de riesgo asignado",
+            mensaje="Se te ha asignado un control de riesgo",
+            referencia_tipo="control_riesgo",
+            referencia_id=control.id,
+            actor_id=usuario_id,
+            anterior_usuario_id=anterior_responsable,
+        )
         return control
 
     def eliminar_control(self, control_id: UUID, usuario_id: UUID) -> None:

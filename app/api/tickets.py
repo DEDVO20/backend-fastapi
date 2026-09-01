@@ -128,10 +128,11 @@ def create_ticket(
         crear_notificacion_asignacion(
             db=db,
             usuario_id=asignado_a,
-            titulo="Nueva solicitud de documento",
-            mensaje=f"Se ha creado una solicitud pendiente para: {new_ticket.titulo}",
+            titulo="Nueva solicitud asignada",
+            mensaje=f"Se te ha asignado la solicitud: {new_ticket.titulo}",
             referencia_tipo="ticket",
-            referencia_id=new_ticket.id
+            referencia_id=new_ticket.id,
+            actor_id=current_user.id,
         )
     return new_ticket
 
@@ -257,10 +258,12 @@ def update_ticket(
         crear_notificacion_asignacion(
             db=db,
             usuario_id=ticket.asignado_a,
-            titulo="Nuevo Ticket Asignado",
+            titulo="Nuevo ticket asignado",
             mensaje=f"Se te ha asignado el ticket: {ticket.titulo}",
             referencia_tipo="ticket",
-            referencia_id=ticket.id
+            referencia_id=ticket.id,
+            actor_id=current_user.id,
+            anterior_usuario_id=previous_asignado_a,
         )
         
     return ticket

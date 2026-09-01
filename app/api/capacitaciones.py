@@ -24,6 +24,7 @@ from ..schemas.capacitacion import (
     ReporteCapacitacionAuditoriaResponse,
 )
 from ..api.dependencies import require_any_permission
+from ..utils.notification_service import notificar_asignacion, notificar_asignaciones
 from ..services.capacitacion_service import CapacitacionService
 
 router = APIRouter(prefix="/api/v1", tags=["capacitaciones"])
@@ -76,7 +77,7 @@ def _sincronizar_convocados(
     db: Session,
     capacitacion_id: UUID,
     convocados_ids: list[UUID],
-) -> None:
+) -> list[UUID]:
     existentes = db.query(AsistenciaCapacitacion).filter(
         AsistenciaCapacitacion.capacitacion_id == capacitacion_id
     ).all()
@@ -88,9 +89,11 @@ def _sincronizar_convocados(
             db.delete(asistencia)
 
     ahora = _utcnow()
+    nuevos_ids = []
     for usuario_id in convocados_ids:
         if usuario_id in existentes_por_usuario:
             continue
+        nuevos_ids.append(usuario_id)
         db.add(
             AsistenciaCapacitacion(
                 capacitacion_id=capacitacion_id,
@@ -100,6 +103,7 @@ def _sincronizar_convocados(
                 fecha_registro=ahora,
             )
         )
+    return nuevos_ids
 
 
 # ===========================
@@ -166,13 +170,31 @@ def crear_capacitacion(
     nueva_capacitacion = Capacitacion(**data)
     db.add(nueva_capacitacion)
     db.flush()
-    _sincronizar_convocados(
+    nuevos_convocados = _sincronizar_convocados(
         db=db,
         capacitacion_id=nueva_capacitacion.id,
         convocados_ids=convocados_ids,
     )
     db.commit()
     db.refresh(nueva_capacitacion)
+    notificar_asignacion(
+        db,
+        usuario_id=nueva_capacitacion.responsable_id,
+        titulo="Capacitación asignada",
+        mensaje=f"Se te ha asignado como responsable de la capacitación {nueva_capacitacion.codigo}",
+        referencia_tipo="capacitacion",
+        referencia_id=nueva_capacitacion.id,
+        actor_id=current_user.id,
+    )
+    notificar_asignaciones(
+        db,
+        usuario_ids=nuevos_convocados,
+        titulo="Convocado a capacitación",
+        mensaje=f"Fuiste convocado a la capacitación {nueva_capacitacion.codigo} - {nueva_capacitacion.nombre}",
+        referencia_tipo="capacitacion",
+        referencia_id=nueva_capacitacion.id,
+        actor_id=current_user.id,
+    )
     return nueva_capacitacion
 
 
@@ -206,13 +228,15 @@ def actualizar_capacitacion(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Capacitación no encontrada"
         )
-    
+
+    anterior_responsable = capacitacion.responsable_id
     update_data = capacitacion_update.model_dump(exclude_unset=True)
     usuarios_convocados_ids = update_data.pop("usuarios_convocados_ids", None)
 
     for field, value in update_data.items():
         setattr(capacitacion, field, value)
 
+    nuevos_convocados = []
     if usuarios_convocados_ids is not None:
         convocados_ids = _validar_convocados(
             db=db,
@@ -220,7 +244,7 @@ def actualizar_capacitacion(
             aplica_todas_areas=bool(capacitacion.aplica_todas_areas),
             usuarios_convocados_ids=usuarios_convocados_ids,
         )
-        _sincronizar_convocados(
+        nuevos_convocados = _sincronizar_convocados(
             db=db,
             capacitacion_id=capacitacion.id,
             convocados_ids=convocados_ids,
@@ -228,6 +252,25 @@ def actualizar_capacitacion(
     
     db.commit()
     db.refresh(capacitacion)
+    notificar_asignacion(
+        db,
+        usuario_id=capacitacion.responsable_id,
+        titulo="Capacitación asignada",
+        mensaje=f"Se te ha asignado como responsable de la capacitación {capacitacion.codigo}",
+        referencia_tipo="capacitacion",
+        referencia_id=capacitacion.id,
+        actor_id=current_user.id,
+        anterior_usuario_id=anterior_responsable,
+    )
+    notificar_asignaciones(
+        db,
+        usuario_ids=nuevos_convocados,
+        titulo="Convocado a capacitación",
+        mensaje=f"Fuiste convocado a la capacitación {capacitacion.codigo} - {capacitacion.nombre}",
+        referencia_tipo="capacitacion",
+        referencia_id=capacitacion.id,
+        actor_id=current_user.id,
+    )
     return capacitacion
 
 
@@ -414,6 +457,15 @@ def crear_asistencia_capacitacion(
     db.add(nueva_asistencia)
     db.commit()
     db.refresh(nueva_asistencia)
+    notificar_asignacion(
+        db,
+        usuario_id=nueva_asistencia.usuario_id,
+        titulo="Convocado a capacitación",
+        mensaje=f"Fuiste convocado a la capacitación {db_capacitacion.codigo}",
+        referencia_tipo="capacitacion",
+        referencia_id=db_capacitacion.id,
+        actor_id=current_user.id,
+    )
     return nueva_asistencia
 
 

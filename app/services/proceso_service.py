@@ -9,6 +9,7 @@ from ..models.usuario import Usuario
 from ..repositories.proceso import ProcesoRepository, EtapaProcesoRepository
 from ..schemas.proceso import ProcesoCreate, ProcesoUpdate, EtapaProcesoCreate, EtapaProcesoUpdate
 from ..utils.audit import registrar_auditoria
+from ..utils.notification_service import notificar_asignacion
 
 
 class ProcesoService:
@@ -69,6 +70,15 @@ class ProcesoService:
         )
         self.db.commit()
         self.db.refresh(proceso)
+        notificar_asignacion(
+            self.db,
+            usuario_id=proceso.responsable_id,
+            titulo="Proceso asignado",
+            mensaje=f"Se te ha asignado como responsable del proceso {proceso.codigo} - {proceso.nombre}",
+            referencia_tipo="proceso",
+            referencia_id=proceso.id,
+            actor_id=usuario_id,
+        )
         return proceso
 
     def actualizar_proceso(self, proceso_id: UUID, data: ProcesoUpdate, usuario_id: UUID) -> Proceso:
@@ -76,6 +86,7 @@ class ProcesoService:
         if not proceso:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Proceso no encontrado")
 
+        anterior_responsable = proceso.responsable_id
         if data.codigo and data.codigo != proceso.codigo:
             duplicado = self.db.query(Proceso).filter(Proceso.codigo == data.codigo).first()
             if duplicado:
@@ -96,6 +107,16 @@ class ProcesoService:
         )
         self.db.commit()
         self.db.refresh(proceso)
+        notificar_asignacion(
+            self.db,
+            usuario_id=proceso.responsable_id,
+            titulo="Proceso asignado",
+            mensaje=f"Se te ha asignado como responsable del proceso {proceso.codigo} - {proceso.nombre}",
+            referencia_tipo="proceso",
+            referencia_id=proceso.id,
+            actor_id=usuario_id,
+            anterior_usuario_id=anterior_responsable,
+        )
         return proceso
 
     def eliminar_proceso(self, proceso_id: UUID, usuario_id: UUID) -> None:
@@ -139,6 +160,15 @@ class ProcesoService:
         )
         self.db.commit()
         self.db.refresh(etapa)
+        notificar_asignacion(
+            self.db,
+            usuario_id=etapa.responsable_id,
+            titulo="Etapa de proceso asignada",
+            mensaje=f"Se te ha asignado la etapa '{etapa.nombre}'",
+            referencia_tipo="proceso",
+            referencia_id=etapa.proceso_id,
+            actor_id=usuario_id,
+        )
         return etapa
 
     def actualizar_etapa(self, etapa_id: UUID, data: EtapaProcesoUpdate, usuario_id: UUID) -> EtapaProceso:
@@ -146,6 +176,7 @@ class ProcesoService:
         if not etapa:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Etapa no encontrada")
 
+        anterior_responsable = etapa.responsable_id
         update_data = data.model_dump(exclude_unset=True)
         nuevo_orden = update_data.get("orden")
         if nuevo_orden is not None and nuevo_orden != etapa.orden:
@@ -171,6 +202,16 @@ class ProcesoService:
         )
         self.db.commit()
         self.db.refresh(etapa)
+        notificar_asignacion(
+            self.db,
+            usuario_id=etapa.responsable_id,
+            titulo="Etapa de proceso asignada",
+            mensaje=f"Se te ha asignado la etapa '{etapa.nombre}'",
+            referencia_tipo="proceso",
+            referencia_id=etapa.proceso_id,
+            actor_id=usuario_id,
+            anterior_usuario_id=anterior_responsable,
+        )
         return etapa
 
     def eliminar_etapa(self, etapa_id: UUID, usuario_id: UUID) -> None:
