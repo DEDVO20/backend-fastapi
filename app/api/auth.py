@@ -89,6 +89,8 @@ def login(
             token_type="bearer",
             usuario=usuario_data
         )
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
