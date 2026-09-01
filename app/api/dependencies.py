@@ -112,6 +112,8 @@ PERMISSION_ALIASES: dict[str, set[str]] = {
     "noconformidades.cerrar": {"noconformidades.cerrar"},
     "riesgos.gestion": {"riesgos.gestion", "riesgos.administrar"},
     "capacitaciones.gestion": {"capacitaciones.gestion", "capacitaciones.gestionar"},
+    "procesos.admin": {"procesos.admin", "procesos.gestionar"},
+    "procesos.ver": {"procesos.ver", "procesos.admin", "procesos.gestionar"},
 }
 
 

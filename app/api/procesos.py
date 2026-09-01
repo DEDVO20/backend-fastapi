@@ -36,6 +36,9 @@ from ..utils.notification_service import notificar_asignacion
 
 router = APIRouter(prefix="/api/v1", tags=["procesos"])
 
+LECTURA_PROCESOS = ["procesos.ver", "procesos.admin", "sistema.admin"]
+GESTION_PROCESOS = ["procesos.admin", "sistema.admin"]
+
 
 # ======================
 # Endpoints de Procesos
@@ -48,7 +51,7 @@ def listar_procesos(
     estado: str = None,
     area_id: UUID = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(LECTURA_PROCESOS))
 ):
     """Listar todos los procesos"""
     service = ProcesoService(db)
@@ -67,7 +70,7 @@ def listar_procesos(
 def crear_proceso(
     proceso: ProcesoCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(GESTION_PROCESOS))
 ):
     """Crear un nuevo proceso"""
     service = ProcesoService(db)
@@ -78,7 +81,7 @@ def crear_proceso(
 def obtener_proceso(
     proceso_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(LECTURA_PROCESOS))
 ):
     """Obtener un proceso por ID"""
     service = ProcesoService(db)
@@ -95,7 +98,7 @@ def actualizar_proceso(
     proceso_id: UUID,
     proceso_update: ProcesoUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(GESTION_PROCESOS))
 ):
     """Actualizar un proceso"""
     service = ProcesoService(db)
@@ -106,7 +109,7 @@ def actualizar_proceso(
 def eliminar_proceso(
     proceso_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(GESTION_PROCESOS))
 ):
     """Eliminar un proceso"""
     service = ProcesoService(db)
@@ -122,7 +125,7 @@ def eliminar_proceso(
 def listar_etapas_proceso(
     proceso_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(LECTURA_PROCESOS))
 ):
     """Listar etapas de un proceso"""
     etapas = db.query(EtapaProceso).options(
@@ -162,7 +165,7 @@ def listar_etapas_proceso(
 def crear_etapa_proceso(
     etapa: EtapaProcesoCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(GESTION_PROCESOS))
 ):
     """Crear una nueva etapa de proceso"""
     service = ProcesoService(db)
@@ -174,7 +177,7 @@ def actualizar_etapa_proceso(
     etapa_id: UUID,
     etapa_update: EtapaProcesoUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(GESTION_PROCESOS))
 ):
     """Actualizar una etapa de proceso"""
     service = ProcesoService(db)
@@ -185,7 +188,7 @@ def actualizar_etapa_proceso(
 def eliminar_etapa_proceso(
     etapa_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(GESTION_PROCESOS))
 ):
     """Eliminar una etapa de proceso"""
     service = ProcesoService(db)
@@ -198,7 +201,7 @@ def reordenar_etapas_proceso(
     proceso_id: UUID,
     orden: List[EtapaProcesoOrdenItem],
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(GESTION_PROCESOS))
 ):
     """Reordenar etapas de un proceso en operación masiva"""
     if not orden:
@@ -244,7 +247,7 @@ def listar_instancias(
     proceso_id: UUID = None,
     estado: str = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(LECTURA_PROCESOS))
 ):
     """Listar instancias de procesos"""
     query = db.query(InstanciaProceso)
@@ -262,7 +265,7 @@ def listar_instancias(
 def crear_instancia_proceso(
     instancia: InstanciaProcesoCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(GESTION_PROCESOS))
 ):
     """Crear una nueva instancia de proceso"""
     # Verificar código único
@@ -293,7 +296,7 @@ def listar_acciones_proceso(
     proceso_id: UUID = None,
     estado: str = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(LECTURA_PROCESOS))
 ):
     """Listar acciones de proceso"""
     query = db.query(AccionProceso)
@@ -311,7 +314,7 @@ def listar_acciones_proceso(
 def crear_accion_proceso(
     accion: AccionProcesoCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(GESTION_PROCESOS))
 ):
     """Crear una nueva acción de proceso"""
     # Verificar código único
@@ -343,7 +346,7 @@ def actualizar_accion_proceso(
     accion_id: UUID,
     accion_update: AccionProcesoUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(GESTION_PROCESOS))
 ):
     """Actualizar una acción de proceso"""
     accion = db.query(AccionProceso).filter(AccionProceso.id == accion_id).first()
@@ -384,7 +387,7 @@ def listar_responsables_proceso(
     rol: str = None,
     solo_vigentes: bool = True,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(LECTURA_PROCESOS))
 ):
     """Listar todos los responsables formales de un proceso"""
     from datetime import datetime
@@ -424,7 +427,7 @@ def asignar_responsable_proceso(
     proceso_id: UUID,
     data: ResponsableProcesoCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(GESTION_PROCESOS))
 ):
     """Asignar un responsable formal al proceso"""
     # Validar proceso existe
@@ -499,7 +502,7 @@ def actualizar_responsable_proceso(
     responsable_id: UUID,
     data: ResponsableProcesoUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(GESTION_PROCESOS))
 ):
     """Actualizar la asignación de un responsable"""
     responsable = db.query(ResponsableProceso).filter(
@@ -538,7 +541,7 @@ def actualizar_responsable_proceso(
 def eliminar_responsable_proceso(
     responsable_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(GESTION_PROCESOS))
 ):
     """Eliminar la asignación de un responsable"""
     responsable = db.query(ResponsableProceso).filter(
@@ -556,7 +559,7 @@ def eliminar_responsable_proceso(
 def obtener_procesos_asignados_usuario(
     usuario_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["procesos.admin", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(LECTURA_PROCESOS))
 ):
     """Obtener todos los procesos donde el usuario tiene un rol formal"""
     from datetime import datetime

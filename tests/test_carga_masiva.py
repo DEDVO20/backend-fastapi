@@ -69,7 +69,7 @@ def test_lee_filas_json_normaliza_encabezados():
 
 def test_plantilla_excel_incluye_hojas_de_catalogo():
     areas = [SimpleNamespace(codigo="CAL", nombre="Calidad")]
-    roles = [SimpleNamespace(clave="auxiliar", nombre="Auxiliar", descripcion="")]
+    roles = [SimpleNamespace(clave="colaborador", nombre="Colaborador", descripcion="")]
 
     contenido = generar_plantilla_excel(areas, roles)
     df = leer_archivo(contenido, "plantilla.xlsx")
@@ -77,4 +77,4 @@ def test_plantilla_excel_incluye_hojas_de_catalogo():
     assert validar_columnas(df) == []
     assert "area_codigo" in df.columns
     assert df.iloc[0]["area_codigo"] == "CAL"
-    assert df.iloc[0]["roles"] == "auxiliar"
+    assert df.iloc[0]["roles"] == "colaborador"

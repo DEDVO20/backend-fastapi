@@ -24,6 +24,7 @@ from ..schemas.usuario import (
     PermisoResponse,
     RolPermisoCreate,
     CargaMasivaJsonRequest,
+    SincronizacionRbacResponse,
 )
 from passlib.context import CryptContext
 from ..api.dependencies import get_current_user, require_any_permission, user_has_any_permission
@@ -199,12 +200,25 @@ def listar_roles(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_any_permission(["usuarios.crear", "usuarios.gestion", "sistema.admin"]))
 ):
-    """Listar todos los roles"""
+    """Listar roles activos del SGC"""
     from sqlalchemy.orm import joinedload
     roles = db.query(Rol).options(
         joinedload(Rol.permisos).joinedload(RolPermiso.permiso)
-    ).offset(skip).limit(limit).all()
+    ).filter(Rol.activo.is_(True)).offset(skip).limit(limit).all()
     return roles
+
+
+@router.post("/roles/sincronizar-sgc", response_model=SincronizacionRbacResponse)
+def sincronizar_catalogo_sgc(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_any_permission(["usuarios.gestion", "sistema.admin"]))
+):
+    """Aplica el catálogo RBAC SGC-IUDC 2026 (roles, permisos y migración de obsoletos)."""
+    from ..db.sync_rbac import sincronizar_rbac_sgc
+
+    resultado = sincronizar_rbac_sgc(db)
+    resultado.pop("roles", None)
+    return resultado
 
 
 @router.post("/roles", response_model=RolResponse, status_code=status.HTTP_201_CREATED)
@@ -278,11 +292,18 @@ def eliminar_rol(
     current_user: Usuario = Depends(require_any_permission(["usuarios.gestion", "sistema.admin"]))
 ):
     """Eliminar un rol y sus relaciones"""
+    from ..db.rbac_catalog import CLAVES_ROLES_CANONICOS
+
     rol = db.query(Rol).filter(Rol.id == rol_id).first()
     if not rol:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Rol no encontrado"
+        )
+    if (rol.clave or "").strip().lower() in CLAVES_ROLES_CANONICOS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se puede eliminar un rol canónico del SGC. Reasigne usuarios o ajuste permisos.",
         )
     
     try:
@@ -322,8 +343,8 @@ def listar_permisos(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_any_permission(["usuarios.gestion", "sistema.admin"]))
 ):
-    """Listar todos los permisos"""
-    permisos = db.query(Permiso).offset(skip).limit(limit).all()
+    """Listar permisos activos del catálogo"""
+    permisos = db.query(Permiso).filter(Permiso.activo.is_(True)).offset(skip).limit(limit).all()
     return permisos
 
 

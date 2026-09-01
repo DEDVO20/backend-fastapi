@@ -13,7 +13,7 @@ OUT = ROOT / "RBAC_MATRIZ_AUTOMATICA.md"
 
 
 ROLE_PERMISSIONS = {
-    "Administrador del Sistema": {
+    "Administrador SGC": {
         "sistema.admin",
         "sistema.config",
         "usuarios.gestion",
@@ -21,33 +21,62 @@ ROLE_PERMISSIONS = {
         "usuarios.editar",
         "usuarios.eliminar",
         "usuarios.ver",
-    },
-    "Coordinador/Gestor de Calidad": {
-        "calidad.ver",
-        "procesos.admin",
-        "documentos.aprobar",
-        "documentos.anular",
-        "noconformidades.cerrar",
-        "auditorias.planificar",
-    },
-    "Dueno de Proceso/Jefe de Area": {
+        "areas.gestionar",
+        "documentos.ver",
         "documentos.crear",
         "documentos.revisar",
+        "documentos.aprobar",
+        "documentos.anular",
+        "procesos.ver",
+        "procesos.admin",
+        "calidad.ver",
+        "noconformidades.reportar",
         "noconformidades.gestion",
-        "riesgos.gestion",
-    },
-    "Auditor Interno/Externo": {
-        "auditorias.ejecutar",
+        "noconformidades.cerrar",
         "auditorias.ver",
-    },
-    "RRHH/Capacitacion": {
+        "auditorias.planificar",
+        "auditorias.ejecutar",
+        "riesgos.ver",
+        "riesgos.identificar",
+        "riesgos.gestion",
         "capacitaciones.gestion",
     },
-    "Colaborador General": {
+    "Lider de Proceso": {
+        "usuarios.ver",
         "documentos.ver",
+        "documentos.crear",
+        "documentos.revisar",
+        "documentos.aprobar",
+        "procesos.ver",
+        "procesos.admin",
+        "calidad.ver",
         "noconformidades.reportar",
-        "riesgos.identificar",
+        "noconformidades.gestion",
+        "auditorias.ver",
         "riesgos.ver",
+        "riesgos.identificar",
+        "riesgos.gestion",
+    },
+    "Auditor": {
+        "usuarios.ver",
+        "documentos.ver",
+        "procesos.ver",
+        "calidad.ver",
+        "noconformidades.reportar",
+        "auditorias.ver",
+        "auditorias.ejecutar",
+        "riesgos.ver",
+    },
+    "Colaborador": {
+        "documentos.ver",
+        "documentos.crear",
+        "procesos.ver",
+        "noconformidades.reportar",
+        "riesgos.ver",
+        "riesgos.identificar",
+    },
+    "Invitado": {
+        "procesos.ver",
     },
 }
 
@@ -64,6 +93,7 @@ PERMISSION_CATALOG = {
     "documentos.crear": "Documentos",
     "sistema.admin": "Sistema",
     "procesos.admin": "Procesos",
+    "procesos.ver": "Procesos",
     "riesgos.gestion": "Riesgos",
     "usuarios.gestion": "Usuarios",
     "auditorias.ejecutar": "Auditorias",
@@ -76,15 +106,15 @@ PERMISSION_CATALOG = {
     "usuarios.ver": "Usuarios",
     "riesgos.identificar": "Riesgos",
     "noconformidades.reportar": "No Conformidades",
+    "areas.gestionar": "Usuarios",
 }
 
 ROLE_DESIGNATED_MODULES = {
-    "Administrador del Sistema": {"Sistema", "Usuarios"},
-    "Coordinador/Gestor de Calidad": {"Calidad", "Procesos", "Documentos", "Auditorias", "No Conformidades"},
-    "Dueno de Proceso/Jefe de Area": {"Documentos", "No Conformidades", "Riesgos"},
-    "Auditor Interno/Externo": {"Auditorias"},
-    "RRHH/Capacitacion": {"Capacitaciones"},
-    "Colaborador General": {"Documentos", "No Conformidades", "Riesgos"},
+    "Administrador SGC": {"Sistema", "Usuarios", "Documentos", "Procesos", "Calidad", "No Conformidades", "Auditorias", "Riesgos", "Capacitaciones"},
+    "Lider de Proceso": {"Usuarios", "Documentos", "Procesos", "Calidad", "No Conformidades", "Auditorias", "Riesgos"},
+    "Auditor": {"Usuarios", "Documentos", "Procesos", "Calidad", "No Conformidades", "Auditorias", "Riesgos"},
+    "Colaborador": {"Documentos", "Procesos", "No Conformidades", "Riesgos"},
+    "Invitado": {"Procesos"},
 }
 
 ALIAS = {
@@ -96,6 +126,8 @@ ALIAS = {
     "noconformidades.cerrar": {"noconformidades.cerrar"},
     "riesgos.gestion": {"riesgos.gestion", "riesgos.administrar"},
     "capacitaciones.gestion": {"capacitaciones.gestion", "capacitaciones.gestionar"},
+    "procesos.admin": {"procesos.admin", "procesos.gestionar"},
+    "procesos.ver": {"procesos.ver", "procesos.admin", "procesos.gestionar"},
 }
 
 

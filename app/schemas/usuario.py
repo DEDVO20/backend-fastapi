@@ -117,6 +117,16 @@ class RolResponse(RolBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class SincronizacionRbacResponse(BaseModel):
+    permisos_creados: List[str] = []
+    permisos_actualizados: List[str] = []
+    permisos_eliminados: List[str] = []
+    roles_creados: List[str] = []
+    roles_actualizados: List[str] = []
+    roles_eliminados: List[str] = []
+    usuarios_migrados: int = 0
+
+
 # UsuarioRol Schemas (Moved up)
 class UsuarioRolCreate(BaseModel):
     usuario_id: UUID

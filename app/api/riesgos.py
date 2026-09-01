@@ -44,7 +44,7 @@ def listar_riesgos(
     area_id_filtro = None
     try:
         es_admin_o_gestor = any(
-            ur.rol.clave in ['admin', 'gestor_calidad']
+            (ur.rol.clave or "").strip().lower() in {"admin", "auditor"}
             for ur in current_user.roles
         )
         if not es_admin_o_gestor and current_user.area_id:

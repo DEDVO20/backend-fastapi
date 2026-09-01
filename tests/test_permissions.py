@@ -13,6 +13,12 @@ def test_expand_permission_incluye_aliases():
     assert "usuarios.editar" in expanded
 
 
+def test_expand_permission_incluye_procesos_ver_para_admin_de_procesos():
+    expanded = _expand_permission_codes(["procesos.ver"])
+    assert "procesos.ver" in expanded
+    assert "procesos.admin" in expanded
+
+
 def test_expand_permission_sin_alias_queda_igual():
     expanded = _expand_permission_codes(["documentos.ver"])
     assert expanded == {"documentos.ver"}

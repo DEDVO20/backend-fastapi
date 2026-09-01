@@ -11,6 +11,7 @@ from fastapi import UploadFile
 from sqlalchemy.orm import Session, joinedload
 
 from ..models.usuario import Area, Usuario, Rol, UsuarioRol
+from ..db.rbac_catalog import ALIAS_ROLES
 from ..schemas.usuario import (
     CargaMasivaErrorDetalle,
     CargaMasivaResultado,
@@ -300,7 +301,13 @@ def _resolver_roles(roles_str: str, roles_cache: Dict[str, Rol]) -> Tuple[List[A
     invalidos = []
     vistos = set()
     for clave in claves:
-        rol = roles_cache.get(clave.lower()) or roles_cache.get(normalizar_nombre_columna(clave))
+        clave_norm = clave.lower()
+        clave_alias = ALIAS_ROLES.get(clave_norm) or ALIAS_ROLES.get(normalizar_nombre_columna(clave))
+        rol = (
+            roles_cache.get(clave_norm)
+            or roles_cache.get(normalizar_nombre_columna(clave))
+            or (roles_cache.get(clave_alias) if clave_alias else None)
+        )
         if not rol:
             invalidos.append(clave)
             continue
@@ -529,7 +536,7 @@ def generar_plantilla_excel(areas: List[Area], roles: List[Rol]) -> bytes:
     area_ejemplo = areas[0].codigo if areas else 'CAL'
     rol_ejemplo = next((r.clave for r in roles if r.clave != 'admin'), None)
     if not rol_ejemplo:
-        rol_ejemplo = roles[0].clave if roles else 'auxiliar'
+        rol_ejemplo = roles[0].clave if roles else 'colaborador'
     rol_admin = next((r.clave for r in roles if r.clave == 'admin'), rol_ejemplo)
 
     ejemplos = pd.DataFrame([

@@ -20,6 +20,15 @@ from datetime import datetime
 
 router = APIRouter()
 
+ACCESO_MESA_AYUDA = [
+    "documentos.ver", "documentos.crear", "documentos.revisar", "documentos.aprobar", "documentos.anular",
+    "calidad.ver", "auditorias.ver", "auditorias.planificar", "auditorias.ejecutar",
+    "riesgos.identificar", "riesgos.ver", "riesgos.gestion",
+    "capacitaciones.gestion", "usuarios.ver", "usuarios.gestion",
+    "noconformidades.reportar", "noconformidades.gestion", "noconformidades.cerrar",
+    "procesos.ver", "procesos.admin", "sistema.config", "sistema.admin",
+]
+
 def _inferir_prioridad(categoria: str, titulo: str, descripcion: str) -> str:
     """
     Prioridad automática basada en tipo de solicitud y señales de urgencia.
@@ -53,7 +62,7 @@ def _inferir_prioridad(categoria: str, titulo: str, descripcion: str) -> str:
 def create_ticket(
     ticket: TicketCreate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["documentos.ver","documentos.crear","documentos.revisar","documentos.aprobar","documentos.anular","calidad.ver","auditorias.ver","auditorias.planificar","auditorias.ejecutar","riesgos.identificar","riesgos.ver","riesgos.gestion","capacitaciones.gestion","usuarios.ver","usuarios.gestion","noconformidades.reportar","noconformidades.gestion","noconformidades.cerrar","procesos.admin","sistema.config","sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(ACCESO_MESA_AYUDA))
 ):
     """Crear un nuevo ticket"""
     if not ticket.area_destino_id:
@@ -143,7 +152,7 @@ def list_tickets(
     limit: int = 100,
     estado: str = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["documentos.ver","documentos.crear","documentos.revisar","documentos.aprobar","documentos.anular","calidad.ver","auditorias.ver","auditorias.planificar","auditorias.ejecutar","riesgos.identificar","riesgos.ver","riesgos.gestion","capacitaciones.gestion","usuarios.ver","usuarios.gestion","noconformidades.reportar","noconformidades.gestion","noconformidades.cerrar","procesos.admin","sistema.config","sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(ACCESO_MESA_AYUDA))
 ):
     """Listar tickets según el rol y área del usuario"""
     from sqlalchemy import or_
@@ -190,7 +199,7 @@ def list_tickets(
 def get_ticket(
     ticket_id: UUID,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["documentos.ver","documentos.crear","documentos.revisar","documentos.aprobar","documentos.anular","calidad.ver","auditorias.ver","auditorias.planificar","auditorias.ejecutar","riesgos.identificar","riesgos.ver","riesgos.gestion","capacitaciones.gestion","usuarios.ver","usuarios.gestion","noconformidades.reportar","noconformidades.gestion","noconformidades.cerrar","procesos.admin","sistema.config","sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(ACCESO_MESA_AYUDA))
 ):
     """Obtener un ticket por ID"""
     from sqlalchemy.orm import joinedload
@@ -223,7 +232,7 @@ def update_ticket(
     ticket_id: UUID,
     ticket_update: TicketUpdate,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["documentos.ver","documentos.crear","documentos.revisar","documentos.aprobar","documentos.anular","calidad.ver","auditorias.ver","auditorias.planificar","auditorias.ejecutar","riesgos.identificar","riesgos.ver","riesgos.gestion","capacitaciones.gestion","usuarios.ver","usuarios.gestion","noconformidades.reportar","noconformidades.gestion","noconformidades.cerrar","procesos.admin","sistema.config","sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(ACCESO_MESA_AYUDA))
 ):
     """Actualizar un ticket"""
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
@@ -274,7 +283,7 @@ def resolver_ticket(
     ticket_id: UUID,
     resolucion: TicketResolver,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["documentos.ver","documentos.crear","documentos.revisar","documentos.aprobar","documentos.anular","calidad.ver","auditorias.ver","auditorias.planificar","auditorias.ejecutar","riesgos.identificar","riesgos.ver","riesgos.gestion","capacitaciones.gestion","usuarios.ver","usuarios.gestion","noconformidades.reportar","noconformidades.gestion","noconformidades.cerrar","procesos.admin","sistema.config","sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(ACCESO_MESA_AYUDA))
 ):
     """Resolver un ticket"""
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
@@ -326,7 +335,7 @@ def aprobar_ticket(
     ticket_id: UUID,
     decision: TicketDecision,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["documentos.ver","documentos.crear","documentos.revisar","documentos.aprobar","documentos.anular","calidad.ver","auditorias.ver","auditorias.planificar","auditorias.ejecutar","riesgos.identificar","riesgos.ver","riesgos.gestion","capacitaciones.gestion","usuarios.ver","usuarios.gestion","noconformidades.reportar","noconformidades.gestion","noconformidades.cerrar","procesos.admin","sistema.config","sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(ACCESO_MESA_AYUDA))
 ):
     """Aprobar solicitud de ticket (flujo de documentos públicos)"""
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
@@ -362,7 +371,7 @@ def declinar_ticket(
     ticket_id: UUID,
     decision: TicketDecision,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["documentos.ver","documentos.crear","documentos.revisar","documentos.aprobar","documentos.anular","calidad.ver","auditorias.ver","auditorias.planificar","auditorias.ejecutar","riesgos.identificar","riesgos.ver","riesgos.gestion","capacitaciones.gestion","usuarios.ver","usuarios.gestion","noconformidades.reportar","noconformidades.gestion","noconformidades.cerrar","procesos.admin","sistema.config","sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(ACCESO_MESA_AYUDA))
 ):
     """Declinar solicitud de ticket (flujo de documentos públicos)"""
     ticket = db.query(Ticket).filter(Ticket.id == ticket_id).first()
