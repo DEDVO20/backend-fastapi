@@ -14,10 +14,13 @@ from .proceso import ProcesoResponse
 class UsuarioNested(BaseModel):
     """Schema para mostrar información básica de usuarios en relaciones"""
     id: UUID
+    documento: Optional[int] = None
     nombre: str
+    segundoNombre: Optional[str] = Field(None, validation_alias="segundo_nombre")
     primerApellido: Optional[str] = Field(None, validation_alias="primer_apellido")
     segundoApellido: Optional[str] = Field(None, validation_alias="segundo_apellido")
     correoElectronico: Optional[str] = Field(None, validation_alias="correo_electronico")
+    nombreUsuario: Optional[str] = Field(None, validation_alias="nombre_usuario")
     
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
@@ -312,9 +315,13 @@ class _AreaSimple(BaseModel):
 
 class _ResponsableSimple(BaseModel):
     id: UUID
+    documento: Optional[int] = None
     nombre: str
+    segundo_nombre: Optional[str] = None
     primer_apellido: Optional[str] = None
+    segundo_apellido: Optional[str] = None
     correo_electronico: Optional[str] = None
+    nombre_usuario: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 

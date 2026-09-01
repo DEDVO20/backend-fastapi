@@ -6,6 +6,8 @@ from typing import Optional
 from datetime import datetime
 from uuid import UUID
 
+from .usuario import UsuarioMinimo
+
 # --- Competencia Schemas ---
 class CompetenciaBase(BaseModel):
     nombre: str = Field(..., max_length=100)
@@ -53,6 +55,7 @@ class EvaluacionCompetenciaResponse(EvaluacionCompetenciaBase):
     
     # Nested info for display
     competencia: Optional[CompetenciaResponse] = None
+    usuario: Optional[UsuarioMinimo] = None
     
     model_config = ConfigDict(from_attributes=True)
 

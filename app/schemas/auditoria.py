@@ -55,9 +55,13 @@ class ProgramaAuditoriaResponse(ProgramaAuditoriaBase):
 # Schema auxiliar para datos del auditor líder
 class AuditorLiderInfo(BaseModel):
     id: UUID
+    documento: Optional[int] = None
     nombre: str
+    segundo_nombre: Optional[str] = None
     primer_apellido: Optional[str] = Field(None, alias="primerApellido")
+    segundo_apellido: Optional[str] = None
     correo_electronico: Optional[str] = Field(None, alias="email")
+    nombre_usuario: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 

@@ -2,7 +2,7 @@
 Schemas Pydantic para usuarios, áreas, roles y permisos
 """
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
-from typing import Optional, List
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 from uuid import UUID
 
@@ -25,9 +25,13 @@ class AreaUpdate(BaseModel):
 
 class UsuarioMinimo(BaseModel):
     id: UUID
+    documento: Optional[int] = None
     nombre: str
+    segundo_nombre: Optional[str] = None
     primer_apellido: str
+    segundo_apellido: Optional[str] = None
     correo_electronico: str
+    nombre_usuario: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -214,3 +218,8 @@ class CargaMasivaResultado(BaseModel):
     errores: int
     detalles_exitosos: List[CargaMasivaUsuarioExitoso]
     detalles_errores: List[CargaMasivaErrorDetalle]
+
+
+class CargaMasivaJsonRequest(BaseModel):
+    """Filas ya leídas en el cliente (evita subir el Excel binario)."""
+    filas: List[Dict[str, Any]]

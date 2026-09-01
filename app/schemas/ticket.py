@@ -11,10 +11,13 @@ from uuid import UUID
 class UsuarioBasic(BaseModel):
     """Schema básico de usuario para relaciones anidadas"""
     id: UUID
+    documento: Optional[int] = None
     nombre: str
+    segundo_nombre: Optional[str] = None
     primer_apellido: str
     segundo_apellido: Optional[str] = None
     correo_electronico: str
+    nombre_usuario: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
     

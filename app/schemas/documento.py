@@ -11,11 +11,13 @@ from uuid import UUID
 class UsuarioNested(BaseModel):
     """Schema anidado para información básica de usuario"""
     id: UUID
+    documento: Optional[int] = None
     nombre: str
     segundoNombre: Optional[str] = Field(None, validation_alias="segundo_nombre")
     primerApellido: Optional[str] = Field(None, validation_alias="primer_apellido")
     segundoApellido: Optional[str] = Field(None, validation_alias="segundo_apellido")
     correoElectronico: Optional[str] = Field(None, validation_alias="correo_electronico")
+    nombreUsuario: Optional[str] = Field(None, validation_alias="nombre_usuario")
     
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 

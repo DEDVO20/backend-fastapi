@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from typing import List, Optional
 from uuid import UUID
@@ -73,7 +73,10 @@ def listar_evaluaciones(
     db: Session = Depends(get_db), 
     current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "procesos.admin", "riesgos.gestion", "sistema.admin"]))
 ):
-    query = db.query(EvaluacionCompetencia)
+    query = db.query(EvaluacionCompetencia).options(
+        joinedload(EvaluacionCompetencia.competencia),
+        joinedload(EvaluacionCompetencia.usuario),
+    )
     
     if usuario_id:
         query = query.filter(EvaluacionCompetencia.usuario_id == usuario_id)
