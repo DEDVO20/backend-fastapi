@@ -352,27 +352,6 @@ def actualizar_notificacion(
     return notificacion
 
 
-@router.delete("/notificaciones/{notificacion_id}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_notificacion(
-    notificacion_id: UUID, 
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
-):
-    """Eliminar una notificación propia."""
-    notificacion = db.query(Notificacion).filter(
-        Notificacion.id == notificacion_id,
-        Notificacion.usuario_id == current_user.id,
-    ).first()
-    if not notificacion:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Notificación no encontrada"
-        )
-    
-    db.delete(notificacion)
-    db.commit()
-
-
 # ============================
 # Endpoints de Configuraciones
 # ============================
