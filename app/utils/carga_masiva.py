@@ -11,7 +11,11 @@ from fastapi import UploadFile
 from sqlalchemy.orm import Session, joinedload
 
 from ..models.usuario import Area, Usuario, Rol, UsuarioRol
-from ..schemas.usuario import CargaMasivaErrorDetalle
+from ..schemas.usuario import (
+    CargaMasivaErrorDetalle,
+    CargaMasivaResultado,
+    CargaMasivaUsuarioExitoso,
+)
 from ..utils.security import get_password_hash
 
 
@@ -178,6 +182,88 @@ def leer_archivo(file_content: bytes, filename: str) -> pd.DataFrame:
 def validar_columnas(df: pd.DataFrame) -> List[str]:
     """Valida que el DataFrame tenga las columnas requeridas"""
     return [col for col in COLUMNAS_REQUERIDAS if col not in df.columns]
+
+
+def leer_filas_json(filas: List[Dict[str, Any]]) -> pd.DataFrame:
+    """Convierte filas JSON (ya parseadas en el cliente) al mismo formato que Excel."""
+    if not filas:
+        raise ValueError("No se enviaron usuarios para procesar")
+
+    normalizadas: List[Dict[str, Any]] = []
+    for fila in filas:
+        if not isinstance(fila, dict):
+            continue
+        item: Dict[str, Any] = {}
+        for clave, valor in fila.items():
+            item[normalizar_nombre_columna(clave)] = valor
+        if any(valor_texto(v) for v in item.values()):
+            normalizadas.append(item)
+
+    if not normalizadas:
+        raise ValueError("El archivo no contiene usuarios para procesar")
+
+    df = pd.DataFrame(normalizadas)
+    df.columns = [normalizar_nombre_columna(col) for col in df.columns]
+    df = df.loc[:, ~pd.Index(df.columns).duplicated()]
+    return df.reset_index(drop=True)
+
+
+def ejecutar_carga(df: pd.DataFrame, db: Session) -> dict:
+    """Valida y procesa las filas de carga masiva. Hace commit si hay éxitos."""
+    columnas_faltantes = validar_columnas(df)
+    if columnas_faltantes:
+        raise ValueError(f"Columnas faltantes en el archivo: {', '.join(columnas_faltantes)}")
+
+    if df.empty:
+        raise ValueError("El archivo no contiene usuarios para procesar")
+
+    if len(df) > 1000:
+        raise ValueError("El archivo no puede contener más de 1000 usuarios")
+
+    areas_cache, roles_cache = cargar_caches(db)
+    if not areas_cache:
+        raise ValueError("No hay áreas registradas. Cree al menos un área antes de cargar usuarios.")
+    if not roles_cache:
+        raise ValueError("No hay roles registrados. Cree al menos un rol antes de cargar usuarios.")
+
+    exitosos = []
+    errores = []
+    documentos_en_archivo: set = set()
+    emails_en_archivo: set = set()
+    usernames_en_archivo: set = set()
+
+    for idx, fila in df.iterrows():
+        fila_num = int(idx) + 2
+        exito, resultado = procesar_fila(
+            fila_num,
+            fila,
+            db,
+            areas_cache,
+            roles_cache,
+            documentos_en_archivo,
+            emails_en_archivo,
+            usernames_en_archivo,
+        )
+
+        if exito:
+            exitosos.append(CargaMasivaUsuarioExitoso(
+                fila=fila_num,
+                nombre_usuario=resultado.nombre_usuario,
+                nombre_completo=f"{resultado.nombre} {resultado.primer_apellido}",
+                correo_electronico=resultado.correo_electronico,
+            ))
+        else:
+            errores.extend(resultado)
+
+    db.commit()
+    resultado = CargaMasivaResultado(
+        total_procesados=len(df),
+        exitosos=len(exitosos),
+        errores=len(errores),
+        detalles_exitosos=exitosos,
+        detalles_errores=errores,
+    )
+    return resultado.model_dump()
 
 
 def cargar_caches(db: Session) -> Tuple[Dict[str, Area], Dict[str, Rol]]:

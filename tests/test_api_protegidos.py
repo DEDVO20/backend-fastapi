@@ -9,6 +9,7 @@ ENDPOINTS_PROTEGIDOS = [
     ("GET", "/api/v1/usuarios"),
     ("GET", "/api/v1/usuarios/carga-masiva/plantilla"),
     ("GET", "/api/v1/usuarios/carga-masiva/exportar"),
+    ("POST", "/api/v1/usuarios/carga-masiva/json"),
     ("GET", "/api/v1/areas"),
     ("GET", "/api/v1/procesos"),
     ("GET", "/api/v1/riesgos"),

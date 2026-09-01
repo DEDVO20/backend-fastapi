@@ -46,6 +46,27 @@ def test_valor_texto_ignora_nan_textual():
     assert valor_texto("  Juan  ") == "Juan"
 
 
+def test_lee_filas_json_normaliza_encabezados():
+    from app.utils.carga_masiva import leer_filas_json
+
+    df = leer_filas_json([
+        {
+            "Documento": "1001",
+            "Nombre": "Ana",
+            "Primer Apellido": "Gomez",
+            "Correo Electronico": "ana@empresa.com",
+            "Nombre Usuario": "agomez",
+            "Contraseña": "Password123",
+            "Codigo de Area": "CAL",
+            "Roles": "auxiliar",
+        }
+    ])
+
+    assert validar_columnas(df) == []
+    assert df.iloc[0]["nombre"] == "Ana"
+    assert df.iloc[0]["area_codigo"] == "CAL"
+
+
 def test_plantilla_excel_incluye_hojas_de_catalogo():
     areas = [SimpleNamespace(codigo="CAL", nombre="Calidad")]
     roles = [SimpleNamespace(clave="auxiliar", nombre="Auxiliar", descripcion="")]

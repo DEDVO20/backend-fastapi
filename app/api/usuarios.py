@@ -22,7 +22,8 @@ from ..schemas.usuario import (
     RolUpdate,
     RolResponse,
     PermisoResponse,
-    RolPermisoCreate
+    RolPermisoCreate,
+    CargaMasivaJsonRequest,
 )
 from passlib.context import CryptContext
 from ..api.dependencies import get_current_user, require_any_permission, user_has_any_permission
@@ -555,6 +556,41 @@ def eliminar_usuario(
 # Carga Masiva de Usuarios
 # ======================
 
+def _carga_masiva_http(df, db: Session):
+    from ..utils.carga_masiva import ejecutar_carga
+
+    try:
+        return ejecutar_carga(df, db)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error procesando el archivo: {str(e)}",
+        )
+
+
+@router.post("/usuarios/carga-masiva/json", response_model=dict)
+def carga_masiva_usuarios_json(
+    payload: CargaMasivaJsonRequest,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_any_permission(["usuarios.crear", "usuarios.gestion", "sistema.admin"]))
+):
+    """Carga masiva desde filas JSON (el Excel se lee en el navegador)."""
+    from ..utils.carga_masiva import leer_filas_json
+
+    try:
+        df = leer_filas_json(payload.filas)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return _carga_masiva_http(df, db)
+
+
 @router.post("/usuarios/carga-masiva", response_model=dict)
 async def carga_masiva_usuarios(
     file: UploadFile = File(...),
@@ -569,121 +605,33 @@ async def carga_masiva_usuarios(
     - correo_electronico, nombre_usuario, contrasena
     - area_codigo, roles (separados por coma), activo
     """
-    from ..utils.carga_masiva import (
-        validar_archivo,
-        leer_archivo,
-        validar_columnas,
-        procesar_fila,
-        cargar_caches
-    )
-    from ..schemas.usuario import (
-        CargaMasivaResultado,
-        CargaMasivaUsuarioExitoso,
-    )
-    
+    from ..utils.carga_masiva import validar_archivo, leer_archivo
+
     valido, mensaje = validar_archivo(file)
     if not valido:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=mensaje
         )
-    
-    try:
-        contenido = await file.read()
-        if not contenido:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El archivo está vacío"
-            )
-        if len(contenido) > 5 * 1024 * 1024:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El archivo no puede superar los 5MB"
-            )
 
-        df = leer_archivo(contenido, file.filename)
-
-        columnas_faltantes = validar_columnas(df)
-        if columnas_faltantes:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Columnas faltantes en el archivo: {', '.join(columnas_faltantes)}"
-            )
-
-        if df.empty:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El archivo no contiene usuarios para procesar"
-            )
-
-        if len(df) > 1000:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El archivo no puede contener más de 1000 usuarios"
-            )
-
-        areas_cache, roles_cache = cargar_caches(db)
-        if not areas_cache:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No hay áreas registradas. Cree al menos un área antes de cargar usuarios."
-            )
-        if not roles_cache:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No hay roles registrados. Cree al menos un rol antes de cargar usuarios."
-            )
-
-        exitosos = []
-        errores = []
-        documentos_en_archivo = set()
-        emails_en_archivo = set()
-        usernames_en_archivo = set()
-
-        for idx, fila in df.iterrows():
-            fila_num = idx + 2  # +2 porque idx empieza en 0 y hay header
-            exito, resultado = procesar_fila(
-                fila_num,
-                fila,
-                db,
-                areas_cache,
-                roles_cache,
-                documentos_en_archivo,
-                emails_en_archivo,
-                usernames_en_archivo,
-            )
-
-            if exito:
-                exitosos.append(CargaMasivaUsuarioExitoso(
-                    fila=fila_num,
-                    nombre_usuario=resultado.nombre_usuario,
-                    nombre_completo=f"{resultado.nombre} {resultado.primer_apellido}",
-                    correo_electronico=resultado.correo_electronico
-                ))
-            else:
-                errores.extend(resultado)
-
-        db.commit()
-
-        resultado = CargaMasivaResultado(
-            total_procesados=len(df),
-            exitosos=len(exitosos),
-            errores=len(errores),
-            detalles_exitosos=exitosos,
-            detalles_errores=errores
-        )
-
-        return resultado.model_dump()
-
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as e:
-        db.rollback()
+    contenido = await file.read()
+    if not contenido:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error procesando el archivo: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El archivo está vacío"
         )
+    if len(contenido) > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El archivo no puede superar los 5MB"
+        )
+
+    try:
+        df = leer_archivo(contenido, file.filename)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+    return _carga_masiva_http(df, db)
 
 
 # ======================
