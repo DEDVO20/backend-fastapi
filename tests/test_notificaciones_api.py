@@ -64,6 +64,20 @@ def test_marcar_todas_leidas_no_choca_con_ruta_uuid(client_sin_permisos):
     db.commit.assert_called_once()
 
 
+def test_marcar_todas_leidas_tambien_acepta_post(client_sin_permisos):
+    db = MagicMock()
+    db.query.return_value.filter.return_value.update.return_value = 3
+    _override_db(db)
+    try:
+        response = client_sin_permisos.post("/api/v1/notificaciones/marcar-todas-leidas")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200, response.text
+    assert "3 notificaciones" in response.json()["message"]
+    db.commit.assert_called_once()
+
+
 def test_marcar_una_notificacion_como_leida(client_sin_permisos, usuario_sin_permisos):
     notif = _notificacion(usuario_sin_permisos.id)
     db = MagicMock()
@@ -91,3 +105,22 @@ def test_marcar_notificacion_ajena_devuelve_404(client_sin_permisos):
         app.dependency_overrides.pop(get_db, None)
 
     assert response.status_code == 404
+
+
+def test_actualizar_propia_con_leida_true(client_sin_permisos, usuario_sin_permisos):
+    notif = _notificacion(usuario_sin_permisos.id)
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = notif
+    _override_db(db)
+    try:
+        response = client_sin_permisos.put(
+            f"/api/v1/notificaciones/{notif.id}",
+            json={"leida": True},
+        )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200, response.text
+    assert response.json()["leida"] is True
+    assert notif.leida is True
+    db.commit.assert_called_once()
