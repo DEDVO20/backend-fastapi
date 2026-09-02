@@ -10,6 +10,10 @@ from decimal import Decimal
 
 from .proceso import ProcesoResponse
 
+TIPOS_INDICADOR = {"eficacia", "eficiencia", "cumplimiento"}
+ESTADOS_INDICADOR = {"borrador", "pendiente_aprobacion", "aprobado", "rechazado"}
+
+
 # Schema para usuarios anidados
 class UsuarioNested(BaseModel):
     """Schema para mostrar información básica de usuarios en relaciones"""
@@ -24,6 +28,24 @@ class UsuarioNested(BaseModel):
     
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
+
+class ProcesoIndicadorNested(BaseModel):
+    id: UUID
+    codigo: Optional[str] = None
+    nombre: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+def _validar_tipo_indicador(value: Optional[str]) -> Optional[str]:
+    if value is None:
+        return value
+    tipo = value.strip().lower()
+    if tipo not in TIPOS_INDICADOR:
+        raise ValueError(f"Tipo inválido. Use uno de: {', '.join(sorted(TIPOS_INDICADOR))}")
+    return tipo
+
+
 # Indicador Schemas
 class IndicadorBase(BaseModel):
     proceso_id: UUID
@@ -35,14 +57,22 @@ class IndicadorBase(BaseModel):
     meta: Optional[Decimal] = None
     frecuencia_medicion: str = Field(default='mensual', max_length=50)
     responsable_medicion_id: Optional[UUID] = None
+    tipo_indicador: str = Field(default="eficacia", max_length=50)
     activo: bool = True
+
+    @field_validator("tipo_indicador")
+    @classmethod
+    def validar_tipo(cls, value: str) -> str:
+        return _validar_tipo_indicador(value) or "eficacia"
 
 
 class IndicadorCreate(IndicadorBase):
-    pass
+    codigo: Optional[str] = Field(None, max_length=100)
 
 
 class IndicadorUpdate(BaseModel):
+    proceso_id: Optional[UUID] = None
+    codigo: Optional[str] = Field(None, max_length=100)
     nombre: Optional[str] = Field(None, max_length=200)
     descripcion: Optional[str] = None
     formula: Optional[str] = None
@@ -50,16 +80,13 @@ class IndicadorUpdate(BaseModel):
     meta: Optional[Decimal] = None
     frecuencia_medicion: Optional[str] = Field(None, max_length=50)
     responsable_medicion_id: Optional[UUID] = None
+    tipo_indicador: Optional[str] = Field(None, max_length=50)
     activo: Optional[bool] = None
 
-
-class IndicadorResponse(IndicadorBase):
-    id: UUID
-    creado_por: Optional[UUID] = None
-    creado_en: datetime
-    actualizado_en: datetime
-    
-    model_config = ConfigDict(from_attributes=True)
+    @field_validator("tipo_indicador")
+    @classmethod
+    def validar_tipo(cls, value: Optional[str]) -> Optional[str]:
+        return _validar_tipo_indicador(value)
 
 
 class MedicionIndicadorBase(BaseModel):
@@ -80,6 +107,32 @@ class MedicionIndicadorResponse(MedicionIndicadorBase):
     registrado_por: Optional[UUID] = None
     creado_en: datetime
     actualizado_en: datetime
+    registrador: Optional[UsuarioNested] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class IndicadorDecision(BaseModel):
+    observacion: Optional[str] = None
+
+
+class IndicadorResponse(IndicadorBase):
+    id: UUID
+    estado: str = "borrador"
+    creado_por: Optional[UUID] = None
+    revisado_por: Optional[UUID] = None
+    fecha_revision: Optional[datetime] = None
+    aprobado_por: Optional[UUID] = None
+    fecha_aprobacion: Optional[datetime] = None
+    observacion_aprobacion: Optional[str] = None
+    creado_en: datetime
+    actualizado_en: datetime
+    proceso: Optional[ProcesoIndicadorNested] = None
+    responsable: Optional[UsuarioNested] = None
+    creador: Optional[UsuarioNested] = None
+    revisador: Optional[UsuarioNested] = None
+    aprobador: Optional[UsuarioNested] = None
+    ultima_medicion: Optional[MedicionIndicadorResponse] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -112,7 +165,7 @@ class NoConformidadBase(BaseModel):
 
 
 class NoConformidadCreate(NoConformidadBase):
-    pass
+    codigo: Optional[str] = Field(None, max_length=100)
 
 
 class NoConformidadUpdate(BaseModel):
@@ -188,7 +241,7 @@ class AccionCorrectivaImplementacion(BaseModel):
 
 
 class AccionCorrectivaCreate(AccionCorrectivaBase):
-    pass
+    codigo: Optional[str] = Field(None, max_length=50)
 
 
 class AccionCorrectivaUpdate(BaseModel):
@@ -259,11 +312,10 @@ class ObjetivoCalidadBase(BaseModel):
 
     @field_validator("codigo")
     @classmethod
-    def validar_codigo(cls, value: str) -> str:
-        codigo = value.strip().upper()
-        if not codigo:
-            raise ValueError("El código es obligatorio")
-        return codigo
+    def validar_codigo(cls, value: Optional[str]) -> Optional[str]:
+        if value is None or not str(value).strip():
+            return None
+        return str(value).strip().upper()
 
     @field_validator("estado")
     @classmethod
@@ -276,6 +328,8 @@ class ObjetivoCalidadBase(BaseModel):
 
 
 class ObjetivoCalidadCreate(ObjetivoCalidadBase):
+    codigo: Optional[str] = Field(None, max_length=100)
+
     @model_validator(mode="after")
     def validar_fechas(self):
         if self.fecha_fin <= self.fecha_inicio:

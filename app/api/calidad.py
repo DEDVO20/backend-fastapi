@@ -3,7 +3,7 @@ Endpoints CRUD para gestión de calidad
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Body
 from sqlalchemy.orm import Session, joinedload
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from ..database import get_db
@@ -12,6 +12,7 @@ from ..schemas.calidad import (
     IndicadorCreate,
     IndicadorUpdate,
     IndicadorResponse,
+    IndicadorDecision,
     MedicionIndicadorCreate,
     MedicionIndicadorResponse,
     TendenciaIndicadorResponse,
@@ -36,7 +37,8 @@ from ..schemas.calidad import (
 )
 from ..api.dependencies import require_any_permission
 from ..models.usuario import Usuario, Area
-from ..utils.notification_service import notificar_asignacion
+from ..utils.notification_service import notificar_asignacion, crear_notificacion_aprobacion
+from ..utils.codigos import asignar_codigo, prefijo_anual, prefijo_indicador
 from ..services.calidad_service import CalidadService
 from ..services.indicador_service import IndicadorService
 
@@ -62,25 +64,28 @@ def _obtener_usuario_activo(db: Session, usuario_id: UUID, campo: str = "usuario
 # Endpoints de Indicadores
 # ======================
 
+def _servicio_indicadores(db: Session) -> IndicadorService:
+    return IndicadorService(db)
+
+
 @router.get("/indicadores", response_model=List[IndicadorResponse])
 def listar_indicadores(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 200,
     proceso_id: UUID = None,
     activo: bool = None,
+    tipo_indicador: str = None,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Listar indicadores de desempeño"""
-    query = db.query(Indicador)
-    
-    if proceso_id:
-        query = query.filter(Indicador.proceso_id == proceso_id)
-    if activo is not None:
-        query = query.filter(Indicador.activo == activo)
-    
-    indicadores = query.offset(skip).limit(limit).all()
-    return indicadores
+    return _servicio_indicadores(db).listar(
+        proceso_id=proceso_id,
+        activo=activo,
+        tipo_indicador=tipo_indicador,
+        skip=skip,
+        limit=limit,
+    )
 
 
 @router.post("/indicadores", response_model=IndicadorResponse, status_code=status.HTTP_201_CREATED)
@@ -90,24 +95,21 @@ def crear_indicador(
     current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Crear un nuevo indicador"""
-    # Verificar código único
-    db_indicador = db.query(Indicador).filter(Indicador.codigo == indicador.codigo).first()
-    if db_indicador:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El código de indicador ya existe"
-        )
-    
     if indicador.responsable_medicion_id:
         _obtener_usuario_activo(db, indicador.responsable_medicion_id, "responsable de medición")
 
     data = indicador.model_dump()
-    if 'activo' in data and isinstance(data['activo'], bool):
-        data['activo'] = 1 if data['activo'] else 0
+    data["codigo"] = asignar_codigo(
+        db,
+        Indicador,
+        data.get("codigo"),
+        prefijo_indicador(indicador.tipo_indicador),
+    )
+    data["creado_por"] = current_user.id
+    data["estado"] = "borrador"
     nuevo_indicador = Indicador(**data)
     db.add(nuevo_indicador)
     db.commit()
-    db.refresh(nuevo_indicador)
     notificar_asignacion(
         db,
         usuario_id=nuevo_indicador.responsable_medicion_id,
@@ -117,7 +119,7 @@ def crear_indicador(
         referencia_id=nuevo_indicador.id,
         actor_id=current_user.id,
     )
-    return nuevo_indicador
+    return _servicio_indicadores(db).obtener(nuevo_indicador.id)
 
 
 @router.get("/indicadores/{indicador_id}", response_model=IndicadorResponse)
@@ -127,13 +129,7 @@ def obtener_indicador(
     current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Obtener un indicador por ID"""
-    indicador = db.query(Indicador).filter(Indicador.id == indicador_id).first()
-    if not indicador:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Indicador no encontrado"
-        )
-    return indicador
+    return _servicio_indicadores(db).obtener(indicador_id)
 
 
 @router.put("/indicadores/{indicador_id}", response_model=IndicadorResponse)
@@ -155,15 +151,21 @@ def actualizar_indicador(
     update_data = indicador_update.model_dump(exclude_unset=True)
     if "responsable_medicion_id" in update_data and update_data["responsable_medicion_id"]:
         _obtener_usuario_activo(db, update_data["responsable_medicion_id"], "responsable de medición")
+    if "codigo" in update_data and update_data["codigo"] != indicador.codigo:
+        existe = db.query(Indicador).filter(Indicador.codigo == update_data["codigo"], Indicador.id != indicador_id).first()
+        if existe:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El código de indicador ya existe")
+
+    campos_controlados = {"nombre", "descripcion", "formula", "meta", "unidad_medida", "frecuencia_medicion", "tipo_indicador"}
+    toca_definicion = any(campo in update_data for campo in campos_controlados)
 
     for field, value in update_data.items():
-        # Convertir activo de bool a int (la columna es Integer, no Boolean)
-        if field == 'activo' and isinstance(value, bool):
-            value = 1 if value else 0
         setattr(indicador, field, value)
+
+    if toca_definicion and indicador.estado == "aprobado":
+        indicador.estado = "pendiente_aprobacion"
     
     db.commit()
-    db.refresh(indicador)
     notificar_asignacion(
         db,
         usuario_id=indicador.responsable_medicion_id,
@@ -174,7 +176,7 @@ def actualizar_indicador(
         actor_id=current_user.id,
         anterior_usuario_id=anterior_responsable,
     )
-    return indicador
+    return _servicio_indicadores(db).obtener(indicador_id)
 
 
 @router.delete("/indicadores/{indicador_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -227,6 +229,59 @@ def tendencia_indicador(
     return service.tendencia(indicador_id)
 
 
+@router.post("/indicadores/{indicador_id}/solicitar-aprobacion", response_model=IndicadorResponse)
+def solicitar_aprobacion_indicador(
+    indicador_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"])),
+):
+    return _servicio_indicadores(db).solicitar_aprobacion(indicador_id, current_user.id)
+
+
+@router.post("/indicadores/{indicador_id}/aprobar", response_model=IndicadorResponse)
+def aprobar_indicador(
+    indicador_id: UUID,
+    decision: Optional[IndicadorDecision] = None,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"])),
+):
+    indicador = _servicio_indicadores(db).aprobar(
+        indicador_id,
+        current_user.id,
+        decision.observacion if decision else None,
+    )
+    if indicador.creado_por:
+        crear_notificacion_aprobacion(
+            db,
+            usuario_id=indicador.creado_por,
+            titulo="Indicador aprobado",
+            mensaje=f"El indicador {indicador.codigo} fue aprobado.",
+            referencia_tipo="indicador",
+            referencia_id=indicador.id,
+        )
+    return indicador
+
+
+@router.post("/indicadores/{indicador_id}/rechazar", response_model=IndicadorResponse)
+def rechazar_indicador(
+    indicador_id: UUID,
+    decision: IndicadorDecision,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"])),
+):
+    indicador = _servicio_indicadores(db).rechazar(indicador_id, current_user.id, decision.observacion)
+    if indicador.creado_por:
+        crear_notificacion_aprobacion(
+            db,
+            usuario_id=indicador.creado_por,
+            titulo="Indicador rechazado",
+            mensaje=f"El indicador {indicador.codigo} fue rechazado. {decision.observacion or ''}".strip(),
+            referencia_tipo="indicador",
+            referencia_id=indicador.id,
+        )
+    return indicador
+
+
 # =============================
 # Endpoints de No Conformidades
 # =============================
@@ -276,15 +331,8 @@ def crear_no_conformidad(
     if not tiene_permiso:
         raise HTTPException(status_code=403, detail="No tienes permiso para reportar no conformidades")
 
-    # Verificar código único
-    db_nc = db.query(NoConformidad).filter(NoConformidad.codigo == nc.codigo).first()
-    if db_nc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El código de no conformidad ya existe"
-        )
-    
     payload = nc.model_dump()
+    payload["codigo"] = asignar_codigo(db, NoConformidad, payload.get("codigo"), prefijo_anual("NC"))
     if payload.get("detectado_por"):
         _obtener_usuario_activo(db, payload["detectado_por"], "usuario detectado por")
     if payload.get("responsable_id"):
@@ -439,15 +487,8 @@ def crear_accion_correctiva(
     current_user: Usuario = Depends(require_any_permission(["noconformidades.gestion", "sistema.admin"]))
 ):
     """Crear una nueva acción correctiva"""
-    # Verificar código único
-    db_accion = db.query(AccionCorrectiva).filter(AccionCorrectiva.codigo == accion.codigo).first()
-    if db_accion:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El código de acción correctiva ya existe"
-        )
-    
     payload = accion.model_dump()
+    payload["codigo"] = asignar_codigo(db, AccionCorrectiva, payload.get("codigo"), prefijo_anual("AC"))
     for campo, etiqueta in (
         ("responsable_id", "responsable"),
         ("implementado_por", "implementador"),
@@ -830,8 +871,6 @@ def crear_objetivo_calidad(
     current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Crear un nuevo objetivo de calidad"""
-    codigo_normalizado = objetivo.codigo.strip().upper()
-
     if not objetivo.area_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -853,16 +892,13 @@ def crear_objetivo_calidad(
 
     _obtener_usuario_activo(db, objetivo.responsable_id, "responsable")
 
-    # Verificar código único
-    db_objetivo = db.query(ObjetivoCalidad).filter(ObjetivoCalidad.codigo == codigo_normalizado).first()
-    if db_objetivo:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El código de objetivo ya existe"
-        )
-    
     objetivo_data = objetivo.model_dump()
-    objetivo_data["codigo"] = codigo_normalizado
+    objetivo_data["codigo"] = asignar_codigo(
+        db,
+        ObjetivoCalidad,
+        objetivo_data.get("codigo"),
+        prefijo_anual("OBJ"),
+    )
 
     nuevo_objetivo = ObjetivoCalidad(**objetivo_data)
     db.add(nuevo_objetivo)

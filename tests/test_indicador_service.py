@@ -48,3 +48,35 @@ def test_tendencia_estable():
     service.historial = lambda _id: [_medicion(10, "2026-01"), _medicion(10, "2026-02")]
     result = service.tendencia(uuid4())
     assert result["tendencia"] == "estable"
+
+
+def test_aprobar_exige_otra_persona():
+    creador_id = uuid4()
+    indicador = SimpleNamespace(
+        id=uuid4(),
+        estado="pendiente_aprobacion",
+        creado_por=creador_id,
+        mediciones=[SimpleNamespace(valor=10, periodo="2026-01")],
+        responsable_medicion_id=None,
+        revisado_por=None,
+        fecha_revision=None,
+    )
+    service = IndicadorService(db=MagicMock())
+    service.obtener = lambda _id: indicador
+
+    try:
+        service.aprobar(indicador.id, creador_id)
+        assert False, "Debió rechazar autoaprobación"
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 403
+
+
+def test_solicitar_aprobacion_exige_medicion():
+    indicador = SimpleNamespace(id=uuid4(), estado="borrador", mediciones=[])
+    service = IndicadorService(db=MagicMock())
+    service.obtener = lambda _id: indicador
+    try:
+        service.solicitar_aprobacion(indicador.id, uuid4())
+        assert False, "Debió exigir medición"
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 400

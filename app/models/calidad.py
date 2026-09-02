@@ -20,17 +20,48 @@ class Indicador(BaseModel):
     meta = Column(Numeric(10, 2), nullable=True)
     frecuencia_medicion = Column(String(50), nullable=False, default='mensual')
     responsable_medicion_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    tipo_indicador = Column(String(50), nullable=False, default="eficacia")
+    estado = Column(String(50), nullable=False, default="borrador")
+    revisado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    fecha_revision = Column(DateTime(timezone=True), nullable=True)
+    aprobado_por = Column(UUID(as_uuid=True), ForeignKey("usuarios.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
+    fecha_aprobacion = Column(DateTime(timezone=True), nullable=True)
+    observacion_aprobacion = Column(Text, nullable=True)
     activo = Column(Boolean, nullable=False, default=True)
     
     # Relaciones
     proceso = relationship("Proceso", back_populates="indicadores")
     responsable_medicion = relationship("Usuario", back_populates="indicadores_responsable", foreign_keys=[responsable_medicion_id])
+    creador = relationship(
+        "Usuario",
+        primaryjoin="Indicador.creado_por == Usuario.id",
+        foreign_keys="Indicador.creado_por",
+        viewonly=True,
+    )
+    revisador = relationship("Usuario", foreign_keys=[revisado_por])
+    aprobador = relationship("Usuario", foreign_keys=[aprobado_por])
     mediciones = relationship("MedicionIndicador", back_populates="indicador", cascade="all, delete-orphan")
+
+    @property
+    def responsable(self):
+        return self.responsable_medicion
+
+    @property
+    def ultima_medicion(self):
+        if not self.mediciones:
+            return None
+        return sorted(
+            self.mediciones,
+            key=lambda m: (m.periodo or "", str(m.creado_en or "")),
+            reverse=True,
+        )[0]
     
     # Índices
     __table_args__ = (
         Index('indicadores_codigo', 'codigo'),
         Index('indicadores_proceso_id', 'proceso_id'),
+        Index('idx_indicadores_tipo', 'tipo_indicador'),
+        Index('idx_indicadores_estado', 'estado'),
     )
     
     def __repr__(self):
