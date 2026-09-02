@@ -30,7 +30,7 @@ class RiesgoBase(BaseModel):
 
 
 class RiesgoCreate(RiesgoBase):
-    pass
+    codigo: Optional[str] = Field(None, max_length=100)
 
 
 class RiesgoUpdate(BaseModel):

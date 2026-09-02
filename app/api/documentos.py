@@ -26,6 +26,7 @@ from ..utils.notification_service import (
 from ..models.sistema import Notificacion
 from ..api.dependencies import require_any_permission, user_has_any_permission
 from ..models.usuario import Usuario
+from ..utils.codigos import asignar_codigo, prefijo_documento
 
 router = APIRouter(prefix="/api/v1", tags=["documentos"])
 
@@ -111,16 +112,13 @@ def crear_documento(
     current_user: Usuario = Depends(require_any_permission(["documentos.crear", "sistema.admin"]))
 ):
     """Crear un nuevo documento"""
-    # Verificar código único
-    db_documento = db.query(Documento).filter(Documento.codigo == documento.codigo).first()
-    if db_documento:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El código de documento ya existe"
-        )
-    
-    # Crear el documento y asignar el creador automáticamente
     documento_data = documento.model_dump()
+    documento_data["codigo"] = asignar_codigo(
+        db,
+        Documento,
+        documento_data.get("codigo"),
+        prefijo_documento(documento.tipo_documento),
+    )
     documento_data['creado_por'] = current_user.id
     
     nuevo_documento = Documento(**documento_data)

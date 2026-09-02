@@ -15,7 +15,7 @@ class AreaBase(BaseModel):
 
 
 class AreaCreate(AreaBase):
-    pass
+    codigo: Optional[str] = Field(None, max_length=50)
 
 
 class AreaUpdate(BaseModel):

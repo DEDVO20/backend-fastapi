@@ -91,7 +91,7 @@ class AuditoriaBase(BaseModel):
 
 
 class AuditoriaCreate(AuditoriaBase):
-    pass
+    codigo: Optional[str] = Field(None, max_length=100)
 
 
 class AuditoriaUpdate(BaseModel):
@@ -148,7 +148,7 @@ class HallazgoAuditoriaBase(BaseModel):
 
 
 class HallazgoAuditoriaCreate(HallazgoAuditoriaBase):
-    pass
+    codigo: Optional[str] = Field(None, max_length=100)
 
 
 class HallazgoAuditoriaUpdate(BaseModel):

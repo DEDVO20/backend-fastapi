@@ -33,6 +33,7 @@ from ..models.usuario import Usuario
 from ..services.proceso_service import ProcesoService
 from ..services.competency_risk_automation_service import CompetencyRiskAutomationService
 from ..utils.notification_service import notificar_asignacion
+from ..utils.codigos import asignar_codigo, prefijo_anual
 
 router = APIRouter(prefix="/api/v1", tags=["procesos"])
 
@@ -317,15 +318,9 @@ def crear_accion_proceso(
     current_user: Usuario = Depends(require_any_permission(GESTION_PROCESOS))
 ):
     """Crear una nueva acción de proceso"""
-    # Verificar código único
-    db_accion = db.query(AccionProceso).filter(AccionProceso.codigo == accion.codigo).first()
-    if db_accion:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El código de acción ya existe"
-        )
-    
-    nueva_accion = AccionProceso(**accion.model_dump())
+    payload = accion.model_dump()
+    payload["codigo"] = asignar_codigo(db, AccionProceso, payload.get("codigo"), prefijo_anual("AP"))
+    nueva_accion = AccionProceso(**payload)
     db.add(nueva_accion)
     db.commit()
     db.refresh(nueva_accion)

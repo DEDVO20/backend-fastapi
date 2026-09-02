@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from ..database import get_db
 from ..models.capacitacion import Capacitacion, AsistenciaCapacitacion
 from ..models.usuario import Usuario
+from ..utils.codigos import asignar_codigo, prefijo_anual
 from ..schemas.capacitacion import (
     CapacitacionCreate,
     CapacitacionUpdate,
@@ -150,15 +151,8 @@ def crear_capacitacion(
     current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "sistema.admin"]))
 ):
     """Crear una nueva capacitación"""
-    # Verificar código único
-    db_capacitacion = db.query(Capacitacion).filter(Capacitacion.codigo == capacitacion.codigo).first()
-    if db_capacitacion:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El código de capacitación ya existe"
-        )
-    
     data = capacitacion.model_dump()
+    data["codigo"] = asignar_codigo(db, Capacitacion, data.get("codigo"), prefijo_anual("CAP"))
     usuarios_convocados_ids = data.pop("usuarios_convocados_ids", [])
     convocados_ids = _validar_convocados(
         db=db,

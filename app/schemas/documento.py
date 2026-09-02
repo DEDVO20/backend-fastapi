@@ -39,6 +39,8 @@ class DocumentoBase(BaseModel):
 
 
 class DocumentoCreate(DocumentoBase):
+    codigo: Optional[str] = Field(None, max_length=100)
+
     @field_validator('creado_por', 'aprobado_por', 'revisado_por', mode='before')
     @classmethod
     def empty_string_to_none(cls, v):

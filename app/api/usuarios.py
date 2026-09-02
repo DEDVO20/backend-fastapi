@@ -30,6 +30,7 @@ from ..schemas.usuario import (
 )
 from passlib.context import CryptContext
 from ..api.dependencies import get_current_user, require_any_permission, user_has_any_permission
+from ..utils.codigos import asignar_codigo
 
 router = APIRouter(prefix="/api/v1", tags=["usuarios"])
 
@@ -99,16 +100,9 @@ def crear_area(
     current_user: Usuario = Depends(require_any_permission(["areas.gestionar", "usuarios.gestion", "sistema.admin"]))
 ):
     """Crear una nueva área"""
-    # Verificar si el código ya existe
-    db_area = db.query(Area).filter(Area.codigo == area.codigo).first()
-    if db_area:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El código de área ya existe"
-        )
-    
-    # Crear nueva área
-    nueva_area = Area(**area.model_dump())
+    area_data = area.model_dump()
+    area_data["codigo"] = asignar_codigo(db, Area, area_data.get("codigo"), "AREA-")
+    nueva_area = Area(**area_data)
     db.add(nueva_area)
     db.commit()
     db.refresh(nueva_area)

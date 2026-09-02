@@ -98,7 +98,7 @@ class FormularioDinamicoBase(BaseModel):
 
 
 class FormularioDinamicoCreate(FormularioDinamicoBase):
-    pass
+    codigo: Optional[str] = Field(None, max_length=100)
 
 
 class FormularioDinamicoUpdate(BaseModel):

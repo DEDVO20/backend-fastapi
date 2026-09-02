@@ -5,11 +5,12 @@ from uuid import UUID
 from ..models.auditoria import HallazgoAuditoria
 from ..models.proceso import Proceso, EtapaProceso
 from ..models.riesgo import Riesgo
-from ..models.usuario import Usuario
+from ..models.usuario import Usuario, Area
 from ..repositories.proceso import ProcesoRepository, EtapaProcesoRepository
 from ..schemas.proceso import ProcesoCreate, ProcesoUpdate, EtapaProcesoCreate, EtapaProcesoUpdate
 from ..utils.audit import registrar_auditoria
 from ..utils.notification_service import notificar_asignacion
+from ..utils.codigos import asignar_codigo, prefijo_proceso
 
 
 class ProcesoService:
@@ -52,21 +53,32 @@ class ProcesoService:
         return proceso
 
     def crear_proceso(self, data: ProcesoCreate, usuario_id: UUID) -> Proceso:
-        existente = self.db.query(Proceso).filter(Proceso.codigo == data.codigo).first()
-        if existente:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El código de proceso ya existe")
-
         if data.responsable_id:
             self._validar_usuario_activo(data.responsable_id, "responsable")
 
-        proceso = self.repo.create(data.model_dump(), creado_por=usuario_id)
+        payload = data.model_dump()
+        area_codigo = None
+        if data.area_id:
+            area = self.db.query(Area).filter(Area.id == data.area_id).first()
+            area_codigo = area.codigo if area else None
+        tipo = payload.get("tipo_proceso")
+        if hasattr(tipo, "value"):
+            tipo = tipo.value
+        payload["codigo"] = asignar_codigo(
+            self.db,
+            Proceso,
+            payload.get("codigo"),
+            prefijo_proceso(tipo, area_codigo),
+        )
+
+        proceso = self.repo.create(payload, creado_por=usuario_id)
         registrar_auditoria(
             self.db,
             tabla="procesos",
             registro_id=proceso.id,
             accion="CREATE",
             usuario_id=usuario_id,
-            cambios=data.model_dump(),
+            cambios=payload,
         )
         self.db.commit()
         self.db.refresh(proceso)

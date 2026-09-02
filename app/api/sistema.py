@@ -37,6 +37,7 @@ from ..schemas.sistema import (
     AuditLogResponse,
 )
 from ..api.dependencies import require_any_permission
+from ..utils.codigos import asignar_codigo
 from ..models.usuario import Usuario
 
 router = APIRouter(prefix="/api/v1", tags=["sistema"])
@@ -397,10 +398,9 @@ def crear_formulario_dinamico(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"])),
 ):
-    existente = db.query(FormularioDinamico).filter(FormularioDinamico.codigo == formulario.codigo).first()
-    if existente:
-        raise HTTPException(status_code=400, detail="Ya existe un formulario con ese código.")
-    nuevo = FormularioDinamico(**formulario.model_dump())
+    payload = formulario.model_dump()
+    payload["codigo"] = asignar_codigo(db, FormularioDinamico, payload.get("codigo"), "FD-")
+    nuevo = FormularioDinamico(**payload)
     if _es_formulario_iso_auditoria(nuevo):
         nuevo.modulo = "auditorias"
         nuevo.entidad_tipo = "auditoria"

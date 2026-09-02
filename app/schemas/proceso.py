@@ -87,11 +87,14 @@ class ProcesoBase(BaseModel):
     
     @field_validator('codigo')
     @classmethod
-    def validar_codigo(cls, v: str) -> str:
+    def validar_codigo(cls, v: Optional[str]) -> Optional[str]:
         """Validar formato de código"""
-        if not v or len(v) < 3:
+        if v is None or not str(v).strip():
+            return None
+        codigo = v.upper().strip()
+        if len(codigo) < 3:
             raise ValueError('El código debe tener al menos 3 caracteres')
-        return v.upper().strip()
+        return codigo
     
     @field_validator('version')
     @classmethod
@@ -104,7 +107,7 @@ class ProcesoBase(BaseModel):
 
 class ProcesoCreate(ProcesoBase):
     """Schema para crear un proceso"""
-    pass
+    codigo: Optional[str] = Field(None, max_length=100)
 
 
 class ProcesoUpdate(BaseModel):
@@ -278,7 +281,7 @@ class AccionProcesoBase(BaseModel):
 
 class AccionProcesoCreate(AccionProcesoBase):
     """Schema para crear acción de proceso"""
-    pass
+    codigo: Optional[str] = Field(None, max_length=100)
 
 
 class AccionProcesoUpdate(BaseModel):

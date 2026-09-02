@@ -7,7 +7,7 @@ from .config import settings
 from .api import (
     routes, usuarios, procesos, documentos, 
     calidad, auditorias, riesgos, capacitaciones, competencias, sistema, auth, migraciones, tickets, notificaciones,
-    analytics, reportes, uploads
+    analytics, reportes, uploads, codigos
 )
 
 
@@ -35,6 +35,7 @@ app.include_router(routes.router)
 app.include_router(usuarios.router)
 app.include_router(procesos.router)
 app.include_router(documentos.router)
+app.include_router(codigos.router)
 app.include_router(calidad.router)
 app.include_router(auditorias.router)
 app.include_router(riesgos.router)

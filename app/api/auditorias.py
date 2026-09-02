@@ -32,6 +32,7 @@ from ..utils.notification_service import crear_notificacion_asignacion, notifica
 from ..api.dependencies import require_any_permission
 from ..models.usuario import Usuario
 from ..utils.pdf_generator import PDFGenerator
+from ..utils.codigos import asignar_codigo, prefijo_anual
 
 router = APIRouter(prefix="/api/v1", tags=["auditorias"])
 
@@ -601,15 +602,13 @@ def crear_auditoria(
     if not tiene_permiso:
         raise HTTPException(status_code=403, detail="No tienes permiso para planificar auditorías")
 
-    # Verificar código único
-    db_auditoria = db.query(Auditoria).filter(Auditoria.codigo == auditoria.codigo).first()
-    if db_auditoria:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El código de auditoría ya existe"
-        )
-    
     auditoria_data = auditoria.model_dump()
+    auditoria_data["codigo"] = asignar_codigo(
+        db,
+        Auditoria,
+        auditoria_data.get("codigo"),
+        prefijo_anual("AUD"),
+    )
     auditoria_data["norma_referencia"] = auditoria_data.get("norma_referencia") or "ISO 9001:2015"
 
     _validar_programa_para_auditoria(
@@ -827,6 +826,12 @@ def crear_hallazgo_auditoria(
         raise HTTPException(status_code=403, detail="No tienes permiso para registrar hallazgos")
 
     hallazgo_data = hallazgo.model_dump()
+    hallazgo_data["codigo"] = asignar_codigo(
+        db,
+        HallazgoAuditoria,
+        hallazgo_data.get("codigo"),
+        prefijo_anual("HALL"),
+    )
     if hallazgo_data.get("responsable_respuesta_id"):
         _validar_usuario_activo(db, hallazgo_data["responsable_respuesta_id"], "responsable de respuesta")
     _validar_etapa_para_hallazgo(

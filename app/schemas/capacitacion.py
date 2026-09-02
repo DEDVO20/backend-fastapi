@@ -36,6 +36,7 @@ class CapacitacionBase(BaseModel):
 
 
 class CapacitacionCreate(CapacitacionBase):
+    codigo: Optional[str] = Field(None, max_length=100)
     usuarios_convocados_ids: list[UUID] = Field(default_factory=list)
 
 

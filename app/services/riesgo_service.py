@@ -8,6 +8,7 @@ from ..schemas.riesgo import RiesgoCreate, RiesgoUpdate, ControlRiesgoCreate, Co
 from .competency_risk_automation_service import CompetencyRiskAutomationService
 from ..utils.audit import registrar_auditoria
 from ..utils.notification_service import notificar_asignacion
+from ..utils.codigos import asignar_codigo
 
 
 class RiesgoService:
@@ -47,11 +48,8 @@ class RiesgoService:
         return riesgo
 
     def crear(self, data: RiesgoCreate, usuario_id: UUID) -> Riesgo:
-        existente = self.db.query(Riesgo).filter(Riesgo.codigo == data.codigo).first()
-        if existente:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El código de riesgo ya existe")
-
         payload = data.model_dump()
+        payload["codigo"] = asignar_codigo(self.db, Riesgo, payload.get("codigo"), "R-")
         if payload.get("probabilidad") and payload.get("impacto"):
             score_base = payload["probabilidad"] * payload["impacto"]
             payload["nivel_riesgo"] = self.calcular_nivel(payload["probabilidad"], payload["impacto"])

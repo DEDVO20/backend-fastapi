@@ -9,6 +9,7 @@ from ...models.calidad import NoConformidad, AccionCorrectiva
 from ...models.historial import HistorialEstado
 from ...schemas.calidad import NoConformidadCreate
 from ...models.proceso import Proceso
+from ...utils.codigos import asignar_codigo, prefijo_anual
 
 class HallazgoService:
     @staticmethod
@@ -19,13 +20,19 @@ class HallazgoService:
             if not proceso:
                 raise HTTPException(status_code=400, detail="El proceso especificado no existe")
 
+        hallazgo_data["codigo"] = asignar_codigo(
+            db,
+            HallazgoAuditoria,
+            hallazgo_data.get("codigo"),
+            prefijo_anual("HALL"),
+        )
         hallazgo = HallazgoAuditoria(**hallazgo_data)
         hallazgo.estado = hallazgo.estado or "abierto"
         db.add(hallazgo)
         db.flush()
 
         if hallazgo.tipo_hallazgo in ("no_conformidad_mayor", "no_conformidad_menor") and hallazgo.no_conformidad_id:
-            codigo = f"AC-AUTO-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            codigo = asignar_codigo(db, AccionCorrectiva, None, prefijo_anual("AC"))
             accion = AccionCorrectiva(
                 no_conformidad_id=hallazgo.no_conformidad_id,
                 codigo=codigo,
@@ -64,9 +71,7 @@ class HallazgoService:
             raise HTTPException(status_code=400, detail="Solo se pueden generar NC para hallazgos de tipo No Conformidad")
 
         # 3. Crear No Conformidad
-        count = db.query(NoConformidad).count()
-        year = datetime.now().year
-        codigo_nc = f"NC-{year}-{str(count + 1).zfill(3)}"
+        codigo_nc = asignar_codigo(db, NoConformidad, None, prefijo_anual("NC"))
 
         nueva_nc = NoConformidad(
             codigo=codigo_nc,
