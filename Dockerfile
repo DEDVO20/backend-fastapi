@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Copiar código de la aplicación
 COPY ./app ./app
-LABEL sgc.version="1.2.0"
+LABEL sgc.version="1.2.1"
 
 # Exponer puerto
 EXPOSE 8000

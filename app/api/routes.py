@@ -37,6 +37,7 @@ async def health_check(db: Session = Depends(get_db)):
         "environment": settings.ENVIRONMENT,
         "version": settings.APP_VERSION,
         "codigos_automaticos": True,
+        "adjuntos_sin_requests": True,
     }
 
 
