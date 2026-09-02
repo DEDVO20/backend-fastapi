@@ -79,7 +79,12 @@ def _reemplazar_permisos_rol(db: Session, rol: Rol, codigos: List[str], permisos
     db.flush()
 
 
-def _upsert_roles(db: Session, permisos: Dict[str, Permiso], resultado: Dict[str, Any]) -> Dict[str, Rol]:
+def _upsert_roles(
+    db: Session,
+    permisos: Dict[str, Permiso],
+    resultado: Dict[str, Any],
+    reemplazar_matrices: bool = True,
+) -> Dict[str, Rol]:
     roles: Dict[str, Rol] = {}
     for data in ROLES:
         rol = _buscar_rol_por_clave(db, data["clave"])
@@ -93,13 +98,15 @@ def _upsert_roles(db: Session, permisos: Dict[str, Permiso], resultado: Dict[str
             db.add(rol)
             db.flush()
             resultado["roles_creados"].append(data["clave"])
+            _reemplazar_permisos_rol(db, rol, data["permisos"], permisos)
         else:
             rol.nombre = data["nombre"]
             rol.clave = data["clave"]
             rol.descripcion = data["descripcion"]
             rol.activo = True
             resultado["roles_actualizados"].append(data["clave"])
-        _reemplazar_permisos_rol(db, rol, data["permisos"], permisos)
+            if reemplazar_matrices:
+                _reemplazar_permisos_rol(db, rol, data["permisos"], permisos)
         roles[data["clave"]] = rol
     return roles
 
@@ -160,13 +167,23 @@ def _eliminar_permisos_obsoletos(db: Session, resultado: Dict[str, Any]) -> None
     db.flush()
 
 
-def sincronizar_rbac_sgc(db: Session) -> Dict[str, Any]:
-    """Aplica el catálogo SGC y deja la matriz alineada con privilegio mínimo."""
+def sincronizar_rbac_sgc(db: Session, reemplazar_existentes: bool = True) -> Dict[str, Any]:
+    """Sincroniza el catálogo SGC.
+
+    Si `reemplazar_existentes` es True (botón "Aplicar catálogo SGC"),
+    reemplaza matrices, migra roles obsoletos y elimina permisos viejos.
+
+    Si es False (arranque de la API), solo crea permisos/roles faltantes
+    y no pisa asignaciones hechas desde la interfaz.
+    """
     resultado = _resultado_vacio()
     permisos = _upsert_permisos(db, resultado)
-    roles = _upsert_roles(db, permisos, resultado)
-    _migrar_y_eliminar_obsoletos(db, roles, resultado)
-    _eliminar_permisos_obsoletos(db, resultado)
+    roles = _upsert_roles(
+        db, permisos, resultado, reemplazar_matrices=reemplazar_existentes
+    )
+    if reemplazar_existentes:
+        _migrar_y_eliminar_obsoletos(db, roles, resultado)
+        _eliminar_permisos_obsoletos(db, resultado)
     db.commit()
 
     roles_finales = {

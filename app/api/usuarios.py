@@ -24,6 +24,7 @@ from ..schemas.usuario import (
     RolResponse,
     PermisoResponse,
     RolPermisoCreate,
+    AsignarPermisosRolRequest,
     CargaMasivaJsonRequest,
     SincronizacionRbacResponse,
 )
@@ -65,8 +66,10 @@ def _reemplazar_roles(db: Session, usuario_id: UUID, rol_ids: List[UUID]) -> Non
                 detail="Uno o más roles no existen o no son válidos",
             )
     db.query(UsuarioRol).filter(UsuarioRol.usuario_id == usuario_id).delete(synchronize_session=False)
+    db.flush()
     for rol_id in unique_ids:
         db.add(UsuarioRol(usuario_id=usuario_id, rol_id=rol_id))
+    db.flush()
 
 
 # ======================
@@ -224,7 +227,7 @@ def eliminar_area(
 @router.get("/roles", response_model=List[RolResponse])
 def listar_roles(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 200,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_any_permission(["usuarios.crear", "usuarios.gestion", "sistema.admin"]))
 ):
@@ -279,13 +282,14 @@ def obtener_rol(
 ):
     """Obtener un rol por ID"""
     from sqlalchemy.orm import joinedload
-    rol = db.query(Rol).options(joinedload(Rol.permisos)).filter(Rol.id == rol_id).first()
+    rol = db.query(Rol).options(
+        joinedload(Rol.permisos).joinedload(RolPermiso.permiso)
+    ).filter(Rol.id == rol_id).first()
     if not rol:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Rol no encontrado"
         )
-    print(f"DEBUG: obtener_rol {rol.nombre} - Permisos encontrados: {len(rol.permisos)}")
     return rol
 
 
@@ -367,7 +371,7 @@ def eliminar_rol(
 @router.get("/permisos", response_model=List[PermisoResponse])
 def listar_permisos(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 500,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_any_permission(["usuarios.gestion", "sistema.admin"]))
 ):
@@ -379,7 +383,7 @@ def listar_permisos(
 @router.post("/roles/{rol_id}/permisos", status_code=status.HTTP_201_CREATED)
 def asignar_permisos_rol(
     rol_id: UUID, 
-    permisos_data: dict,  # Espera {"permisoIds": ["id1", "id2"]}
+    permisos_data: AsignarPermisosRolRequest,
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_any_permission(["usuarios.gestion", "sistema.admin"]))
 ):
@@ -390,21 +394,23 @@ def asignar_permisos_rol(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Rol no encontrado"
         )
-    
-    # Limpiar permisos existentes
+
+    permiso_ids = list(dict.fromkeys(permisos_data.permiso_ids))
+    if permiso_ids:
+        encontrados = {row[0] for row in db.query(Permiso.id).filter(Permiso.id.in_(permiso_ids)).all()}
+        if len(encontrados) != len(permiso_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uno o más permisos no existen o no son válidos",
+            )
+
     db.query(RolPermiso).filter(RolPermiso.rol_id == rol_id).delete(synchronize_session=False)
     db.flush()
-    
-    # Asignar nuevos permisos (deduplicados)
-    permiso_ids = list(set(permisos_data.get("permisoIds", [])))
-    print(f"DEBUG: Asignando {len(permiso_ids)} permisos (únicos) al rol {rol_id}")
-    
+
     for permiso_id in permiso_ids:
-        nuevo_rol_permiso = RolPermiso(rol_id=rol_id, permiso_id=permiso_id)
-        db.add(nuevo_rol_permiso)
-    
+        db.add(RolPermiso(rol_id=rol_id, permiso_id=permiso_id))
+
     db.commit()
-    print(f"DEBUG: Guardado exitoso para rol {rol_id}")
     return {"message": "Permisos actualizados correctamente"}
 
 
@@ -423,14 +429,14 @@ def listar_usuarios(
     """Listar todos los usuarios"""
     query = db.query(Usuario).options(
         joinedload(Usuario.area),
-        joinedload(Usuario.roles).joinedload(UsuarioRol.rol),
+        joinedload(Usuario.roles).joinedload(UsuarioRol.rol).joinedload(Rol.permisos).joinedload(RolPermiso.permiso),
     )
     
     if activo is not None:
         query = query.filter(Usuario.activo == activo)
     
     usuarios = query.offset(skip).limit(limit).all()
-    return usuarios
+    return [_usuario_respuesta(usuario) for usuario in usuarios]
 
 
 @router.get("/usuarios/carga-masiva/plantilla")
@@ -467,7 +473,7 @@ def exportar_usuarios_plataforma(
     )
 
 
-@router.post("/usuarios", response_model=UsuarioResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/usuarios", response_model=UsuarioWithArea, status_code=status.HTTP_201_CREATED)
 def crear_usuario(
     usuario: UsuarioCreate, 
     db: Session = Depends(get_db),
@@ -490,7 +496,6 @@ def crear_usuario(
             detail="El nombre de usuario ya existe"
         )
     
-    # Crear nuevo usuario
     usuario_dict = usuario.model_dump()
     contrasena = usuario_dict.pop('contrasena')
     rol_ids = usuario_dict.pop('rol_ids', [])
@@ -499,16 +504,28 @@ def crear_usuario(
     
     nuevo_usuario = Usuario(**usuario_dict)
     db.add(nuevo_usuario)
-    db.flush()  # Para obtener el ID del usuario
-    
-    # Asignar roles
-    for rol_id in rol_ids:
-        usuario_rol = UsuarioRol(usuario_id=nuevo_usuario.id, rol_id=rol_id)
-        db.add(usuario_rol)
-        
-    db.commit()
-    db.refresh(nuevo_usuario)
-    return nuevo_usuario
+    db.flush()
+
+    try:
+        _reemplazar_roles(db, nuevo_usuario.id, rol_ids)
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se pudo crear el usuario: hay datos duplicados o roles inválidos",
+        )
+
+    creado = _cargar_usuario(db, nuevo_usuario.id)
+    if not creado:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado",
+        )
+    return _usuario_respuesta(creado)
 
 
 @router.get("/usuarios/{usuario_id}", response_model=UsuarioWithArea)

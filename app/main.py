@@ -65,7 +65,7 @@ async def startup_event():
 
         db = SessionLocal()
         try:
-            resumen = sincronizar_rbac_sgc(db)
+            resumen = sincronizar_rbac_sgc(db, reemplazar_existentes=False)
             print(
                 "✅ RBAC SGC sincronizado | "
                 f"creados={resumen['roles_creados']} "

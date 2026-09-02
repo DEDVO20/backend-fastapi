@@ -82,6 +82,13 @@ class RolPermisoCreate(BaseModel):
     permiso_id: UUID
 
 
+class AsignarPermisosRolRequest(BaseModel):
+    """Cuerpo para reemplazar los permisos de un rol (acepta camelCase y snake_case)."""
+    permiso_ids: List[UUID] = Field(default_factory=list, alias="permisoIds")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class RolPermisoResponse(BaseModel):
     id: UUID
     rol_id: UUID

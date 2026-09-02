@@ -85,3 +85,30 @@ def test_usuario_rol_response_usa_rol_id():
     assert parsed.id == asignacion_id
     assert parsed.rol is not None
     assert parsed.rol.clave == "admin"
+
+
+def test_asignar_permisos_acepta_camel_case():
+    from app.schemas.usuario import AsignarPermisosRolRequest
+
+    permiso_id = uuid4()
+    data = AsignarPermisosRolRequest.model_validate({"permisoIds": [str(permiso_id)]})
+    assert data.permiso_ids == [permiso_id]
+
+
+def test_asignar_permisos_acepta_snake_case():
+    from app.schemas.usuario import AsignarPermisosRolRequest
+
+    permiso_id = uuid4()
+    data = AsignarPermisosRolRequest(permiso_ids=[permiso_id])
+    assert data.permiso_ids == [permiso_id]
+
+
+def test_sync_rbac_startup_no_pisa_asignaciones():
+    import inspect
+    from app.db.sync_rbac import sincronizar_rbac_sgc
+    from app.main import startup_event
+
+    sig = inspect.signature(sincronizar_rbac_sgc)
+    assert "reemplazar_existentes" in sig.parameters
+    assert sig.parameters["reemplazar_existentes"].default is True
+    assert "reemplazar_existentes=False" in inspect.getsource(startup_event)
