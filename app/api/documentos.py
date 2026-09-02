@@ -4,11 +4,13 @@ Endpoints CRUD para gestión de documentos
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy.exc import IntegrityError
-from typing import List
+from typing import List, Optional
 from uuid import UUID
+from datetime import datetime
 
 from ..database import get_db
 from ..models.documento import Documento, VersionDocumento, DocumentoProceso
+from ..models.usuario import UsuarioRol, Rol, RolPermiso
 from ..schemas.documento import (
     DocumentoCreate,
     DocumentoUpdate,
@@ -32,6 +34,54 @@ from ..utils.codigos import asignar_codigo, prefijo_documento
 router = APIRouter(prefix="/api/v1", tags=["documentos"])
 
 
+def _siguiente_version(version: Optional[str]) -> str:
+    raw = (version or "1.0").strip().replace(",", ".") or "1.0"
+    partes = [p for p in raw.split(".") if p != ""]
+    try:
+        mayor = int(partes[0]) if partes else 1
+        menor = int(partes[1]) if len(partes) > 1 else 0
+        return f"{mayor}.{menor + 1}"
+    except ValueError:
+        return "1.1"
+
+
+def _cargar_usuario_con_permisos(db: Session, usuario_id: UUID) -> Optional[Usuario]:
+    return db.query(Usuario).options(
+        joinedload(Usuario.roles).joinedload(UsuarioRol.rol).joinedload(Rol.permisos).joinedload(RolPermiso.permiso)
+    ).filter(Usuario.id == usuario_id).first()
+
+
+def _asegurar_rol_documento(db: Session, usuario_id: Optional[UUID], permisos: List[str], etiqueta: str) -> None:
+    if not usuario_id:
+        return
+    usuario = _cargar_usuario_con_permisos(db, usuario_id)
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El usuario asignado como {etiqueta} no existe",
+        )
+    if not usuario.activo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El usuario asignado como {etiqueta} está inactivo",
+        )
+    if not user_has_any_permission(usuario, permisos):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Solo se puede asignar como {etiqueta} a usuarios con el permiso correspondiente ({', '.join(permisos)})",
+        )
+
+
+def _archivar_version(db: Session, documento: Documento, usuario_id: UUID, descripcion: str) -> None:
+    db.add(VersionDocumento(
+        documento_id=documento.id,
+        version=documento.version_actual or "1.0",
+        descripcion_cambios=descripcion,
+        ruta_archivo=documento.ruta_archivo,
+        creado_por=usuario_id,
+    ))
+
+
 # ==========================
 # Endpoints de Documentos
 # ==========================
@@ -39,7 +89,7 @@ router = APIRouter(prefix="/api/v1", tags=["documentos"])
 @router.get("/documentos", response_model=List[DocumentoResponse])
 def listar_documentos(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 1000,
     estado: str = None,
     tipo_documento: str = None,
     aprobado_por: UUID = None,
@@ -116,6 +166,8 @@ def crear_documento(
     documento_data = documento.model_dump()
     prefix = prefijo_documento(documento.tipo_documento)
     documento_data["creado_por"] = current_user.id
+    _asegurar_rol_documento(db, documento_data.get("revisado_por"), ["documentos.revisar"], "revisor")
+    _asegurar_rol_documento(db, documento_data.get("aprobado_por"), ["documentos.aprobar"], "aprobador")
     nuevo_documento = None
     ultimo_error = None
     for intento in range(6):
@@ -243,49 +295,41 @@ def actualizar_documento(
         update_data = documento_update.model_dump(exclude_unset=True)
         anterior_revisor = documento.revisado_por
         anterior_aprobador = documento.aprobado_por
-        
-        # PROTECCIÓN: No permitir cambiar el creador (creado_por) nunca
+        version_anterior = documento.version_actual or "1.0"
+
         if 'creado_por' in update_data:
             del update_data['creado_por']
-        
-        # PROTECCIÓN: Solo el creador o admin puede cambiar el aprobador
-        if 'aprobado_por' in update_data:
-            if documento.creado_por != current_user.id:
-                # Verificar si tiene permiso de admin
-                tiene_permiso_admin = False
-                for usuario_rol in current_user.roles:
-                    for rol_permiso in usuario_rol.rol.permisos:
-                        if rol_permiso.permiso.codigo in ["documentos.administrar", "admin.all"]:
-                            tiene_permiso_admin = True
-                            break
-                    if tiene_permiso_admin:
-                        break
-                
-                if not tiene_permiso_admin:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Solo el creador del documento o un administrador puede asignar el aprobador"
-                    )
 
-        # PROTECCIÓN: Solo el creador o admin puede cambiar el revisor
+        es_admin = user_has_any_permission(current_user, ["sistema.admin"])
+        es_creador = documento.creado_por == current_user.id
+
+        if 'aprobado_por' in update_data:
+            if not es_creador and not es_admin:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Solo el creador del documento o un administrador puede asignar el aprobador"
+                )
+            _asegurar_rol_documento(db, update_data.get("aprobado_por"), ["documentos.aprobar"], "aprobador")
+
         if 'revisado_por' in update_data:
-            if documento.creado_por != current_user.id:
-                # Verificar si tiene permiso de admin
-                tiene_permiso_admin = False
-                for usuario_rol in current_user.roles:
-                    for rol_permiso in usuario_rol.rol.permisos:
-                        if rol_permiso.permiso.codigo in ["documentos.administrar", "admin.all"]:
-                            tiene_permiso_admin = True
-                            break
-                    if tiene_permiso_admin:
-                        break
-                
-                if not tiene_permiso_admin:
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="Solo el creador del documento o un administrador puede asignar el revisor"
-                    )
-        
+            if not es_creador and not es_admin:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Solo el creador del documento o un administrador puede asignar el revisor"
+                )
+            _asegurar_rol_documento(db, update_data.get("revisado_por"), ["documentos.revisar"], "revisor")
+
+        version_enviada = str(update_data.get("version_actual") or "").strip()
+        if not version_enviada or version_enviada == str(version_anterior or "").strip():
+            update_data["version_actual"] = _siguiente_version(version_anterior)
+
+        _archivar_version(
+            db,
+            documento,
+            current_user.id,
+            f"Versión {version_anterior} archivada antes de actualizar a {update_data.get('version_actual', _siguiente_version(version_anterior))}",
+        )
+
         for field, value in update_data.items():
             setattr(documento, field, value)
         
@@ -385,7 +429,7 @@ def eliminar_documento(
 def listar_versiones_documento(
     documento_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["documentos.ver", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(["documentos.ver", "documentos.revisar", "documentos.crear", "sistema.admin"]))
 ):
     """Listar versiones de un documento"""
     versiones = db.query(VersionDocumento).options(
@@ -400,7 +444,7 @@ def listar_versiones_documento(
 def crear_version_documento(
     version: VersionDocumentoCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["documentos.crear", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(["documentos.crear", "documentos.revisar", "sistema.admin"]))
 ):
     """Crear una nueva versión de documento"""
     # Asignar el creador automáticamente
@@ -478,8 +522,9 @@ def solicitar_revision_documento(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el creador del documento puede solicitar revisión"
         )
-    
-    # Actualizar estado
+
+    _asegurar_rol_documento(db, revisor_id, ["documentos.revisar"], "revisor")
+    documento.revisado_por = revisor_id
     documento.estado = "en_revision"
     
     # Crear notificación (CORREGIDO: usar 'nombre' en lugar de 'titulo')
@@ -510,6 +555,8 @@ def solicitar_aprobacion_documento(
     # CORREGIDO: verificar que tenga un aprobador asignado (campo aprobado_por)
     if not documento.aprobado_por:
         raise HTTPException(status_code=400, detail="El documento no tiene un aprobador asignado. Edite el documento para asignar un aprobador.")
+
+    _asegurar_rol_documento(db, documento.aprobado_por, ["documentos.aprobar"], "aprobador")
     
     # Actualizar estado
     documento.estado = "pendiente_aprobacion"

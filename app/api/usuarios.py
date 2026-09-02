@@ -82,7 +82,22 @@ def listar_areas(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["areas.gestionar", "usuarios.crear", "usuarios.gestion", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission([
+        "areas.gestionar",
+        "usuarios.crear",
+        "usuarios.ver",
+        "usuarios.gestion",
+        "documentos.ver",
+        "documentos.crear",
+        "documentos.revisar",
+        "procesos.ver",
+        "procesos.admin",
+        "calidad.ver",
+        "noconformidades.reportar",
+        "noconformidades.gestion",
+        "sistema.config",
+        "sistema.admin",
+    ]))
 ):
     """Listar todas las áreas con sus responsables asignados"""
     from ..models.sistema import Asignacion
@@ -165,39 +180,37 @@ def eliminar_area(
         )
     
     try:
-        # Verificar si hay usuarios asignados a esta área
         from ..models.usuario import Usuario
-        usuarios_count = db.query(Usuario).filter(Usuario.area_id == area_id).count()
-        if usuarios_count > 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"No se puede eliminar el área porque tiene {usuarios_count} usuario(s) asignado(s). Primero reasigne o elimine los usuarios."
-            )
-        
-        # Verificar si hay procesos asignados a esta área
         from ..models.proceso import Proceso
-        procesos_count = db.query(Proceso).filter(Proceso.area_id == area_id).count()
-        if procesos_count > 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"No se puede eliminar el área porque tiene {procesos_count} proceso(s) asignado(s). Primero reasigne o elimine los procesos."
-            )
-        
-        # Verificar si hay objetivos de calidad asignados a esta área
         from ..models.calidad import ObjetivoCalidad
-        objetivos_count = db.query(ObjetivoCalidad).filter(ObjetivoCalidad.area_id == area_id).count()
-        if objetivos_count > 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"No se puede eliminar el área porque tiene {objetivos_count} objetivo(s) de calidad asignado(s). Primero reasigne o elimine los objetivos."
-            )
-        
-        # Eliminar asignaciones del área
+        from ..models.capacitacion import Capacitacion
         from ..models.sistema import Asignacion
+        from ..models.ticket import Ticket
+
+        # Desvincular usuarios, procesos y demás registros para poder eliminar el área
+        db.query(Usuario).filter(Usuario.area_id == area_id).update(
+            {Usuario.area_id: None},
+            synchronize_session=False,
+        )
+        db.query(Proceso).filter(Proceso.area_id == area_id).update(
+            {Proceso.area_id: None},
+            synchronize_session=False,
+        )
+        db.query(ObjetivoCalidad).filter(ObjetivoCalidad.area_id == area_id).update(
+            {ObjetivoCalidad.area_id: None},
+            synchronize_session=False,
+        )
+        db.query(Capacitacion).filter(Capacitacion.area_id == area_id).update(
+            {Capacitacion.area_id: None},
+            synchronize_session=False,
+        )
+        db.query(Ticket).filter(Ticket.area_destino_id == area_id).update(
+            {Ticket.area_destino_id: None},
+            synchronize_session=False,
+        )
         db.query(Asignacion).filter(Asignacion.area_id == area_id).delete(synchronize_session=False)
         db.flush()
-        
-        # Eliminar el área
+
         db.delete(area)
         db.commit()
         return None
@@ -418,7 +431,16 @@ def listar_usuarios(
     limit: int = 100,
     activo: bool = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["usuarios.ver", "usuarios.gestion", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission([
+        "usuarios.ver",
+        "usuarios.gestion",
+        "usuarios.crear",
+        "documentos.crear",
+        "documentos.revisar",
+        "documentos.aprobar",
+        "areas.gestionar",
+        "sistema.admin",
+    ]))
 ):
     """Listar todos los usuarios"""
     query = db.query(Usuario).options(

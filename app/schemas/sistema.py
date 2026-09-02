@@ -205,7 +205,27 @@ class RespuestaFormularioResponse(RespuestaFormularioBase):
 
 
 # Asignacion Schemas
-from .usuario import UsuarioResponse, AreaResponse
+class AreaAsignacionNested(BaseModel):
+    id: UUID
+    codigo: str
+    nombre: str
+    descripcion: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UsuarioAsignacionNested(BaseModel):
+    id: UUID
+    documento: Optional[int] = None
+    nombre: str
+    segundo_nombre: Optional[str] = None
+    primer_apellido: Optional[str] = None
+    segundo_apellido: Optional[str] = None
+    correo_electronico: Optional[str] = None
+    nombre_usuario: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 class AsignacionCreate(BaseModel):
     area_id: UUID
@@ -219,9 +239,7 @@ class AsignacionResponse(BaseModel):
     usuario_id: UUID
     es_principal: bool
     creado_en: datetime
-    
-    # Datos anidados para facilitar el frontend
-    area: Optional[AreaResponse] = None
-    usuario: Optional[UsuarioResponse] = None
-    
+    area: Optional[AreaAsignacionNested] = None
+    usuario: Optional[UsuarioAsignacionNested] = None
+
     model_config = ConfigDict(from_attributes=True)

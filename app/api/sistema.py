@@ -179,11 +179,11 @@ def listar_audit_log(
 @router.get("/asignaciones", response_model=List[AsignacionResponse])
 def listar_asignaciones(
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 1000,
     area_id: UUID = None,
     usuario_id: UUID = None,
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(["areas.gestionar", "sistema.config", "sistema.admin"]))
 ):
     """Listar asignaciones de responsables"""
     query = db.query(Asignacion).options(
@@ -204,7 +204,7 @@ def listar_asignaciones(
 def crear_asignacion(
     asignacion: AsignacionCreate, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(["areas.gestionar", "sistema.config", "sistema.admin"]))
 ):
     """Crear una nueva asignación de responsable"""
     _obtener_usuario_activo(db, asignacion.usuario_id)
@@ -242,7 +242,7 @@ def crear_asignacion(
 def eliminar_asignacion(
     asignacion_id: UUID, 
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
+    current_user: Usuario = Depends(require_any_permission(["areas.gestionar", "sistema.config", "sistema.admin"]))
 ):
     """Eliminar una asignación"""
     asignacion = db.query(Asignacion).filter(Asignacion.id == asignacion_id).first()

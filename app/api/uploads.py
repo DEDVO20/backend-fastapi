@@ -16,9 +16,14 @@ ACCESO_USUARIO_AUTENTICADO_PERMISSIONS = [
     "sistema.admin",
     "calidad.ver",
     "documentos.crear",
+    "documentos.ver",
+    "documentos.revisar",
     "auditorias.ver",
     "capacitaciones.gestion",
-    "documentos.ver",
+    "noconformidades.reportar",
+    "noconformidades.gestion",
+    "usuarios.ver",
+    "usuarios.gestion",
 ]
 
 @router.post("/evidencia", response_model=dict)
