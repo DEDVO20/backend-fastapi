@@ -3,6 +3,7 @@ Endpoints CRUD para gestión de documentos
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.exc import IntegrityError
 from typing import List
 from uuid import UUID
 
@@ -113,18 +114,38 @@ def crear_documento(
 ):
     """Crear un nuevo documento"""
     documento_data = documento.model_dump()
-    documento_data["codigo"] = asignar_codigo(
-        db,
-        Documento,
-        documento_data.get("codigo"),
-        prefijo_documento(documento.tipo_documento),
-    )
-    documento_data['creado_por'] = current_user.id
-    
-    nuevo_documento = Documento(**documento_data)
-    db.add(nuevo_documento)
-    db.commit()
-    db.refresh(nuevo_documento)
+    prefix = prefijo_documento(documento.tipo_documento)
+    documento_data["creado_por"] = current_user.id
+    nuevo_documento = None
+    ultimo_error = None
+    for intento in range(6):
+        documento_data["codigo"] = asignar_codigo(
+            db,
+            Documento,
+            None if intento else documento_data.get("codigo"),
+            prefix,
+        )
+        try:
+            nuevo_documento = Documento(**documento_data)
+            db.add(nuevo_documento)
+            db.commit()
+            db.refresh(nuevo_documento)
+            ultimo_error = None
+            break
+        except IntegrityError as exc:
+            db.rollback()
+            mensaje = str(getattr(exc, "orig", exc)).lower()
+            if "codigo" not in mensaje:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="No se pudo guardar el documento. Verifique los datos e intente de nuevo.",
+                ) from exc
+            ultimo_error = exc
+    if nuevo_documento is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se pudo asignar un código único al documento. Intente guardar de nuevo.",
+        ) from ultimo_error
     notificar_asignacion(
         db,
         usuario_id=getattr(nuevo_documento, "revisado_por", None),

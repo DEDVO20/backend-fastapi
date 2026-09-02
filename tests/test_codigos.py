@@ -10,6 +10,10 @@ def test_siguiente_desde_existentes_incrementa():
     assert siguiente_desde_existentes(["FO-GC-001", "FO-GC-003"], "FO-GC-") == "FO-GC-004"
 
 
+def test_siguiente_desde_existentes_cuenta_sufijos():
+    assert siguiente_desde_existentes(["FO-GC-001-REV"], "FO-GC-") == "FO-GC-002"
+
+
 def test_siguiente_desde_existentes_vacio():
     assert siguiente_desde_existentes([], "R-") == "R-001"
 

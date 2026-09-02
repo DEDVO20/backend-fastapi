@@ -91,7 +91,7 @@ def resolver_prefijo(
 
 
 def siguiente_desde_existentes(codigos: list[str], prefix: str, digits: int = 3) -> str:
-    patron = re.compile(rf"^{re.escape(prefix)}(\d+)$", re.IGNORECASE)
+    patron = re.compile(rf"^{re.escape(prefix)}(\d+)", re.IGNORECASE)
     maximo = 0
     for valor in codigos:
         if not valor:
@@ -102,15 +102,36 @@ def siguiente_desde_existentes(codigos: list[str], prefix: str, digits: int = 3)
     return f"{prefix}{str(maximo + 1).zfill(digits)}"
 
 
+def _codigo_ocupado(db: Session, model, valor: str, campo: str = "codigo") -> bool:
+    columna = getattr(model, campo)
+    return (
+        db.query(model)
+        .filter(func.lower(columna) == valor.strip().lower())
+        .first()
+        is not None
+    )
+
+
+def _incrementar_codigo(codigo: str, prefix: str, digits: int = 3) -> str:
+    coincidencia = re.match(rf"^{re.escape(prefix)}(\d+)", codigo.strip(), re.IGNORECASE)
+    numero = int(coincidencia.group(1)) if coincidencia else 0
+    return f"{prefix}{str(numero + 1).zfill(digits)}"
+
+
 def siguiente_codigo(db: Session, model, prefix: str, campo: str = "codigo", digits: int = 3) -> str:
     columna = getattr(model, campo)
     filas = (
         db.query(columna)
-        .filter(func.lower(columna).like(f"{prefix.lower()}%"))
+        .filter(columna.ilike(f"{prefix}%"))
         .all()
     )
     existentes = [fila[0] for fila in filas if fila and fila[0]]
-    return siguiente_desde_existentes(existentes, prefix, digits)
+    candidato = siguiente_desde_existentes(existentes, prefix, digits)
+    for _ in range(1000):
+        if not _codigo_ocupado(db, model, candidato, campo):
+            return candidato
+        candidato = _incrementar_codigo(candidato, prefix, digits)
+    raise RuntimeError(f"No se pudo generar un código único con prefijo {prefix}")
 
 
 def asignar_codigo(
@@ -122,8 +143,8 @@ def asignar_codigo(
     digits: int = 3,
 ) -> str:
     valor = (codigo or "").strip().upper()
-    if valor:
-        existente = db.query(model).filter(getattr(model, campo) == valor).first()
-        if not existente:
-            return valor
+    if valor in {"SE ASIGNARÁ AL GUARDAR", "SE ASIGNARA AL GUARDAR"}:
+        valor = ""
+    if valor and not _codigo_ocupado(db, model, valor, campo):
+        return valor
     return siguiente_codigo(db, model, prefix, campo=campo, digits=digits)
