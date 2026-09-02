@@ -133,11 +133,22 @@ class UsuarioRolCreate(BaseModel):
     rol_id: UUID
 
 
+class RolLite(BaseModel):
+    """Rol resumido para anidar en asignaciones usuario-rol (evita ciclos con permisos)."""
+    id: UUID
+    nombre: str
+    clave: str
+    descripcion: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UsuarioRolResponse(BaseModel):
     id: UUID
     usuario_id: UUID
     rol_id: UUID
     creado_en: datetime
+    rol: Optional[RolLite] = None
     
     model_config = ConfigDict(from_attributes=True)
 

@@ -12,7 +12,6 @@ import json
 
 from ..database import get_db
 from ..models.sistema import (
-    Notificacion,
     Configuracion,
     Asignacion,
     FormularioDinamico,
@@ -21,9 +20,6 @@ from ..models.sistema import (
 )
 from ..models.audit_log import AuditLog
 from ..schemas.sistema import (
-    NotificacionCreate,
-    NotificacionUpdate,
-    NotificacionResponse,
     ConfiguracionCreate,
     ConfiguracionUpdate,
     ConfiguracionResponse,
@@ -258,98 +254,6 @@ def eliminar_asignacion(
     db.delete(asignacion)
     db.commit()
     return None
-
-
-# ==========================
-# Endpoints de Notificaciones
-# ==========================
-
-@router.get("/notificaciones", response_model=List[NotificacionResponse])
-def listar_notificaciones(
-    skip: int = 0,
-    limit: int = 100,
-    usuario_id: UUID = None,
-    leida: bool = None,
-    tipo: str = None,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
-):
-    """Listar notificaciones del usuario autenticado."""
-    if usuario_id and usuario_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tiene permisos para consultar notificaciones de otro usuario",
-        )
-
-    query = db.query(Notificacion).filter(Notificacion.usuario_id == current_user.id)
-
-    if leida is not None:
-        query = query.filter(Notificacion.leida == leida)
-    if tipo:
-        query = query.filter(Notificacion.tipo == tipo)
-    
-    notificaciones = query.order_by(Notificacion.creado_en.desc()).offset(skip).limit(limit).all()
-    return notificaciones
-
-
-@router.post("/notificaciones", response_model=NotificacionResponse, status_code=status.HTTP_201_CREATED)
-def crear_notificacion(
-    notificacion: NotificacionCreate, 
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
-):
-    """Crear una nueva notificación"""
-    nueva_notificacion = Notificacion(**notificacion.model_dump())
-    db.add(nueva_notificacion)
-    db.commit()
-    db.refresh(nueva_notificacion)
-    return nueva_notificacion
-
-
-@router.get("/notificaciones/{notificacion_id}", response_model=NotificacionResponse)
-def obtener_notificacion(
-    notificacion_id: UUID, 
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
-):
-    """Obtener una notificación propia por ID."""
-    notificacion = db.query(Notificacion).filter(
-        Notificacion.id == notificacion_id,
-        Notificacion.usuario_id == current_user.id,
-    ).first()
-    if not notificacion:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Notificación no encontrada"
-        )
-    return notificacion
-
-
-@router.put("/notificaciones/{notificacion_id}", response_model=NotificacionResponse)
-def actualizar_notificacion(
-    notificacion_id: UUID,
-    notificacion_update: NotificacionUpdate,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["sistema.config", "sistema.admin"]))
-):
-    """Actualizar una notificación propia (marcar como leída)."""
-    notificacion = db.query(Notificacion).filter(
-        Notificacion.id == notificacion_id,
-        Notificacion.usuario_id == current_user.id,
-    ).first()
-    if not notificacion:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Notificación no encontrada"
-        )
-    
-    update_data = notificacion_update.model_dump(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(notificacion, field, value)
-    
-    db.commit()
-    db.refresh(notificacion)
-    return notificacion
 
 
 # ============================

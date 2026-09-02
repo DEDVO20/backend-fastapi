@@ -1,7 +1,7 @@
 """
 Schemas de Pydantic para Notificaciones
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
@@ -32,8 +32,7 @@ class NotificacionResponse(NotificacionBase):
     id: UUID
     usuario_id: UUID
     leida: bool
-    fecha_lectura: Optional[datetime]
+    fecha_lectura: Optional[datetime] = None
     creado_en: datetime
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)

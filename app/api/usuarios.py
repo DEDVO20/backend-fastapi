@@ -4,8 +4,9 @@ Endpoints CRUD para gestión de usuarios
 import io
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, joinedload
+from typing import List, Optional
 from uuid import UUID
 
 from ..database import get_db
@@ -40,6 +41,34 @@ def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
 
+def _cargar_usuario(db: Session, usuario_id: UUID) -> Optional[Usuario]:
+    """Carga un usuario con área, roles y permisos para serializar la respuesta."""
+    return db.query(Usuario).options(
+        joinedload(Usuario.area),
+        joinedload(Usuario.roles).joinedload(UsuarioRol.rol).joinedload(Rol.permisos).joinedload(RolPermiso.permiso),
+    ).filter(Usuario.id == usuario_id).first()
+
+
+def _usuario_respuesta(usuario: Usuario) -> UsuarioWithArea:
+    user_data = UsuarioWithArea.model_validate(usuario)
+    user_data.permisos = usuario.permisos_codes
+    return user_data
+
+
+def _reemplazar_roles(db: Session, usuario_id: UUID, rol_ids: List[UUID]) -> None:
+    unique_ids = list(dict.fromkeys(rol_ids))
+    if unique_ids:
+        encontrados = {row[0] for row in db.query(Rol.id).filter(Rol.id.in_(unique_ids)).all()}
+        if len(encontrados) != len(unique_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uno o más roles no existen o no son válidos",
+            )
+    db.query(UsuarioRol).filter(UsuarioRol.usuario_id == usuario_id).delete(synchronize_session=False)
+    for rol_id in unique_ids:
+        db.add(UsuarioRol(usuario_id=usuario_id, rol_id=rol_id))
+
+
 # ======================
 # Endpoints de Áreas
 # ======================
@@ -52,7 +81,6 @@ def listar_areas(
     current_user: Usuario = Depends(require_any_permission(["areas.gestionar", "usuarios.crear", "usuarios.gestion", "sistema.admin"]))
 ):
     """Listar todas las áreas con sus responsables asignados"""
-    from sqlalchemy.orm import joinedload
     from ..models.sistema import Asignacion
     
     areas = db.query(Area).options(
@@ -393,8 +421,6 @@ def listar_usuarios(
     current_user: Usuario = Depends(require_any_permission(["usuarios.ver", "usuarios.gestion", "sistema.admin"]))
 ):
     """Listar todos los usuarios"""
-    from sqlalchemy.orm import joinedload
-
     query = db.query(Usuario).options(
         joinedload(Usuario.area),
         joinedload(Usuario.roles).joinedload(UsuarioRol.rol),
@@ -492,12 +518,7 @@ def obtener_usuario(
     current_user: Usuario = Depends(require_any_permission(["usuarios.ver", "usuarios.gestion", "sistema.admin"]))
 ):
     """Obtener un usuario por ID con sus permisos"""
-    from sqlalchemy.orm import joinedload
-    from ..models.usuario import UsuarioRol, Rol, RolPermiso
-    usuario = db.query(Usuario).options(
-        joinedload(Usuario.area),
-        joinedload(Usuario.roles).joinedload(UsuarioRol.rol).joinedload(Rol.permisos).joinedload(RolPermiso.permiso)
-    ).filter(Usuario.id == usuario_id).first()
+    usuario = _cargar_usuario(db, usuario_id)
     
     if not usuario:
         raise HTTPException(
@@ -505,13 +526,10 @@ def obtener_usuario(
             detail="Usuario no encontrado"
         )
     
-    # Mapear permisos manualmente para asegurar consistencia
-    user_data = UsuarioWithArea.model_validate(usuario)
-    user_data.permisos = usuario.permisos_codes
-    return user_data
+    return _usuario_respuesta(usuario)
 
 
-@router.put("/usuarios/{usuario_id}", response_model=UsuarioResponse)
+@router.put("/usuarios/{usuario_id}", response_model=UsuarioWithArea)
 def actualizar_usuario(
     usuario_id: UUID, 
     usuario_update: UsuarioUpdate, 
@@ -526,31 +544,68 @@ def actualizar_usuario(
             detail="Usuario no encontrado"
         )
     
-    # Actualizar campos
     update_data = usuario_update.model_dump(exclude_unset=True)
-    
-    # Manejar roles si se proporcionan
-    rol_ids = update_data.pop('rol_ids', None)
-    if rol_ids is not None:
-        from ..models.usuario import UsuarioRol
-        # Eliminar roles anteriores
-        db.query(UsuarioRol).filter(UsuarioRol.usuario_id == usuario_id).delete()
-        # Agregar nuevos
-        for rol_id in rol_ids:
-            nuevo_rol = UsuarioRol(usuario_id=usuario_id, rol_id=rol_id)
-            db.add(nuevo_rol)
-    
-    # Si se proporciona nueva contraseña, hashearla
-    if 'contrasena' in update_data:
-        contrasena = update_data.pop('contrasena')
-        update_data['contrasena_hash'] = hash_password(contrasena)
-    
-    for field, value in update_data.items():
-        setattr(usuario, field, value)
-    
-    db.commit()
-    db.refresh(usuario)
-    return usuario
+    rol_ids = update_data.pop("rol_ids", None)
+    contrasena = update_data.pop("contrasena", None)
+
+    if "documento" in update_data and update_data["documento"] is not None:
+        duplicado = db.query(Usuario).filter(
+            Usuario.documento == update_data["documento"],
+            Usuario.id != usuario_id,
+        ).first()
+        if duplicado:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El documento ya está registrado",
+            )
+
+    if update_data.get("nombre_usuario"):
+        duplicado = db.query(Usuario).filter(
+            Usuario.nombre_usuario == update_data["nombre_usuario"],
+            Usuario.id != usuario_id,
+        ).first()
+        if duplicado:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El nombre de usuario ya existe",
+            )
+
+    try:
+        if rol_ids is not None:
+            _reemplazar_roles(db, usuario_id, rol_ids)
+            db.expire(usuario, ["roles"])
+
+        if contrasena:
+            update_data["contrasena_hash"] = hash_password(contrasena)
+
+        for field, value in update_data.items():
+            setattr(usuario, field, value)
+
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se pudo actualizar el usuario: hay datos duplicados o referencias inválidas",
+        )
+    except Exception as e:
+        db.rollback()
+        print(f"ERROR al actualizar usuario {usuario_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al actualizar el usuario: {str(e)}",
+        )
+
+    usuario = _cargar_usuario(db, usuario_id)
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado",
+        )
+    return _usuario_respuesta(usuario)
 
 
 @router.delete("/usuarios/{usuario_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -559,18 +614,56 @@ def eliminar_usuario(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(require_any_permission(["usuarios.eliminar", "usuarios.gestion", "sistema.admin"]))
 ):
-    """Eliminar un usuario (eliminación suave - marcar como inactivo)"""
+    """Eliminar un usuario de forma permanente. Si hay FKs bloqueantes, se desactiva."""
+    if current_user.id == usuario_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No puede eliminar su propio usuario mientras tiene la sesión activa",
+        )
+
     usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
     if not usuario:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Usuario no encontrado"
         )
-    
-    # Eliminación suave
-    usuario.activo = False
-    db.commit()
-    return None
+
+    from ..models.ticket import Ticket
+    from ..models.historial import HistorialEstado
+    from ..models.sistema import Asignacion, Notificacion
+
+    try:
+        db.query(Ticket).filter(Ticket.asignado_a == usuario_id).update(
+            {Ticket.asignado_a: None},
+            synchronize_session=False,
+        )
+        db.query(Ticket).filter(Ticket.solicitante_id == usuario_id).delete(synchronize_session=False)
+        db.query(HistorialEstado).filter(HistorialEstado.usuario_id == usuario_id).delete(synchronize_session=False)
+        db.query(UsuarioRol).filter(UsuarioRol.usuario_id == usuario_id).delete(synchronize_session=False)
+        db.query(Asignacion).filter(Asignacion.usuario_id == usuario_id).delete(synchronize_session=False)
+        db.query(Notificacion).filter(Notificacion.usuario_id == usuario_id).delete(synchronize_session=False)
+
+        db.query(Usuario).filter(Usuario.id == usuario_id).delete(synchronize_session=False)
+        db.commit()
+        return None
+    except IntegrityError:
+        db.rollback()
+        usuario = db.query(Usuario).filter(Usuario.id == usuario_id).first()
+        if not usuario:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Usuario no encontrado",
+            )
+        usuario.activo = False
+        db.commit()
+        return None
+    except Exception as e:
+        db.rollback()
+        print(f"ERROR al eliminar usuario {usuario_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al eliminar el usuario: {str(e)}",
+        )
 
 
 # ======================
