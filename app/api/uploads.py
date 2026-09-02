@@ -34,42 +34,54 @@ async def upload_evidencia(
     """
     Sube un archivo de evidencia (pdf, imagen, doc) y devuelve la URL pública.
     """
-    # Validar tipo de archivo (opcional, por ahora permitimos casi todo lo razonable)
-    allowed_types = [
-        "application/pdf", 
-        "image/jpeg", 
-        "image/png", 
-        "image/webp", 
-        "application/msword", 
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", # docx
+    mime = (file.content_type or "").split(";")[0].strip().lower()
+    extension = ""
+    if file.filename and "." in file.filename:
+        extension = "." + file.filename.rsplit(".", 1)[-1].lower()
+
+    allowed_types = {
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+        "text/csv",
+        "text/plain",
+        "application/csv",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.ms-excel",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" # xlsx
-    ]
-    
-    if file.content_type not in allowed_types:
-        # Warning log or strict error? Let's be permisive but warn ideally. Or strict.
-        # Strict por seguridad básica.
-        pass # Comentado para no bloquear sin querer, pero ideal filtrar.
-        
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/octet-stream",
+    }
+    allowed_extensions = {".pdf", ".jpg", ".jpeg", ".png", ".webp", ".gif", ".csv", ".txt", ".doc", ".docx", ".xls", ".xlsx"}
+
+    if mime and mime not in allowed_types and extension not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail="Tipo de archivo no permitido. Usa PDF, imagen, Word, Excel o CSV.",
+        )
+
     try:
         content = await file.read()
-        
-        # Generar nombre único
-        file_ext = mimetypes.guess_extension(file.content_type) or ""
-        if not file_ext and file.filename:
-            file_ext = "." + file.filename.split(".")[-1]
-            
+
+        file_ext = extension or mimetypes.guess_extension(mime) or ""
         filename = f"evidencias/{uuid.uuid4()}{file_ext}"
-        
-        # Subir
-        # Usamos bucket "documentos" para evidencias
-        success, result = upload_file_bytes(content, filename, file.content_type, bucket="documentos")
-        
+
+        success, result = upload_file_bytes(
+            content,
+            filename,
+            mime or "application/octet-stream",
+            bucket="documentos",
+        )
+
         if not success:
             raise HTTPException(status_code=500, detail=f"Error subiendo archivo: {result}")
-            
+
         return {"url": result, "filename": file.filename}
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

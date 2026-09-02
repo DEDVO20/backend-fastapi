@@ -13,6 +13,10 @@ if settings.SUPABASE_URL and settings.SUPABASE_KEY:
     supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
 
 
+def _public_url(bucket: str, file_name: str) -> str:
+    return f"{settings.SUPABASE_URL}/storage/v1/object/public/{bucket}/{file_name}"
+
+
 def upload_file_bytes(file_content: bytes, file_name: str, content_type: str = "application/octet-stream", bucket: str = None) -> Tuple[bool, str]:
     """
     Sube un archivo (bytes) a Supabase Storage
@@ -20,35 +24,37 @@ def upload_file_bytes(file_content: bytes, file_name: str, content_type: str = "
     if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
         print("❌ ERROR: Supabase no está configurado")
         return False, "Supabase no está configurado"
-    
+
     target_bucket = bucket or settings.SUPABASE_BUCKET
-    
+    mime = content_type or "application/octet-stream"
+    public_url = _public_url(target_bucket, file_name)
+
+    if supabase:
+        try:
+            supabase.storage.from_(target_bucket).upload(
+                file_name,
+                file_content,
+                {"content-type": mime, "upsert": "true"},
+            )
+            return True, public_url
+        except Exception as e:
+            print(f"⚠️  Cliente Supabase falló, usando HTTP: {e}")
+
     try:
-        import requests
-        
-        # URL de la API de Supabase Storage
+        import httpx
+
         upload_url = f"{settings.SUPABASE_URL}/storage/v1/object/{target_bucket}/{file_name}"
-        
-        # Headers para la petición
         headers = {
             "Authorization": f"Bearer {settings.SUPABASE_KEY}",
-            "Content-Type": content_type,
-            "x-upsert": "true"
+            "Content-Type": mime,
+            "x-upsert": "true",
         }
-        
-        response = requests.post(
-            upload_url,
-            data=file_content,
-            headers=headers
-        )
-        
+        response = httpx.post(upload_url, content=file_content, headers=headers, timeout=60.0)
+
         if response.status_code not in [200, 201]:
             return False, f"Error subiendo a Supabase: {response.text}"
-        
-        # Construir URL pública
-        public_url = f"{settings.SUPABASE_URL}/storage/v1/object/public/{target_bucket}/{file_name}"
+
         return True, public_url
-        
     except Exception as e:
         print(f"❌ ERROR subiendo archivo: {str(e)}")
         return False, str(e)
