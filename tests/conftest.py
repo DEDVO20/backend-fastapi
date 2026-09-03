@@ -34,6 +34,11 @@ class FakeUser:
         self.area = kwargs.get("area")
         self.roles = kwargs.get("roles", [])
         self.contrasena_hash = kwargs.get("contrasena_hash", "hash")
+        self.requiere_otp = kwargs.get("requiere_otp", False)
+        self.otp_codigo_hash = kwargs.get("otp_codigo_hash")
+        self.otp_expira_en = kwargs.get("otp_expira_en")
+        self.otp_intentos = kwargs.get("otp_intentos", 0)
+        self.otp_enviado_en = kwargs.get("otp_enviado_en")
         self._permisos = kwargs.get("permisos_codes", [])
 
     @property

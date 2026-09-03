@@ -19,6 +19,18 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "your-secret-key-change-this-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    OTP_EXPIRE_MINUTES: int = 10
+    OTP_MAX_INTENTOS: int = 5
+    OTP_REENVIO_SEGUNDOS: int = 60
+    CORREOS_INSTITUCIONALES: str = "iudc.edu.co,universitariadecolombia.edu.co"
+
+    # Correo (SMTP). Si no se configura, en development/test se simula el envío.
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_FROM: Optional[str] = None
+    SMTP_USE_TLS: bool = True
     
     # Entorno
     ENVIRONMENT: str = "development"

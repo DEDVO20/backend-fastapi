@@ -44,3 +44,10 @@ def test_decode_access_token_sin_sub_devuelve_none():
 def test_decode_access_token_expirado_devuelve_none():
     token = create_access_token({"sub": "42"}, expires_delta=timedelta(seconds=-10))
     assert decode_access_token(token) is None
+
+
+def test_decode_access_token_rechaza_token_otp():
+    from app.utils.security import create_otp_token
+
+    token = create_otp_token("42")
+    assert decode_access_token(token) is None

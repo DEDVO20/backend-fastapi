@@ -1,7 +1,7 @@
 """
 Schemas Pydantic para usuarios, áreas, roles y permisos
 """
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 from uuid import UUID
@@ -178,6 +178,18 @@ class UsuarioCreate(UsuarioBase):
     contrasena: str = Field(..., min_length=8)
     rol_ids: List[UUID] = []
 
+    @field_validator("correo_electronico")
+    @classmethod
+    def correo_debe_ser_institucional(cls, value: EmailStr) -> EmailStr:
+        from ..utils.correo_institucional import (
+            es_correo_institucional,
+            mensaje_correo_institucional,
+        )
+
+        if not es_correo_institucional(str(value)):
+            raise ValueError(mensaje_correo_institucional())
+        return value
+
 
 class UsuarioUpdate(BaseModel):
     documento: Optional[int] = None
@@ -201,6 +213,7 @@ class UsuarioResponse(UsuarioBase):
     permisos: List[str] = []
     roles: List[UsuarioRolResponse] = []
     nombre_completo: Optional[str] = None
+    requiere_otp: bool = False
     
     model_config = ConfigDict(from_attributes=True)
 

@@ -517,6 +517,7 @@ def crear_usuario(
     rol_ids = usuario_dict.pop('rol_ids', [])
     
     usuario_dict['contrasena_hash'] = hash_password(contrasena)
+    usuario_dict['requiere_otp'] = True
     
     nuevo_usuario = Usuario(**usuario_dict)
     db.add(nuevo_usuario)
@@ -601,6 +602,18 @@ def actualizar_usuario(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="El nombre de usuario ya existe",
+            )
+
+    if update_data.get("correo_electronico") and getattr(usuario, "requiere_otp", False):
+        from ..utils.correo_institucional import (
+            es_correo_institucional,
+            mensaje_correo_institucional,
+        )
+
+        if not es_correo_institucional(update_data["correo_electronico"]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=mensaje_correo_institucional(),
             )
 
     try:

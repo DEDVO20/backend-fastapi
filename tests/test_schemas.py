@@ -50,9 +50,21 @@ def test_usuario_create_requiere_contrasena_minima():
             documento=111,
             nombre="Ana",
             primer_apellido="Perez",
-            correo_electronico="ana@example.com",
+            correo_electronico="ana@iudc.edu.co",
             nombre_usuario="ana",
             contrasena="123",
+        )
+
+
+def test_usuario_create_rechaza_correo_personal():
+    with pytest.raises(ValidationError):
+        UsuarioCreate(
+            documento=111,
+            nombre="Ana",
+            primer_apellido="Perez",
+            correo_electronico="ana@gmail.com",
+            nombre_usuario="ana",
+            contrasena="Password123",
         )
 
 

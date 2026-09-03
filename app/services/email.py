@@ -1,25 +1,108 @@
-from typing import List, Optional
+from email.message import EmailMessage
 import logging
+import smtplib
+import ssl
+from typing import List, Optional
+
+from ..config import settings
 from ..models.usuario import Usuario
 from ..models.calidad import AccionCorrectiva
 
 logger = logging.getLogger(__name__)
 
+
+def _entorno_permite_simulacion() -> bool:
+    return settings.ENVIRONMENT.lower() in ("development", "dev", "test", "local")
+
+
 class EmailService:
-    def __init__(self):
-        # Aquí se inicializaría la conexión SMTP real
-        pass
+    def smtp_configurado(self) -> bool:
+        return bool(settings.SMTP_HOST)
+
+    def enviar_correo_sync(
+        self,
+        destinatario: str,
+        asunto: str,
+        cuerpo: str,
+        *,
+        html: Optional[str] = None,
+        log_cuerpo: bool = True,
+    ) -> bool:
+        """Envía un correo por SMTP. Si no hay SMTP, simula en development/test."""
+        if not self.smtp_configurado():
+            logger.info("==================================================")
+            logger.info("SIMULACIÓN ENVÍO DE CORREO (SMTP no configurado)")
+            logger.info("Para: %s", destinatario)
+            logger.info("Asunto: %s", asunto)
+            if log_cuerpo:
+                logger.info("Cuerpo: %s", cuerpo)
+            logger.info("==================================================")
+            return _entorno_permite_simulacion()
+
+        remitente = settings.SMTP_FROM or settings.SMTP_USER or "noreply@localhost"
+        mensaje = EmailMessage()
+        mensaje["Subject"] = asunto
+        mensaje["From"] = remitente
+        mensaje["To"] = destinatario
+        mensaje.set_content(cuerpo)
+        if html:
+            mensaje.add_alternative(html, subtype="html")
+
+        try:
+            if settings.SMTP_PORT == 465:
+                contexto = ssl.create_default_context()
+                with smtplib.SMTP_SSL(
+                    settings.SMTP_HOST,
+                    settings.SMTP_PORT,
+                    timeout=20,
+                    context=contexto,
+                ) as servidor:
+                    if settings.SMTP_USER:
+                        servidor.login(settings.SMTP_USER, settings.SMTP_PASSWORD or "")
+                    servidor.send_message(mensaje)
+            else:
+                with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20) as servidor:
+                    if settings.SMTP_USE_TLS:
+                        servidor.starttls(context=ssl.create_default_context())
+                    if settings.SMTP_USER:
+                        servidor.login(settings.SMTP_USER, settings.SMTP_PASSWORD or "")
+                    servidor.send_message(mensaje)
+            logger.info("Correo enviado a %s (%s)", destinatario, asunto)
+            return True
+        except Exception:
+            logger.exception("No se pudo enviar el correo a %s", destinatario)
+            return False
 
     async def enviar_correo(self, destinatario: str, asunto: str, cuerpo: str):
-        """Simula el envío de un correo electrónico"""
-        # En producción, aquí iría la lógica real de envío
-        logger.info(f"==================================================")
-        logger.info(f"📧 SIMULACIÓN ENVÍO DE CORREO")
-        logger.info(f"Para: {destinatario}")
-        logger.info(f"Asunto: {asunto}")
-        logger.info(f"Cuerpo: {cuerpo}")
-        logger.info(f"==================================================")
-        return True
+        return self.enviar_correo_sync(destinatario, asunto, cuerpo)
+
+    def enviar_codigo_otp(self, destinatario: str, nombre: str, codigo: str) -> bool:
+        minutos = settings.OTP_EXPIRE_MINUTES
+        asunto = "Código de verificación — Sistema de Gestión de Calidad"
+        cuerpo = (
+            f"Hola {nombre},\n\n"
+            "Tu código de verificación para ingresar al Sistema de Gestión de Calidad es:\n\n"
+            f"    {codigo}\n\n"
+            f"Este código vence en {minutos} minutos.\n"
+            "Si no intentaste iniciar sesión, ignora este mensaje.\n\n"
+            "Institución Universitaria de Colombia"
+        )
+        html = f"""
+        <p>Hola {nombre},</p>
+        <p>Tu código de verificación para ingresar al Sistema de Gestión de Calidad es:</p>
+        <p style="font-size:28px;letter-spacing:6px;font-weight:bold;">{codigo}</p>
+        <p>Este código vence en {minutos} minutos. Si no intentaste iniciar sesión, ignora este mensaje.</p>
+        """
+        log_cuerpo = _entorno_permite_simulacion() and not self.smtp_configurado()
+        if log_cuerpo:
+            logger.info("OTP de desarrollo para %s: %s", destinatario, codigo)
+        return self.enviar_correo_sync(
+            destinatario,
+            asunto,
+            cuerpo,
+            html=html,
+            log_cuerpo=log_cuerpo,
+        )
 
     async def notificar_asignacion_accion(self, accion: AccionCorrectiva, responsable: Usuario):
         """Notificar al responsable que se le ha asignado una acción correctiva"""
@@ -51,7 +134,6 @@ class EmailService:
         Ingresa al sistema para responder.
         """
         
-        # Evitar enviar correo al autor del comentario
         emails_enviados = set()
         for usuario in destinatarios:
             if usuario.id != autor.id and usuario.correo_electronico and usuario.correo_electronico not in emails_enviados:

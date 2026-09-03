@@ -18,6 +18,7 @@ from ..schemas.usuario import (
     CargaMasivaUsuarioExitoso,
 )
 from ..utils.security import get_password_hash
+from ..utils.correo_institucional import es_correo_institucional, mensaje_correo_institucional
 
 
 COLUMNAS_REQUERIDAS = [
@@ -381,6 +382,13 @@ def procesar_fila(
             valor=email,
             error='El correo electrónico no es válido',
         ))
+    elif not es_correo_institucional(email):
+        errores.append(CargaMasivaErrorDetalle(
+            fila=fila_num,
+            campo='correo_electronico',
+            valor=email,
+            error=mensaje_correo_institucional(),
+        ))
 
     username = valor_texto(fila.get('nombre_usuario'))
     if not username:
@@ -501,6 +509,7 @@ def procesar_fila(
                 contrasena_hash=get_password_hash(contrasena),
                 area_id=area.id,
                 activo=parse_activo(fila.get('activo'), True),
+                requiere_otp=True,
             )
             db.add(nuevo_usuario)
             db.flush()
@@ -546,7 +555,7 @@ def generar_plantilla_excel(areas: List[Area], roles: List[Rol]) -> bytes:
             'segundo_nombre': 'Carlos',
             'primer_apellido': 'Perez',
             'segundo_apellido': 'Garcia',
-            'correo_electronico': 'juan.perez@empresa.com',
+            'correo_electronico': 'juan.perez@iudc.edu.co',
             'nombre_usuario': 'jperez',
             'contrasena': 'Password123',
             'area_codigo': area_ejemplo,
@@ -559,7 +568,7 @@ def generar_plantilla_excel(areas: List[Area], roles: List[Rol]) -> bytes:
             'segundo_nombre': 'Elena',
             'primer_apellido': 'Lopez',
             'segundo_apellido': 'Martinez',
-            'correo_electronico': 'maria.lopez@empresa.com',
+            'correo_electronico': 'maria.lopez@iudc.edu.co',
             'nombre_usuario': 'mlopez',
             'contrasena': 'Password123',
             'area_codigo': area_ejemplo,
@@ -583,7 +592,7 @@ def generar_plantilla_excel(areas: List[Area], roles: List[Rol]) -> bytes:
         {'campo': 'segundo_nombre', 'obligatorio': 'No', 'indicacion': 'Dejar vacío si no aplica.'},
         {'campo': 'primer_apellido', 'obligatorio': 'Sí', 'indicacion': 'Primer apellido.'},
         {'campo': 'segundo_apellido', 'obligatorio': 'No', 'indicacion': 'Dejar vacío si no aplica.'},
-        {'campo': 'correo_electronico', 'obligatorio': 'Sí', 'indicacion': 'Correo válido y único.'},
+        {'campo': 'correo_electronico', 'obligatorio': 'Sí', 'indicacion': 'Correo institucional único (@iudc.edu.co). El usuario ingresará con OTP.'},
         {'campo': 'nombre_usuario', 'obligatorio': 'Sí', 'indicacion': 'Usuario de acceso, único.'},
         {'campo': 'contrasena', 'obligatorio': 'Sí', 'indicacion': f'Mínimo {MIN_PASSWORD_LENGTH} caracteres.'},
         {'campo': 'area_codigo', 'obligatorio': 'Sí', 'indicacion': 'Use un código de la hoja Areas.'},

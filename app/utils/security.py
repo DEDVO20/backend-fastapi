@@ -37,7 +37,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
         Token JWT como string
     """
     to_encode = data.copy()
-    
+    to_encode.setdefault("purpose", "access")
+
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
@@ -49,23 +50,34 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
-def decode_access_token(token: str) -> Optional[str]:
-    """
-    Decodificar y verificar token JWT
-    
-    Args:
-        token: Token JWT a verificar
-    
-    Returns:
-        Usuario ID si el token es válido, None si no lo es
-    """
+def create_otp_token(usuario_id: str, expires_delta: Optional[timedelta] = None) -> str:
+    """Token temporal para el paso de verificación OTP. No sirve como sesión."""
+    return create_access_token(
+        data={"sub": str(usuario_id), "purpose": "otp"},
+        expires_delta=expires_delta or timedelta(minutes=settings.OTP_EXPIRE_MINUTES),
+    )
+
+
+def decode_token_payload(token: str) -> Optional[dict]:
+    """Decodifica un JWT y retorna el payload, o None si es inválido."""
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
-        usuario_id: str = payload.get("sub")
-        
-        if usuario_id is None:
-            return None
-            
-        return usuario_id
+        return jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
         return None
+
+
+def decode_access_token(token: str) -> Optional[str]:
+    """
+    Decodificar y verificar token JWT de sesión.
+    Rechaza tokens de desafío OTP.
+    """
+    payload = decode_token_payload(token)
+    if not payload:
+        return None
+    purpose = payload.get("purpose")
+    if purpose and purpose != "access":
+        return None
+    usuario_id = payload.get("sub")
+    if usuario_id is None:
+        return None
+    return usuario_id

@@ -1,7 +1,7 @@
 """
 Modelos de usuarios, áreas, roles y permisos
 """
-from sqlalchemy import Column, String, Integer, Boolean, Text, ForeignKey, UniqueConstraint, Index
+from sqlalchemy import Column, String, Integer, Boolean, Text, DateTime, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from .base import BaseModel
@@ -40,6 +40,12 @@ class Usuario(BaseModel):
     area_id = Column(UUID(as_uuid=True), ForeignKey("areas.id", onupdate="CASCADE", ondelete="SET NULL"), nullable=True)
     activo = Column(Boolean, nullable=False, default=True)
     foto_url = Column(String(500), nullable=True, comment="URL de la foto de perfil del usuario")
+    # OTP solo para usuarios creados por el admin (las cuentas previas quedan en false)
+    requiere_otp = Column(Boolean, nullable=False, default=False, server_default="false")
+    otp_codigo_hash = Column(String(128), nullable=True)
+    otp_expira_en = Column(DateTime(timezone=True), nullable=True)
+    otp_intentos = Column(Integer, nullable=False, default=0, server_default="0")
+    otp_enviado_en = Column(DateTime(timezone=True), nullable=True)
     
     # Relaciones
     area = relationship("Area", back_populates="usuarios", foreign_keys=[area_id])
