@@ -66,6 +66,28 @@ def _requiere_otp(usuario: Usuario) -> bool:
     return bool(usuario.__dict__.get("requiere_otp"))
 
 
+def _es_administrador(usuario: Usuario) -> bool:
+    if not usuario:
+        return False
+    if "sistema.admin" in set(_permisos_de(usuario)):
+        return True
+    for ur in usuario.roles or []:
+        rol = getattr(ur, "rol", None)
+        if not rol:
+            continue
+        clave = str(getattr(rol, "clave", "") or "").strip().lower()
+        nombre = str(getattr(rol, "nombre", "") or "").strip().lower()
+        if clave in {"admin", "administrador"} or nombre in {"admin", "administrador"}:
+            return True
+    return False
+
+
+def _debe_pedir_otp(usuario: Usuario, ingreso_por_correo: bool) -> bool:
+    if ingreso_por_correo and es_correo_institucional(usuario.correo_electronico):
+        return True
+    return bool(_requiere_otp(usuario))
+
+
 def _buscar_usuario_login(db: Session, identificador: str) -> Usuario | None:
     valor = (identificador or "").strip()
     if not valor:
@@ -246,14 +268,6 @@ def _login(login_data: LoginRequest, db: Session, reintentar_esquema: bool):
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        identificador = (login_data.nombre_usuario or "").strip()
-        ingreso_por_correo = "@" in identificador
-        if _requiere_otp(usuario) and not ingreso_por_correo:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Debe ingresar con su correo electrónico. Solo el administrador puede usar el usuario.",
-            )
-
         if not verify_password(login_data.password, usuario.contrasena_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -267,7 +281,15 @@ def _login(login_data: LoginRequest, db: Session, reintentar_esquema: bool):
                 detail="Usuario inactivo"
             )
 
-        if _requiere_otp(usuario):
+        identificador = (login_data.nombre_usuario or "").strip()
+        ingreso_por_correo = "@" in identificador
+        if not _es_administrador(usuario) and not ingreso_por_correo:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Debe ingresar con su correo electrónico. Solo el administrador puede usar el usuario.",
+            )
+
+        if _debe_pedir_otp(usuario, ingreso_por_correo):
             return _emitir_y_enviar_otp(db, usuario)
 
         sesion = _respuesta_sesion(usuario)

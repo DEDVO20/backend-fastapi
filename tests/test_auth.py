@@ -214,6 +214,101 @@ def test_login_usuario_nuevo_requiere_otp(client):
     assert usuario.otp_codigo_hash
 
 
+def test_login_con_correo_pide_otp_aunque_flag_este_apagado(client):
+    from unittest.mock import patch
+
+    hashed = get_password_hash("Password123")
+    usuario = FakeUser(
+        nombre_usuario="mafe",
+        correo_electronico="mafeherazoescobar@gmail.com",
+        contrasena_hash=hashed,
+        activo=True,
+        requiere_otp=False,
+        roles=[make_role("colaborador", ["documentos.ver"])],
+    )
+    db = _db_con_usuario(usuario)
+
+    def _override():
+        yield db
+
+    app.dependency_overrides[get_db] = _override
+    try:
+        with patch("app.api.auth.generar_codigo_otp", return_value="123456"):
+            response = client.post(
+                "/api/v1/auth/login",
+                json={
+                    "nombre_usuario": "mafeherazoescobar@gmail.com",
+                    "password": "Password123",
+                },
+            )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["requiere_otp"] is True
+    assert data["otp_token"]
+    assert not data.get("access_token")
+
+
+def test_login_admin_con_correo_tambien_pide_otp(client):
+    from unittest.mock import patch
+
+    hashed = get_password_hash("admin123")
+    usuario = FakeUser(
+        nombre_usuario="admin",
+        correo_electronico="calidad.iudc@gmail.com",
+        contrasena_hash=hashed,
+        activo=True,
+        requiere_otp=False,
+        roles=[make_role("admin", ["sistema.admin"])],
+    )
+    db = _db_con_usuario(usuario)
+
+    def _override():
+        yield db
+
+    app.dependency_overrides[get_db] = _override
+    try:
+        with patch("app.api.auth.generar_codigo_otp", return_value="654321"):
+            response = client.post(
+                "/api/v1/auth/login",
+                json={"nombre_usuario": "calidad.iudc@gmail.com", "password": "admin123"},
+            )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    assert response.json()["requiere_otp"] is True
+
+
+def test_login_no_admin_no_puede_usar_usuario(client):
+    hashed = get_password_hash("Password123")
+    usuario = FakeUser(
+        nombre_usuario="jperez",
+        correo_electronico="jperez@iudc.edu.co",
+        contrasena_hash=hashed,
+        activo=True,
+        roles=[make_role("colaborador", ["documentos.ver"])],
+    )
+    db = _db_con_usuario(usuario)
+
+    def _override():
+        yield db
+
+    app.dependency_overrides[get_db] = _override
+    try:
+        response = client.post(
+            "/api/v1/auth/login",
+            json={"nombre_usuario": "jperez", "password": "Password123"},
+        )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 400
+    assert "correo" in response.json()["detail"].lower()
+
+
 def test_verificar_otp_emite_jwt(client):
     from datetime import datetime, timedelta, timezone
 

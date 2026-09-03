@@ -25,7 +25,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY alembic.ini .
 COPY alembic ./alembic
 COPY ./app ./app
-LABEL sgc.version="1.2.2"
+LABEL sgc.version="1.2.3"
 
 # Exponer puerto
 EXPOSE 8000

@@ -94,7 +94,7 @@ def opciones_carga_usuario(*extra):
 
 def marcar_otp_seguro(usuario) -> None:
     """Rellena atributos OTP en memoria para no disparar un SELECT extra."""
-    if usuario is None:
+    if usuario is None or _otp_listo:
         return
     from sqlalchemy.orm.attributes import set_committed_value
 

@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 def _entorno_permite_simulacion() -> bool:
-    return settings.ENVIRONMENT.lower() in ("development", "dev", "test", "local")
+    return settings.ENVIRONMENT.lower() in ("test", "local")
 
 
 class EmailService:
