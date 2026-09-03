@@ -21,7 +21,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copiar código de la aplicación
+# Copiar migraciones y código de la aplicación
+COPY alembic.ini .
+COPY alembic ./alembic
 COPY ./app ./app
 LABEL sgc.version="1.2.1"
 

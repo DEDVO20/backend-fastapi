@@ -59,13 +59,23 @@ def _buscar_usuario_login(db: Session, identificador: str) -> Usuario | None:
     valor = (identificador or "").strip()
     if not valor:
         return None
-    condiciones = [
-        Usuario.nombre_usuario == valor,
-        func.lower(Usuario.correo_electronico) == valor.lower(),
-    ]
-    if valor.isdigit():
-        condiciones.append(Usuario.documento == int(valor))
-    return _query_usuario_auth(db).filter(or_(*condiciones)).first()
+
+    correo = valor.lower()
+    if "@" in valor:
+        encontrado = (
+            db.query(Usuario)
+            .filter(func.lower(func.trim(Usuario.correo_electronico)) == correo)
+            .first()
+        )
+    else:
+        condiciones = [Usuario.nombre_usuario == valor]
+        if valor.isdigit():
+            condiciones.append(Usuario.documento == int(valor))
+        encontrado = db.query(Usuario).filter(or_(*condiciones)).first()
+
+    if not encontrado:
+        return None
+    return _usuario_por_id(db, encontrado.id)
 
 
 def _usuario_por_id(db: Session, usuario_id: UUID) -> Usuario | None:
@@ -184,6 +194,20 @@ def politica_acceso():
     )
 
 
+def _es_error_columna_otp(error: Exception) -> bool:
+    texto = str(error).lower()
+    return "requiere_otp" in texto or "otp_codigo_hash" in texto or (
+        "undefinedcolumn" in texto.replace(" ", "") and "usuarios" in texto
+    )
+
+
+def _reparar_columnas_otp(db: Session) -> None:
+    from ..db.ensure_schema import asegurar_esquema_login
+
+    db.rollback()
+    asegurar_esquema_login()
+
+
 @router.post("/login", response_model=LoginResponse)
 def login(
     login_data: LoginRequest,
@@ -191,9 +215,13 @@ def login(
 ):
     """
     Autenticar usuario.
-    Cuentas actuales (admin y usuarios previos): JWT directo.
-    Usuarios nuevos: contraseña + código OTP enviado al correo institucional.
+    El administrador y cuentas previas pueden entrar con usuario o documento.
+    Los usuarios nuevos deben entrar con su correo y un código OTP.
     """
+    return _login(login_data, db, reintentar_esquema=True)
+
+
+def _login(login_data: LoginRequest, db: Session, reintentar_esquema: bool):
     try:
         usuario = _buscar_usuario_login(db, login_data.nombre_usuario)
 
@@ -202,6 +230,14 @@ def login(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Usuario o contraseña incorrectos",
                 headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        identificador = (login_data.nombre_usuario or "").strip()
+        ingreso_por_correo = "@" in identificador
+        if getattr(usuario, "requiere_otp", False) and not ingreso_por_correo:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Debe ingresar con su correo electrónico. Solo el administrador puede usar el usuario.",
             )
 
         if not verify_password(login_data.password, usuario.contrasena_hash):
@@ -230,6 +266,12 @@ def login(
     except HTTPException:
         raise
     except Exception as e:
+        if reintentar_esquema and _es_error_columna_otp(e):
+            try:
+                _reparar_columnas_otp(db)
+                return _login(login_data, db, reintentar_esquema=False)
+            except Exception:
+                pass
         import traceback
         traceback.print_exc()
         raise HTTPException(

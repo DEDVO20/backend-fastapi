@@ -55,6 +55,43 @@ def test_politica_acceso_es_publica(client):
     assert data["otp_expira_minutos"] >= 1
 
 
+def test_login_repara_columnas_otp_faltantes(client):
+    from unittest.mock import patch
+
+    hashed = get_password_hash("admin123")
+    usuario = FakeUser(
+        id=uuid4(),
+        nombre_usuario="admin",
+        contrasena_hash=hashed,
+        activo=True,
+        roles=[make_role("admin", ["sistema.admin"])],
+    )
+    db = MagicMock()
+    error = Exception(
+        "(psycopg2.errors.UndefinedColumn) column usuarios.requiere_otp does not exist"
+    )
+
+    def _override():
+        yield db
+
+    app.dependency_overrides[get_db] = _override
+    try:
+        with patch(
+            "app.api.auth._buscar_usuario_login",
+            side_effect=[error, usuario],
+        ), patch("app.api.auth._reparar_columnas_otp") as reparar:
+            response = client.post(
+                "/api/v1/auth/login",
+                json={"nombre_usuario": "admin", "password": "admin123"},
+            )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    assert response.json()["usuario"]["nombre_usuario"] == "admin"
+    reparar.assert_called_once()
+
+
 def test_login_usuario_inexistente(client):
     db = _db_con_usuario(None)
 
@@ -163,7 +200,7 @@ def test_login_usuario_nuevo_requiere_otp(client):
         with patch("app.api.auth.generar_codigo_otp", return_value="123456"):
             response = client.post(
                 "/api/v1/auth/login",
-                json={"nombre_usuario": "jperez", "password": "Password123"},
+                json={"nombre_usuario": "jperez@iudc.edu.co", "password": "Password123"},
             )
     finally:
         app.dependency_overrides.pop(get_db, None)

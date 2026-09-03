@@ -61,6 +61,17 @@ async def startup_event():
         return
 
     try:
+        from .db.ensure_schema import asegurar_esquema_login
+
+        columnas = asegurar_esquema_login()
+        if columnas:
+            print(f"✅ Esquema de login actualizado | columnas={','.join(columnas)}")
+        else:
+            print("✅ Esquema de login verificado")
+    except Exception as exc:
+        print(f"⚠️ No se pudo actualizar el esquema de login al arrancar: {exc}")
+
+    try:
         from .database import SessionLocal
         from .db.sync_rbac import sincronizar_rbac_sgc
 
