@@ -2,6 +2,7 @@ from email.message import EmailMessage
 import logging
 import re
 import smtplib
+import socket
 import ssl
 from typing import List, Optional
 
@@ -17,6 +18,18 @@ MENSAJE_SMTP_BLOQUEADO = (
     "Render no puede conectar con Gmail por SMTP (Network is unreachable). "
     "Cree una API key en https://resend.com y agregue RESEND_API_KEY en Render."
 )
+_ERRORES_RED_SMTP = (
+    "network is unreachable",
+    "errno 101",
+    "enotunreach",
+    "eai_again",
+    "name or service not known",
+    "connection refused",
+    "errno 111",
+    "errno 113",
+    "network unreachable",
+    "no route to host",
+)
 
 
 def _entorno_permite_simulacion() -> bool:
@@ -29,18 +42,58 @@ def normalizar_smtp_password(valor: Optional[str]) -> str:
 
 
 def es_error_red_smtp(error: Exception) -> bool:
-    texto = str(error).lower()
-    return any(
-        marca in texto
-        for marca in (
-            "network is unreachable",
-            "errno 101",
-            "enotunreach",
-            "eai_again",
-            "name or service not known",
-            "connection refused",
-        )
-    )
+    pendientes: list[BaseException] = [error]
+    vistos: set[int] = set()
+    while pendientes:
+        actual = pendientes.pop()
+        if actual is None or id(actual) in vistos:
+            continue
+        vistos.add(id(actual))
+        if getattr(actual, "errno", None) in {101, 111, 113, 51}:
+            return True
+        texto = str(actual).lower()
+        if any(marca in texto for marca in _ERRORES_RED_SMTP):
+            return True
+        for extra in (getattr(actual, "__cause__", None), getattr(actual, "__context__", None)):
+            if isinstance(extra, BaseException):
+                pendientes.append(extra)
+    return False
+
+
+def _conectar_ipv4(host: str, port: int, timeout: float) -> socket.socket:
+    """Render suele fallar por IPv6 (Errno 101). Conectar solo por IPv4."""
+    ultimo: Optional[OSError] = None
+    try:
+        destinos = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+    except OSError as exc:
+        raise exc
+    for family, socktype, proto, _, sockaddr in destinos:
+        sock = socket.socket(family, socktype, proto)
+        sock.settimeout(timeout)
+        try:
+            sock.connect(sockaddr)
+            return sock
+        except OSError as exc:
+            ultimo = exc
+            sock.close()
+    if ultimo:
+        raise ultimo
+    raise OSError(101, f"Network is unreachable: {host}:{port}")
+
+
+class SMTPIPv4(smtplib.SMTP):
+    def _get_socket(self, host, port, timeout):
+        if self.debuglevel > 0:
+            self._print_debug("connect:", (host, port))
+        return _conectar_ipv4(host, port, timeout)
+
+
+class SMTPSSLIPv4(smtplib.SMTP_SSL):
+    def _get_socket(self, host, port, timeout):
+        if self.debuglevel > 0:
+            self._print_debug("connect:", (host, port))
+        sock = _conectar_ipv4(host, port, timeout)
+        return self.context.wrap_socket(sock, server_hostname=self._host)
 
 
 class EmailService:
@@ -135,46 +188,80 @@ class EmailService:
         if html:
             mensaje.add_alternative(html, subtype="html")
 
-        try:
-            if settings.SMTP_PORT == 465:
-                contexto = ssl.create_default_context()
-                with smtplib.SMTP_SSL(
+        ultimo_red: Optional[Exception] = None
+        for puerto, ssl_directo in self._intentos_smtp():
+            try:
+                self._enviar_por_smtp(mensaje, usuario, password, puerto, ssl_directo)
+                logger.info(
+                    "Correo enviado a %s (%s) por SMTP %s:%s",
+                    destinatario,
+                    asunto,
                     settings.SMTP_HOST,
-                    settings.SMTP_PORT,
-                    timeout=15,
-                    context=contexto,
-                ) as servidor:
-                    servidor.login(usuario, password)
-                    servidor.send_message(mensaje)
-            else:
-                with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15) as servidor:
-                    servidor.ehlo()
-                    if settings.SMTP_USE_TLS:
-                        servidor.starttls(context=ssl.create_default_context())
-                        servidor.ehlo()
-                    servidor.login(usuario, password)
-                    servidor.send_message(mensaje)
-            logger.info("Correo enviado a %s (%s)", destinatario, asunto)
-            return True
-        except smtplib.SMTPAuthenticationError:
-            self.ultimo_error = (
-                "Gmail rechazó el usuario o la contraseña. "
-                "Use una contraseña de aplicación de 16 letras, sin espacios."
-            )
-            logger.exception("No se pudo autenticar SMTP hacia %s", destinatario)
-            return False
-        except TimeoutError:
-            self.ultimo_error = MENSAJE_SMTP_BLOQUEADO
-            logger.exception("Timeout SMTP hacia %s", destinatario)
-            return False
-        except Exception as exc:
-            if es_error_red_smtp(exc):
-                self.ultimo_error = MENSAJE_SMTP_BLOQUEADO
-            else:
+                    puerto,
+                )
+                return True
+            except smtplib.SMTPAuthenticationError:
+                self.ultimo_error = (
+                    "Gmail rechazó el usuario o la contraseña. "
+                    "Use una contraseña de aplicación de 16 letras, sin espacios."
+                )
+                logger.exception("No se pudo autenticar SMTP hacia %s", destinatario)
+                return False
+            except Exception as exc:
+                if es_error_red_smtp(exc) or isinstance(exc, TimeoutError):
+                    ultimo_red = exc
+                    logger.warning(
+                        "SMTP %s:%s no alcanzable: %s",
+                        settings.SMTP_HOST,
+                        puerto,
+                        exc,
+                    )
+                    continue
                 texto = str(exc).replace(password, "***") if password else str(exc)
                 self.ultimo_error = texto[:180]
-            logger.exception("No se pudo enviar el correo a %s", destinatario)
-            return False
+                logger.exception("No se pudo enviar el correo a %s", destinatario)
+                return False
+
+        self.ultimo_error = MENSAJE_SMTP_BLOQUEADO
+        logger.error(
+            "No se pudo enviar el correo a %s por SMTP: %s",
+            destinatario,
+            ultimo_red,
+        )
+        return False
+
+    def _intentos_smtp(self) -> list[tuple[int, bool]]:
+        puerto = int(settings.SMTP_PORT or 587)
+        ssl_directo = puerto == 465
+        intentos = [(puerto, ssl_directo)]
+        alterno = (465, True) if puerto != 465 else (587, False)
+        if alterno not in intentos:
+            intentos.append(alterno)
+        return intentos
+
+    def _enviar_por_smtp(
+        self,
+        mensaje: EmailMessage,
+        usuario: str,
+        password: str,
+        puerto: int,
+        ssl_directo: bool,
+    ) -> None:
+        host = settings.SMTP_HOST or "smtp.gmail.com"
+        timeout = 8
+        if ssl_directo:
+            contexto = ssl.create_default_context()
+            with SMTPSSLIPv4(host, puerto, timeout=timeout, context=contexto) as servidor:
+                servidor.login(usuario, password)
+                servidor.send_message(mensaje)
+            return
+        with SMTPIPv4(host, puerto, timeout=timeout) as servidor:
+            servidor.ehlo()
+            if settings.SMTP_USE_TLS or puerto == 587:
+                servidor.starttls(context=ssl.create_default_context())
+                servidor.ehlo()
+            servidor.login(usuario, password)
+            servidor.send_message(mensaje)
 
     async def enviar_correo(self, destinatario: str, asunto: str, cuerpo: str):
         return self.enviar_correo_sync(destinatario, asunto, cuerpo)

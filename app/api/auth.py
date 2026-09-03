@@ -21,7 +21,7 @@ from ..schemas.auth import (
     VerificarOtpRequest,
 )
 from ..schemas.usuario import UsuarioWithArea
-from ..services.email import email_service
+from ..services.email import MENSAJE_SMTP_BLOQUEADO, email_service, es_error_red_smtp
 from ..utils.correo_institucional import (
     dominios_institucionales,
     es_correo_institucional,
@@ -237,19 +237,22 @@ def _emitir_y_enviar_otp(db: Session, usuario: Usuario) -> LoginResponse:
         codigo,
     )
     if not enviado:
-        if not email_service.envio_configurado():
+        detalle = (email_service.ultimo_error or "").strip()
+        if (
+            not email_service.envio_configurado()
+            or es_error_red_smtp(Exception(detalle))
+            or "network is unreachable" in detalle.lower()
+            or "resend.com" in detalle.lower()
+        ):
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=(
-                    "No se envió el código: Render bloquea Gmail SMTP. "
-                    "Agregue RESEND_API_KEY en Render (https://resend.com)."
-                ),
+                detail=MENSAJE_SMTP_BLOQUEADO,
             )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
                 "No se pudo enviar el código al correo. "
-                f"{email_service.ultimo_error or 'Revise spam o la configuración de correo.'}"
+                f"{detalle or 'Revise spam o la configuración de correo.'}"
             ),
         )
 
