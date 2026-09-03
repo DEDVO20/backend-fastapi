@@ -24,6 +24,7 @@ class ReenviarOtpRequest(BaseModel):
 class PoliticaAccesoResponse(BaseModel):
     dominios_institucionales: list[str]
     otp_expira_minutos: int
+    smtp_configurado: bool = False
 
 
 class TokenResponse(BaseModel):

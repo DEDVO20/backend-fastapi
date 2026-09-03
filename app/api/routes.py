@@ -48,6 +48,9 @@ async def health_check(db: Session = Depends(get_db)):
         "adjuntos_sin_requests": True,
         "otp_schema": otp_schema,
         "login_otp": True,
+        "smtp_configurado": bool(
+            (settings.SMTP_HOST and settings.SMTP_USER and (settings.SMTP_PASSWORD or "").strip())
+        ),
     }
 
 

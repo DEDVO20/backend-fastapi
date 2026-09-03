@@ -17,7 +17,8 @@ def _entorno_permite_simulacion() -> bool:
 
 class EmailService:
     def smtp_configurado(self) -> bool:
-        return bool(settings.SMTP_HOST and settings.SMTP_USER and settings.SMTP_PASSWORD)
+        password = (settings.SMTP_PASSWORD or "").strip()
+        return bool(settings.SMTP_HOST and settings.SMTP_USER and password)
 
     def enviar_correo_sync(
         self,
@@ -28,7 +29,7 @@ class EmailService:
         html: Optional[str] = None,
         log_cuerpo: bool = True,
     ) -> bool:
-        """Envía un correo por SMTP. Si no hay SMTP, simula en development/test."""
+        """Envía un correo por SMTP. Si no hay SMTP, solo simula en test/local."""
         if not self.smtp_configurado():
             logger.info("==================================================")
             logger.info("SIMULACIÓN ENVÍO DE CORREO (SMTP no configurado)")
