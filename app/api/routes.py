@@ -50,6 +50,7 @@ async def health_check(db: Session = Depends(get_db)):
         "otp_schema": otp_schema,
         "login_otp": True,
         "smtp_configurado": email_service.smtp_configurado(),
+        "resend_configurado": email_service.resend_configurado(),
     }
 
 

@@ -237,19 +237,19 @@ def _emitir_y_enviar_otp(db: Session, usuario: Usuario) -> LoginResponse:
         codigo,
     )
     if not enviado:
-        if not email_service.smtp_configurado():
+        if not email_service.envio_configurado():
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail=(
-                    "No se envió el código: falta SMTP_PASSWORD en Render. "
-                    "Agregue una contraseña de aplicación de Gmail para calidad.iudc@gmail.com."
+                    "No se envió el código: Render bloquea Gmail SMTP. "
+                    "Agregue RESEND_API_KEY en Render (https://resend.com)."
                 ),
             )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=(
                 "No se pudo enviar el código al correo. "
-                f"{email_service.ultimo_error or 'Revise spam o la configuración SMTP.'}"
+                f"{email_service.ultimo_error or 'Revise spam o la configuración de correo.'}"
             ),
         )
 

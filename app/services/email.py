@@ -5,11 +5,18 @@ import smtplib
 import ssl
 from typing import List, Optional
 
+import requests
+
 from ..config import settings
 from ..models.usuario import Usuario
 from ..models.calidad import AccionCorrectiva
 
 logger = logging.getLogger(__name__)
+
+MENSAJE_SMTP_BLOQUEADO = (
+    "Render no puede conectar con Gmail por SMTP (Network is unreachable). "
+    "Cree una API key en https://resend.com y agregue RESEND_API_KEY en Render."
+)
 
 
 def _entorno_permite_simulacion() -> bool:
@@ -21,14 +28,69 @@ def normalizar_smtp_password(valor: Optional[str]) -> str:
     return re.sub(r"\s+", "", valor or "")
 
 
+def es_error_red_smtp(error: Exception) -> bool:
+    texto = str(error).lower()
+    return any(
+        marca in texto
+        for marca in (
+            "network is unreachable",
+            "errno 101",
+            "enotunreach",
+            "eai_again",
+            "name or service not known",
+            "connection refused",
+        )
+    )
+
+
 class EmailService:
     def __init__(self) -> None:
         self.ultimo_error = ""
+
+    def resend_configurado(self) -> bool:
+        return bool((settings.RESEND_API_KEY or "").strip())
 
     def smtp_configurado(self) -> bool:
         usuario = (settings.SMTP_USER or "").strip()
         password = normalizar_smtp_password(settings.SMTP_PASSWORD)
         return bool(settings.SMTP_HOST and usuario and password)
+
+    def envio_configurado(self) -> bool:
+        return self.resend_configurado() or self.smtp_configurado()
+
+    def _enviar_resend(
+        self,
+        destinatario: str,
+        asunto: str,
+        cuerpo: str,
+        html: Optional[str],
+    ) -> bool:
+        clave = (settings.RESEND_API_KEY or "").strip()
+        remitente = (settings.RESEND_FROM or settings.SMTP_FROM or "SGC Calidad <beth.t@example.com>").strip()
+        payload = {
+            "from": remitente,
+            "to": [destinatario],
+            "subject": asunto,
+            "text": cuerpo,
+        }
+        if html:
+            payload["html"] = html
+        respuesta = requests.post(
+            "https://api.resend.com/emails",
+            headers={
+                "Authorization": f"Bearer {clave}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=20,
+        )
+        if respuesta.ok:
+            logger.info("Correo OTP enviado por Resend a %s", destinatario)
+            return True
+        detalle = respuesta.text[:180]
+        self.ultimo_error = f"Resend rechazó el envío ({respuesta.status_code}): {detalle}"
+        logger.error("Resend error %s: %s", respuesta.status_code, detalle)
+        return False
 
     def enviar_correo_sync(
         self,
@@ -39,17 +101,28 @@ class EmailService:
         html: Optional[str] = None,
         log_cuerpo: bool = True,
     ) -> bool:
-        """Envía un correo por SMTP. Si no hay SMTP, solo simula en test/local."""
+        """Envía el correo por HTTPS (Resend) o SMTP. En test/local puede simular."""
         self.ultimo_error = ""
+        if self.resend_configurado():
+            try:
+                return self._enviar_resend(destinatario, asunto, cuerpo, html)
+            except Exception as exc:
+                self.ultimo_error = f"No se pudo contactar Resend: {exc}"[:180]
+                logger.exception("Fallo Resend hacia %s", destinatario)
+                return False
+
         if not self.smtp_configurado():
             logger.info("==================================================")
-            logger.info("SIMULACIÓN ENVÍO DE CORREO (SMTP no configurado)")
+            logger.info("SIMULACIÓN ENVÍO DE CORREO (SMTP/Resend no configurado)")
             logger.info("Para: %s", destinatario)
             logger.info("Asunto: %s", asunto)
             if log_cuerpo:
                 logger.info("Cuerpo: %s", cuerpo)
             logger.info("==================================================")
-            return _entorno_permite_simulacion()
+            if _entorno_permite_simulacion():
+                return True
+            self.ultimo_error = MENSAJE_SMTP_BLOQUEADO
+            return False
 
         usuario = (settings.SMTP_USER or "").strip()
         password = normalizar_smtp_password(settings.SMTP_PASSWORD)
@@ -91,12 +164,15 @@ class EmailService:
             logger.exception("No se pudo autenticar SMTP hacia %s", destinatario)
             return False
         except TimeoutError:
-            self.ultimo_error = "Se agotó el tiempo de espera al conectar con Gmail."
+            self.ultimo_error = MENSAJE_SMTP_BLOQUEADO
             logger.exception("Timeout SMTP hacia %s", destinatario)
             return False
         except Exception as exc:
-            texto = str(exc).replace(password, "***") if password else str(exc)
-            self.ultimo_error = texto[:180]
+            if es_error_red_smtp(exc):
+                self.ultimo_error = MENSAJE_SMTP_BLOQUEADO
+            else:
+                texto = str(exc).replace(password, "***") if password else str(exc)
+                self.ultimo_error = texto[:180]
             logger.exception("No se pudo enviar el correo a %s", destinatario)
             return False
 
@@ -120,7 +196,7 @@ class EmailService:
         <p style="font-size:28px;letter-spacing:6px;font-weight:bold;">{codigo}</p>
         <p>Este código vence en {minutos} minutos. Si no intentaste iniciar sesión, ignora este mensaje.</p>
         """
-        log_cuerpo = _entorno_permite_simulacion() and not self.smtp_configurado()
+        log_cuerpo = _entorno_permite_simulacion() and not self.envio_configurado()
         if log_cuerpo:
             logger.info("OTP de desarrollo para %s: %s", destinatario, codigo)
         return self.enviar_correo_sync(
