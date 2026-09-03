@@ -50,7 +50,8 @@ def test_politica_acceso_es_publica(client):
     response = client.get("/api/v1/auth/politica-acceso")
     assert response.status_code == 200
     data = response.json()
-    assert "iudc.edu.co" in data["dominios_institucionales"]
+    assert "gmail.com" in data["dominios_institucionales"]
+    assert "outlook.com" in data["dominios_institucionales"]
     assert data["otp_expira_minutos"] >= 1
 
 

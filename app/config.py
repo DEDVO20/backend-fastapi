@@ -22,7 +22,8 @@ class Settings(BaseSettings):
     OTP_EXPIRE_MINUTES: int = 10
     OTP_MAX_INTENTOS: int = 5
     OTP_REENVIO_SEGUNDOS: int = 60
-    CORREOS_INSTITUCIONALES: str = "iudc.edu.co,universitariadecolombia.edu.co"
+    # Temporal: Gmail/Outlook hasta definir el dominio institucional.
+    CORREOS_INSTITUCIONALES: str = "gmail.com,outlook.com,hotmail.com,live.com,iudc.edu.co,universitariadecolombia.edu.co"
 
     # Correo (SMTP). Si no se configura, en development/test se simula el envío.
     SMTP_HOST: Optional[str] = None
