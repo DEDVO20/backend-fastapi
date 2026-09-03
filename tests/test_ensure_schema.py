@@ -1,7 +1,12 @@
 """Pruebas del parche de columnas OTP al arrancar."""
 from unittest.mock import MagicMock, patch
 
+from app.db import ensure_schema
 from app.db.ensure_schema import COLUMNAS_OTP, asegurar_esquema_login
+
+
+def setup_function():
+    ensure_schema._otp_listo = False
 
 
 def test_columnas_otp_cubren_el_modelo_de_usuario():
@@ -17,31 +22,24 @@ def test_columnas_otp_cubren_el_modelo_de_usuario():
         assert "ADD COLUMN IF NOT EXISTS" in sql
 
 
-@patch("app.db.ensure_schema.inspect")
 @patch("app.db.ensure_schema.engine")
-def test_asegurar_esquema_login_no_hace_nada_si_ya_existen(mock_engine, mock_inspect):
-    inspector = MagicMock()
-    inspector.get_table_names.return_value = ["usuarios"]
-    inspector.get_columns.return_value = [
-        {"name": nombre} for nombre, _sql in COLUMNAS_OTP
-    ] + [{"name": "id"}]
-    mock_inspect.return_value = inspector
-
-    assert asegurar_esquema_login() == []
-    mock_engine.begin.assert_not_called()
-
-
-@patch("app.db.ensure_schema.inspect")
-@patch("app.db.ensure_schema.engine")
-def test_asegurar_esquema_login_agrega_columnas_faltantes(mock_engine, mock_inspect):
-    inspector = MagicMock()
-    inspector.get_table_names.return_value = ["usuarios"]
-    inspector.get_columns.return_value = [{"name": "id"}, {"name": "nombre_usuario"}]
-    mock_inspect.return_value = inspector
-
+def test_asegurar_esquema_login_ejecuta_alter_si_faltan(mock_engine):
     conexion = MagicMock()
     mock_engine.begin.return_value.__enter__.return_value = conexion
 
     creadas = asegurar_esquema_login()
     assert creadas == [nombre for nombre, _sql in COLUMNAS_OTP]
     assert conexion.execute.call_count == len(COLUMNAS_OTP)
+    assert ensure_schema.otp_disponible() is True
+
+    conexion.execute.reset_mock()
+    assert asegurar_esquema_login() == []
+    conexion.execute.assert_not_called()
+
+
+@patch("app.db.ensure_schema.engine")
+def test_asegurar_esquema_login_no_marca_listo_si_falla(mock_engine):
+    mock_engine.begin.side_effect = Exception("no permission")
+    creadas = asegurar_esquema_login()
+    assert creadas == []
+    assert ensure_schema.otp_disponible() is False

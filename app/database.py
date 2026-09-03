@@ -26,6 +26,14 @@ def get_db():
     Dependency para obtener sesión de base de datos.
     Usar con FastAPI Depends.
     """
+    if (settings.ENVIRONMENT or "").lower() != "test":
+        try:
+            from .db.ensure_schema import asegurar_esquema_login
+
+            asegurar_esquema_login()
+        except Exception as exc:
+            print(f"⚠️ No se pudo asegurar el esquema de login: {exc}")
+
     db = SessionLocal()
     try:
         yield db

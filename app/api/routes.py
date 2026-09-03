@@ -31,6 +31,14 @@ async def health_check(db: Session = Depends(get_db)):
     except Exception as e:
         db_status = f"unhealthy: {str(e)}"
     
+    otp_schema = False
+    try:
+        from ..db.ensure_schema import otp_disponible
+
+        otp_schema = otp_disponible()
+    except Exception:
+        otp_schema = False
+
     return {
         "status": "ok",
         "database": db_status,
@@ -38,6 +46,7 @@ async def health_check(db: Session = Depends(get_db)):
         "version": settings.APP_VERSION,
         "codigos_automaticos": True,
         "adjuntos_sin_requests": True,
+        "otp_schema": otp_schema,
     }
 
 

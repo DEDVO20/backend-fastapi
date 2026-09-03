@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..config import settings
 from ..database import get_db
+from ..db.ensure_schema import marcar_otp_seguro, opciones_carga_usuario
 from ..models.usuario import Rol, RolPermiso, Usuario, UsuarioRol
 from ..schemas.auth import (
     LoginRequest,
@@ -48,11 +49,21 @@ router = APIRouter(prefix="/api/v1/auth", tags=["autenticacion"])
 
 def _query_usuario_auth(db: Session):
     return db.query(Usuario).options(
-        joinedload(Usuario.roles)
-        .joinedload(UsuarioRol.rol)
-        .joinedload(Rol.permisos)
-        .joinedload(RolPermiso.permiso)
+        *opciones_carga_usuario(
+            joinedload(Usuario.roles)
+            .joinedload(UsuarioRol.rol)
+            .joinedload(Rol.permisos)
+            .joinedload(RolPermiso.permiso)
+        )
     )
+
+
+def _requiere_otp(usuario: Usuario) -> bool:
+    if usuario is None:
+        return False
+    if "requiere_otp" not in usuario.__dict__:
+        marcar_otp_seguro(usuario)
+    return bool(usuario.__dict__.get("requiere_otp"))
 
 
 def _buscar_usuario_login(db: Session, identificador: str) -> Usuario | None:
@@ -61,21 +72,24 @@ def _buscar_usuario_login(db: Session, identificador: str) -> Usuario | None:
         return None
 
     correo = valor.lower()
+    consulta = db.query(Usuario).options(*opciones_carga_usuario())
     if "@" in valor:
-        encontrado = (
-            db.query(Usuario)
-            .filter(func.lower(func.trim(Usuario.correo_electronico)) == correo)
-            .first()
-        )
+        encontrado = consulta.filter(
+            func.lower(func.trim(Usuario.correo_electronico)) == correo
+        ).first()
     else:
         condiciones = [Usuario.nombre_usuario == valor]
         if valor.isdigit():
             condiciones.append(Usuario.documento == int(valor))
-        encontrado = db.query(Usuario).filter(or_(*condiciones)).first()
+        encontrado = consulta.filter(or_(*condiciones)).first()
 
     if not encontrado:
         return None
-    return _usuario_por_id(db, encontrado.id)
+    marcar_otp_seguro(encontrado)
+    usuario = _usuario_por_id(db, encontrado.id)
+    if usuario:
+        marcar_otp_seguro(usuario)
+    return usuario
 
 
 def _usuario_por_id(db: Session, usuario_id: UUID) -> Usuario | None:
@@ -142,7 +156,7 @@ def _usuario_desde_otp_token(db: Session, otp_token: str) -> Usuario:
             detail="La verificación expiró. Vuelva a iniciar sesión.",
         )
     usuario = _usuario_por_id(db, usuario_id)
-    if not usuario or not usuario.activo or not getattr(usuario, "requiere_otp", False):
+    if not usuario or not usuario.activo or not _requiere_otp(usuario):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="La verificación expiró. Vuelva a iniciar sesión.",
@@ -234,7 +248,7 @@ def _login(login_data: LoginRequest, db: Session, reintentar_esquema: bool):
 
         identificador = (login_data.nombre_usuario or "").strip()
         ingreso_por_correo = "@" in identificador
-        if getattr(usuario, "requiere_otp", False) and not ingreso_por_correo:
+        if _requiere_otp(usuario) and not ingreso_por_correo:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Debe ingresar con su correo electrónico. Solo el administrador puede usar el usuario.",
@@ -253,7 +267,7 @@ def _login(login_data: LoginRequest, db: Session, reintentar_esquema: bool):
                 detail="Usuario inactivo"
             )
 
-        if getattr(usuario, "requiere_otp", False):
+        if _requiere_otp(usuario):
             return _emitir_y_enviar_otp(db, usuario)
 
         sesion = _respuesta_sesion(usuario)

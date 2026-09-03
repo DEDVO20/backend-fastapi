@@ -51,14 +51,19 @@ async def get_current_user(
         # Pre-cargar relación con área, roles y permisos para el RBAC
         from sqlalchemy.orm import joinedload
         from ..models.usuario import UsuarioRol, Rol, RolPermiso
+        from ..db.ensure_schema import marcar_otp_seguro, opciones_carga_usuario
         
         usuario = db.query(Usuario).options(
-            joinedload(Usuario.area),
-            joinedload(Usuario.roles).joinedload(UsuarioRol.rol).joinedload(Rol.permisos).joinedload(RolPermiso.permiso)
+            *opciones_carga_usuario(
+                joinedload(Usuario.area),
+                joinedload(Usuario.roles).joinedload(UsuarioRol.rol).joinedload(Rol.permisos).joinedload(RolPermiso.permiso),
+            )
         ).filter(Usuario.id == usuario_id).first()
         
         if usuario is None:
             raise credentials_exception
+
+        marcar_otp_seguro(usuario)
         
         if not usuario.activo:
             raise HTTPException(
