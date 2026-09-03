@@ -217,7 +217,10 @@ def _emitir_y_enviar_otp(db: Session, usuario: Usuario) -> LoginResponse:
             )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="No se pudo enviar el código al correo. Revise spam o la configuración SMTP.",
+            detail=(
+                "No se pudo enviar el código al correo. "
+                f"{email_service.ultimo_error or 'Revise spam o la configuración SMTP.'}"
+            ),
         )
 
     return LoginResponse(

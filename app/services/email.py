@@ -1,5 +1,6 @@
 from email.message import EmailMessage
 import logging
+import re
 import smtplib
 import ssl
 from typing import List, Optional
@@ -15,10 +16,19 @@ def _entorno_permite_simulacion() -> bool:
     return settings.ENVIRONMENT.lower() in ("test", "local")
 
 
+def normalizar_smtp_password(valor: Optional[str]) -> str:
+    """Gmail muestra la clave de aplicación con espacios; SMTP no los acepta."""
+    return re.sub(r"\s+", "", valor or "")
+
+
 class EmailService:
+    def __init__(self) -> None:
+        self.ultimo_error = ""
+
     def smtp_configurado(self) -> bool:
-        password = (settings.SMTP_PASSWORD or "").strip()
-        return bool(settings.SMTP_HOST and settings.SMTP_USER and password)
+        usuario = (settings.SMTP_USER or "").strip()
+        password = normalizar_smtp_password(settings.SMTP_PASSWORD)
+        return bool(settings.SMTP_HOST and usuario and password)
 
     def enviar_correo_sync(
         self,
@@ -30,6 +40,7 @@ class EmailService:
         log_cuerpo: bool = True,
     ) -> bool:
         """Envía un correo por SMTP. Si no hay SMTP, solo simula en test/local."""
+        self.ultimo_error = ""
         if not self.smtp_configurado():
             logger.info("==================================================")
             logger.info("SIMULACIÓN ENVÍO DE CORREO (SMTP no configurado)")
@@ -40,7 +51,9 @@ class EmailService:
             logger.info("==================================================")
             return _entorno_permite_simulacion()
 
-        remitente = settings.SMTP_FROM or settings.SMTP_USER or "noreply@localhost"
+        usuario = (settings.SMTP_USER or "").strip()
+        password = normalizar_smtp_password(settings.SMTP_PASSWORD)
+        remitente = (settings.SMTP_FROM or usuario or "noreply@localhost").strip()
         mensaje = EmailMessage()
         mensaje["Subject"] = asunto
         mensaje["From"] = remitente
@@ -55,22 +68,35 @@ class EmailService:
                 with smtplib.SMTP_SSL(
                     settings.SMTP_HOST,
                     settings.SMTP_PORT,
-                    timeout=20,
+                    timeout=30,
                     context=contexto,
                 ) as servidor:
-                    if settings.SMTP_USER:
-                        servidor.login(settings.SMTP_USER, settings.SMTP_PASSWORD or "")
+                    servidor.login(usuario, password)
                     servidor.send_message(mensaje)
             else:
-                with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=20) as servidor:
+                with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as servidor:
+                    servidor.ehlo()
                     if settings.SMTP_USE_TLS:
                         servidor.starttls(context=ssl.create_default_context())
-                    if settings.SMTP_USER:
-                        servidor.login(settings.SMTP_USER, settings.SMTP_PASSWORD or "")
+                        servidor.ehlo()
+                    servidor.login(usuario, password)
                     servidor.send_message(mensaje)
             logger.info("Correo enviado a %s (%s)", destinatario, asunto)
             return True
-        except Exception:
+        except smtplib.SMTPAuthenticationError:
+            self.ultimo_error = (
+                "Gmail rechazó el usuario o la contraseña. "
+                "Use una contraseña de aplicación de 16 letras, sin espacios."
+            )
+            logger.exception("No se pudo autenticar SMTP hacia %s", destinatario)
+            return False
+        except TimeoutError:
+            self.ultimo_error = "Se agotó el tiempo de espera al conectar con Gmail."
+            logger.exception("Timeout SMTP hacia %s", destinatario)
+            return False
+        except Exception as exc:
+            texto = str(exc).replace(password, "***") if password else str(exc)
+            self.ultimo_error = texto[:180]
             logger.exception("No se pudo enviar el correo a %s", destinatario)
             return False
 

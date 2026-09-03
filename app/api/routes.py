@@ -6,6 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..config import settings
+from ..services.email import email_service
 
 router = APIRouter()
 
@@ -48,9 +49,7 @@ async def health_check(db: Session = Depends(get_db)):
         "adjuntos_sin_requests": True,
         "otp_schema": otp_schema,
         "login_otp": True,
-        "smtp_configurado": bool(
-            (settings.SMTP_HOST and settings.SMTP_USER and (settings.SMTP_PASSWORD or "").strip())
-        ),
+        "smtp_configurado": email_service.smtp_configurado(),
     }
 
 
