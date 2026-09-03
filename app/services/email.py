@@ -17,7 +17,7 @@ def _entorno_permite_simulacion() -> bool:
 
 class EmailService:
     def smtp_configurado(self) -> bool:
-        return bool(settings.SMTP_HOST)
+        return bool(settings.SMTP_HOST and settings.SMTP_USER and settings.SMTP_PASSWORD)
 
     def enviar_correo_sync(
         self,

@@ -25,12 +25,13 @@ class Settings(BaseSettings):
     # Temporal: Gmail/Outlook hasta definir el dominio institucional.
     CORREOS_INSTITUCIONALES: str = "gmail.com,outlook.com,hotmail.com,live.com,iudc.edu.co,universitariadecolombia.edu.co"
 
-    # Correo (SMTP). Si no se configura, en development/test se simula el envío.
-    SMTP_HOST: Optional[str] = None
+    # Correo remitente del OTP. La contraseña SMTP no se guarda en el código:
+    # debe ir en variables de entorno del servidor (SMTP_PASSWORD).
+    SMTP_HOST: Optional[str] = "smtp.gmail.com"
     SMTP_PORT: int = 587
-    SMTP_USER: Optional[str] = None
+    SMTP_USER: Optional[str] = "calidad.iudc@gmail.com"
     SMTP_PASSWORD: Optional[str] = None
-    SMTP_FROM: Optional[str] = None
+    SMTP_FROM: Optional[str] = "calidad.iudc@gmail.com"
     SMTP_USE_TLS: bool = True
     
     # Entorno
