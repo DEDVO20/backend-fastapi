@@ -60,6 +60,26 @@ def asegurar_esquema_login() -> list[str]:
             return aplicadas
 
     _otp_listo = True
+    try:
+        with engine.begin() as conexion:
+            conexion.execute(
+                text(
+                    """
+                    UPDATE usuarios
+                    SET requiere_otp = true
+                    WHERE requiere_otp = false
+                      AND id NOT IN (
+                        SELECT ur.usuario_id
+                        FROM usuario_roles ur
+                        JOIN roles r ON r.id = ur.rol_id
+                        WHERE lower(coalesce(r.clave, '')) IN ('admin', 'administrador')
+                           OR lower(coalesce(r.nombre, '')) IN ('admin', 'administrador')
+                      )
+                    """
+                )
+            )
+    except Exception as exc:
+        print(f"⚠️ No se pudo activar OTP en usuarios existentes: {exc}")
     return aplicadas
 
 

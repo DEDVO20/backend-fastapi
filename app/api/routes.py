@@ -47,6 +47,7 @@ async def health_check(db: Session = Depends(get_db)):
         "codigos_automaticos": True,
         "adjuntos_sin_requests": True,
         "otp_schema": otp_schema,
+        "login_otp": True,
     }
 
 

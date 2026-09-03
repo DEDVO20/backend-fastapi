@@ -29,7 +29,7 @@ def test_asegurar_esquema_login_ejecuta_alter_si_faltan(mock_engine):
 
     creadas = asegurar_esquema_login()
     assert creadas == [nombre for nombre, _sql in COLUMNAS_OTP]
-    assert conexion.execute.call_count == len(COLUMNAS_OTP)
+    assert conexion.execute.call_count == len(COLUMNAS_OTP) + 1
     assert ensure_schema.otp_disponible() is True
 
     conexion.execute.reset_mock()
