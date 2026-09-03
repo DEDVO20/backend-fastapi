@@ -68,13 +68,13 @@ class EmailService:
                 with smtplib.SMTP_SSL(
                     settings.SMTP_HOST,
                     settings.SMTP_PORT,
-                    timeout=30,
+                    timeout=15,
                     context=contexto,
                 ) as servidor:
                     servidor.login(usuario, password)
                     servidor.send_message(mensaje)
             else:
-                with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=30) as servidor:
+                with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15) as servidor:
                     servidor.ehlo()
                     if settings.SMTP_USE_TLS:
                         servidor.starttls(context=ssl.create_default_context())

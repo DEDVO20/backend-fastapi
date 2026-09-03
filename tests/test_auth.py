@@ -214,6 +214,49 @@ def test_login_usuario_nuevo_requiere_otp(client):
     assert usuario.otp_codigo_hash
 
 
+def test_login_no_reenvia_otp_si_el_codigo_sigue_vigente(client):
+    from datetime import datetime, timedelta, timezone
+    from unittest.mock import patch
+
+    from app.utils.otp import hash_otp
+
+    hashed = get_password_hash("Password123")
+    usuario_id = uuid4()
+    usuario = FakeUser(
+        id=usuario_id,
+        nombre_usuario="jperez",
+        correo_electronico="jperez@iudc.edu.co",
+        contrasena_hash=hashed,
+        activo=True,
+        requiere_otp=True,
+        otp_codigo_hash=hash_otp("123456", str(usuario_id)),
+        otp_expira_en=datetime.now(timezone.utc) + timedelta(minutes=10),
+        otp_enviado_en=datetime.now(timezone.utc),
+        roles=[make_role("colaborador", ["documentos.ver"])],
+    )
+    db = _db_con_usuario(usuario)
+
+    def _override():
+        yield db
+
+    app.dependency_overrides[get_db] = _override
+    try:
+        with patch("app.api.auth.email_service.enviar_codigo_otp") as enviar:
+            response = client.post(
+                "/api/v1/auth/login",
+                json={"nombre_usuario": "jperez@iudc.edu.co", "password": "Password123"},
+            )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["requiere_otp"] is True
+    assert data["otp_token"]
+    assert "Ya enviamos" in (data.get("mensaje") or "")
+    enviar.assert_not_called()
+
+
 def test_login_con_correo_pide_otp_aunque_flag_este_apagado(client):
     from unittest.mock import patch
 

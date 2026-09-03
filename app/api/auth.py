@@ -186,11 +186,41 @@ def _usuario_desde_otp_token(db: Session, otp_token: str) -> Usuario:
     return usuario
 
 
+def _otp_reciente_vigente(usuario: Usuario) -> bool:
+    if not getattr(usuario, "otp_codigo_hash", None):
+        return False
+    if otp_esta_expirado(getattr(usuario, "otp_expira_en", None)):
+        return False
+    enviado_en = getattr(usuario, "otp_enviado_en", None)
+    if enviado_en is None:
+        return False
+    if enviado_en.tzinfo is None:
+        enviado_en = enviado_en.replace(tzinfo=timezone.utc)
+    espera = timedelta(seconds=settings.OTP_REENVIO_SEGUNDOS)
+    return datetime.now(timezone.utc) < (enviado_en + espera)
+
+
+def _respuesta_desafio_otp(usuario: Usuario, mensaje: str) -> LoginResponse:
+    return LoginResponse(
+        requiere_otp=True,
+        token_type="bearer",
+        otp_token=create_otp_token(str(usuario.id)),
+        mensaje=mensaje,
+        correo_enmascarado=enmascarar_correo(usuario.correo_electronico),
+    )
+
+
 def _emitir_y_enviar_otp(db: Session, usuario: Usuario) -> LoginResponse:
     if not es_correo_institucional(usuario.correo_electronico):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=mensaje_correo_institucional(),
+        )
+
+    if _otp_reciente_vigente(usuario):
+        return _respuesta_desafio_otp(
+            usuario,
+            "Ya enviamos un código a su correo. Revise la bandeja de entrada o spam.",
         )
 
     codigo = generar_codigo_otp()
@@ -223,12 +253,9 @@ def _emitir_y_enviar_otp(db: Session, usuario: Usuario) -> LoginResponse:
             ),
         )
 
-    return LoginResponse(
-        requiere_otp=True,
-        token_type="bearer",
-        otp_token=create_otp_token(str(usuario.id)),
-        mensaje="Enviamos un código de verificación a su correo institucional.",
-        correo_enmascarado=enmascarar_correo(usuario.correo_electronico),
+    return _respuesta_desafio_otp(
+        usuario,
+        "Enviamos un código de verificación a su correo institucional.",
     )
 
 
