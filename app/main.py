@@ -101,6 +101,9 @@ async def startup_event():
             print("✅ Esquema de calidad verificado")
     except Exception as exc:
         print(f"⚠️ No se pudo actualizar el esquema de calidad al arrancar: {exc}")
+
+    try:
+        from .database import SessionLocal
         from .db.sync_rbac import sincronizar_rbac_sgc
 
         db = SessionLocal()
