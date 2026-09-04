@@ -23,6 +23,6 @@ def es_correo_institucional(email: str) -> bool:
 def mensaje_correo_institucional() -> str:
     lista = ", ".join(f"@{dominio}" for dominio in dominios_institucionales())
     return (
-        "Los usuarios nuevos deben usar un correo permitido "
+        "Debe usar un correo de Gmail o Outlook "
         f"({lista})."
     )

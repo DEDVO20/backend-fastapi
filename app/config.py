@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     
     # Información de la aplicación
     APP_NAME: str = "FastAPI Backend"
-    APP_VERSION: str = "1.2.10"
+    APP_VERSION: str = "1.2.11"
     
     # Base de datos
     DATABASE_URL: str = "postgresql://fastapi_user:fastapi_password@localhost:5432/fastapi_db"
@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     OTP_MAX_INTENTOS: int = 5
     OTP_REENVIO_SEGUNDOS: int = 60
     # Temporal: Gmail/Outlook hasta definir el dominio institucional.
-    CORREOS_INSTITUCIONALES: str = "gmail.com,outlook.com,hotmail.com,live.com,iudc.edu.co,universitariadecolombia.edu.co"
+    # Solo Gmail u Outlook para crear usuarios y enviar OTP.
+    CORREOS_INSTITUCIONALES: str = "gmail.com,outlook.com,hotmail.com,live.com"
 
     # Correo remitente del OTP. La contraseña SMTP no se guarda en el código:
     # debe ir en variables de entorno del servidor (SMTP_PASSWORD).

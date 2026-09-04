@@ -52,6 +52,7 @@ def test_politica_acceso_es_publica(client):
     data = response.json()
     assert "gmail.com" in data["dominios_institucionales"]
     assert "outlook.com" in data["dominios_institucionales"]
+    assert "iudc.edu.co" not in data["dominios_institucionales"]
     assert data["otp_expira_minutos"] >= 1
 
 
@@ -184,7 +185,7 @@ def test_login_usuario_nuevo_requiere_otp(client):
     hashed = get_password_hash("Password123")
     usuario = FakeUser(
         nombre_usuario="jperez",
-        correo_electronico="jperez@iudc.edu.co",
+        correo_electronico="jperez@gmail.com",
         contrasena_hash=hashed,
         activo=True,
         requiere_otp=True,
@@ -200,7 +201,7 @@ def test_login_usuario_nuevo_requiere_otp(client):
         with patch("app.api.auth.generar_codigo_otp", return_value="123456"):
             response = client.post(
                 "/api/v1/auth/login",
-                json={"nombre_usuario": "jperez@iudc.edu.co", "password": "Password123"},
+                json={"nombre_usuario": "jperez@gmail.com", "password": "Password123"},
             )
     finally:
         app.dependency_overrides.pop(get_db, None)
@@ -210,7 +211,7 @@ def test_login_usuario_nuevo_requiere_otp(client):
     assert data["requiere_otp"] is True
     assert data["otp_token"]
     assert not data.get("access_token")
-    assert "iudc.edu.co" in (data.get("correo_enmascarado") or "")
+    assert "gmail.com" in (data.get("correo_enmascarado") or "")
     assert usuario.otp_codigo_hash
 
 
@@ -225,7 +226,7 @@ def test_login_no_reenvia_otp_si_el_codigo_sigue_vigente(client):
     usuario = FakeUser(
         id=usuario_id,
         nombre_usuario="jperez",
-        correo_electronico="jperez@iudc.edu.co",
+        correo_electronico="jperez@gmail.com",
         contrasena_hash=hashed,
         activo=True,
         requiere_otp=True,
@@ -244,7 +245,7 @@ def test_login_no_reenvia_otp_si_el_codigo_sigue_vigente(client):
         with patch("app.api.auth.email_service.enviar_codigo_otp") as enviar:
             response = client.post(
                 "/api/v1/auth/login",
-                json={"nombre_usuario": "jperez@iudc.edu.co", "password": "Password123"},
+                json={"nombre_usuario": "jperez@gmail.com", "password": "Password123"},
             )
     finally:
         app.dependency_overrides.pop(get_db, None)
@@ -329,7 +330,7 @@ def test_login_no_admin_no_puede_usar_usuario(client):
     hashed = get_password_hash("Password123")
     usuario = FakeUser(
         nombre_usuario="jperez",
-        correo_electronico="jperez@iudc.edu.co",
+        correo_electronico="jperez@gmail.com",
         contrasena_hash=hashed,
         activo=True,
         roles=[make_role("colaborador", ["documentos.ver"])],
@@ -362,7 +363,7 @@ def test_verificar_otp_emite_jwt(client):
     usuario = FakeUser(
         id=usuario_id,
         nombre_usuario="jperez",
-        correo_electronico="jperez@iudc.edu.co",
+        correo_electronico="jperez@gmail.com",
         contrasena_hash=get_password_hash("Password123"),
         activo=True,
         requiere_otp=True,
@@ -405,7 +406,7 @@ def test_verificar_otp_incorrecto(client):
     usuario = FakeUser(
         id=usuario_id,
         nombre_usuario="jperez",
-        correo_electronico="jperez@iudc.edu.co",
+        correo_electronico="jperez@gmail.com",
         contrasena_hash=get_password_hash("Password123"),
         activo=True,
         requiere_otp=True,
@@ -444,7 +445,7 @@ def test_login_no_marca_otp_enviado_si_el_correo_falla(client):
     hashed = get_password_hash("Password123")
     usuario = FakeUser(
         nombre_usuario="jperez",
-        correo_electronico="jperez@iudc.edu.co",
+        correo_electronico="jperez@gmail.com",
         contrasena_hash=hashed,
         activo=True,
         requiere_otp=True,
@@ -466,7 +467,7 @@ def test_login_no_marca_otp_enviado_si_el_correo_falla(client):
         ):
             response = client.post(
                 "/api/v1/auth/login",
-                json={"nombre_usuario": "jperez@iudc.edu.co", "password": "Password123"},
+                json={"nombre_usuario": "jperez@gmail.com", "password": "Password123"},
             )
     finally:
         app.dependency_overrides.pop(get_db, None)

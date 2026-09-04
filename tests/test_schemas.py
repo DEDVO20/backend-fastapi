@@ -50,7 +50,7 @@ def test_usuario_create_requiere_contrasena_minima():
             documento=111,
             nombre="Ana",
             primer_apellido="Perez",
-            correo_electronico="ana@iudc.edu.co",
+            correo_electronico="ana@gmail.com",
             nombre_usuario="ana",
             contrasena="123",
         )
