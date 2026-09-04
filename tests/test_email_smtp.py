@@ -147,3 +147,27 @@ def test_brevo_envia_a_cualquier_destinatario(monkeypatch):
         )
     assert enviado is True
     assert post.call_args.kwargs["headers"]["api-key"] == "brevo-test"
+
+
+def test_otp_ignora_resend_y_pide_brevo(monkeypatch):
+    from unittest.mock import patch
+
+    from app.config import settings
+    from app.services.email import MENSAJE_SMTP_BLOQUEADO
+
+    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
+    monkeypatch.setattr(settings, "BREVO_API_KEY", None)
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "re_test")
+    monkeypatch.setattr(settings, "SMTP_PASSWORD", None)
+    servicio = EmailService()
+    with patch("app.services.email.requests.post") as post:
+        enviado = servicio.enviar_correo_sync(
+            "usuario.nuevo@gmail.com",
+            "asunto",
+            "cuerpo",
+            log_cuerpo=False,
+        )
+    assert enviado is False
+    post.assert_not_called()
+    assert servicio.ultimo_error == MENSAJE_SMTP_BLOQUEADO
+    assert "BREVO_API_KEY" in servicio.ultimo_error

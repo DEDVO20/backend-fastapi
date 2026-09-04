@@ -24,8 +24,6 @@ from ..schemas.usuario import UsuarioWithArea
 from ..services.email import (
     MENSAJE_SMTP_BLOQUEADO,
     email_service,
-    es_error_red_smtp,
-    es_restriccion_prueba_resend,
 )
 from ..utils.correo_institucional import (
     dominios_institucionales,
@@ -243,21 +241,9 @@ def _emitir_y_enviar_otp(db: Session, usuario: Usuario) -> LoginResponse:
     )
     if not enviado:
         detalle = (email_service.ultimo_error or "").strip()
-        if (
-            es_restriccion_prueba_resend(detalle)
-            or es_error_red_smtp(Exception(detalle))
-            or "network is unreachable" in detalle.lower()
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=MENSAJE_SMTP_BLOQUEADO,
-            )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=(
-                "No se pudo enviar el código al correo. "
-                f"{detalle or 'Revise spam o la configuración de correo.'}"
-            ),
+            detail=detalle or MENSAJE_SMTP_BLOQUEADO,
         )
 
     usuario.otp_enviado_en = datetime.now(timezone.utc)

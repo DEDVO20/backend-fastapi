@@ -19,9 +19,10 @@ _DOMINIOS_REMITENTE_PLACEHOLDER = frozenset(
     {"example.com", "example.org", "example.net", "localhost", "test.com", "invalid"}
 )
 MENSAJE_SMTP_BLOQUEADO = (
-    "No se pudo enviar el código a este correo. "
-    "En Resend verifique un dominio en https://resend.com/domains "
-    "(no se registra cada usuario) o agregue BREVO_API_KEY en Render."
+    "No se pudo enviar el código al correo. "
+    "En Render agregue BREVO_API_KEY (https://app.brevo.com/settings/keys/api) "
+    "y en Brevo verifique el remitente calidad.iudc@gmail.com. "
+    "Resend no envía el OTP a todos los usuarios."
 )
 _ERRORES_RED_SMTP = (
     "network is unreachable",
@@ -266,7 +267,25 @@ class EmailService:
             logger.info("Correo OTP enviado por Brevo a %s", destinatario)
             return True
         detalle = respuesta.text[:240]
-        self.ultimo_error = f"Brevo rechazó el envío ({respuesta.status_code}): {detalle}"
+        texto = detalle.lower()
+        if "sender" in texto and (
+            "not valid" in texto
+            or "not verified" in texto
+            or "unrecognised" in texto
+            or "unrecognized" in texto
+            or "does not exist" in texto
+        ):
+            self.ultimo_error = (
+                f"Brevo no tiene verificado el remitente {correo_remitente}. "
+                "En https://app.brevo.com/senders agréguelo y confirme el correo."
+            )
+        elif respuesta.status_code in {401, 403}:
+            self.ultimo_error = (
+                "Brevo rechazó la API key. En Render revise BREVO_API_KEY "
+                "(https://app.brevo.com/settings/keys/api)."
+            )
+        else:
+            self.ultimo_error = f"Brevo rechazó el envío ({respuesta.status_code}): {detalle}"
         logger.error("Brevo error %s: %s", respuesta.status_code, detalle)
         return False
 
@@ -279,9 +298,8 @@ class EmailService:
         html: Optional[str] = None,
         log_cuerpo: bool = True,
     ) -> bool:
-        """Envía el correo por HTTPS (Brevo/Resend) o SMTP. En test/local puede simular."""
+        """Envía el correo por Brevo (HTTPS). Resend no se usa: no llega a todos los Gmail."""
         self.ultimo_error = ""
-        errores: list[str] = []
 
         if self.brevo_configurado():
             try:
@@ -290,41 +308,25 @@ class EmailService:
             except Exception as exc:
                 self.ultimo_error = f"No se pudo contactar Brevo: {exc}"[:180]
                 logger.exception("Fallo Brevo hacia %s", destinatario)
-            if self.ultimo_error:
-                errores.append(self.ultimo_error)
+            if not self.ultimo_error:
+                self.ultimo_error = MENSAJE_SMTP_BLOQUEADO
+            return False
 
-        if self.resend_configurado():
-            try:
-                if self._enviar_resend(destinatario, asunto, cuerpo, html):
-                    return True
-            except Exception as exc:
-                self.ultimo_error = f"No se pudo contactar Resend: {exc}"[:180]
-                logger.exception("Fallo Resend hacia %s", destinatario)
-            if self.ultimo_error:
-                errores.append(self.ultimo_error)
-            if self.ultimo_error and not es_restriccion_prueba_resend(self.ultimo_error):
-                if not self.smtp_configurado():
-                    return False
-
-        if not self.smtp_configurado():
-            if errores:
-                self.ultimo_error = errores[-1]
-                if es_restriccion_prueba_resend(self.ultimo_error):
-                    self.ultimo_error = MENSAJE_SMTP_BLOQUEADO
-                return False
+        if _entorno_permite_simulacion() and not self.smtp_configurado():
             logger.info("==================================================")
-            logger.info("SIMULACIÓN ENVÍO DE CORREO (SMTP/Resend/Brevo no configurado)")
+            logger.info("SIMULACIÓN ENVÍO DE CORREO (Brevo no configurado)")
             logger.info("Para: %s", destinatario)
             logger.info("Asunto: %s", asunto)
             if log_cuerpo:
                 logger.info("Cuerpo: %s", cuerpo)
             logger.info("==================================================")
-            if _entorno_permite_simulacion():
-                return True
-            self.ultimo_error = MENSAJE_SMTP_BLOQUEADO
-            return False
+            return True
 
-        return self._enviar_smtp_mensaje(destinatario, asunto, cuerpo, html)
+        if self.smtp_configurado() and _entorno_permite_simulacion():
+            return self._enviar_smtp_mensaje(destinatario, asunto, cuerpo, html)
+
+        self.ultimo_error = MENSAJE_SMTP_BLOQUEADO
+        return False
 
     def _enviar_smtp_mensaje(
         self,
