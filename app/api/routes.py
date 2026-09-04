@@ -6,7 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from ..database import get_db
 from ..config import settings
-from ..services.email import email_service
+from ..services.email import dominio_del_correo, email_service, remitente_resend
 
 router = APIRouter()
 
@@ -51,6 +51,7 @@ async def health_check(db: Session = Depends(get_db)):
         "login_otp": True,
         "smtp_configurado": email_service.smtp_configurado(),
         "resend_configurado": email_service.resend_configurado(),
+        "resend_from_dominio": dominio_del_correo(remitente_resend()) or None,
         "brevo_configurado": email_service.brevo_configurado(),
     }
 

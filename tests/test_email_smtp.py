@@ -75,6 +75,7 @@ def test_resend_modo_prueba_explica_dominio(monkeypatch):
     from app.config import settings
 
     monkeypatch.setattr(settings, "RESEND_API_KEY", "re_test")
+    monkeypatch.setattr(settings, "RESEND_FROM", "SGC Calidad <beth.t@example.com>")
     servicio = EmailService()
     respuesta = Mock()
     respuesta.ok = False
@@ -86,8 +87,42 @@ def test_resend_modo_prueba_explica_dominio(monkeypatch):
     with patch("app.services.email.requests.post", return_value=respuesta):
         enviado = servicio._enviar_resend("otro@gmail.com", "asunto", "cuerpo", None)
     assert enviado is False
-    assert "modo prueba" in servicio.ultimo_error.lower()
+    assert "dominio" in servicio.ultimo_error.lower()
     assert "resend.com/domains" in servicio.ultimo_error
+
+
+def test_remitente_resend_ignora_example_com(monkeypatch):
+    from app.config import settings
+    from app.services.email import REMITENTE_RESEND_SANDBOX, remitente_resend
+
+    monkeypatch.setattr(settings, "RESEND_FROM", "noreply@example.com")
+    assert remitente_resend() == REMITENTE_RESEND_SANDBOX
+
+
+def test_resend_reintenta_con_sandbox_si_dominio_no_verificado(monkeypatch):
+    from unittest.mock import Mock, patch
+
+    from app.config import settings
+    from app.services.email import REMITENTE_RESEND_SANDBOX
+
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "re_test")
+    monkeypatch.setattr(settings, "RESEND_FROM", "SGC Calidad <noreply@universidad.edu.co>")
+    fallo = Mock()
+    fallo.ok = False
+    fallo.status_code = 403
+    fallo.text = (
+        '{"statusCode":403,"message":"The universidad.edu.co domain is not verified. '
+        'Please, add and verify your domain on https://resend.com/domains","name":"validation_error"}'
+    )
+    ok = Mock()
+    ok.ok = True
+    ok.status_code = 200
+    ok.text = "{}"
+    with patch("app.services.email.requests.post", side_effect=[fallo, ok]) as post:
+        enviado = EmailService()._enviar_resend("otro@gmail.com", "asunto", "cuerpo", None)
+    assert enviado is True
+    assert post.call_count == 2
+    assert post.call_args_list[1].kwargs["json"]["from"] == REMITENTE_RESEND_SANDBOX
 
 
 def test_brevo_envia_a_cualquier_destinatario(monkeypatch):

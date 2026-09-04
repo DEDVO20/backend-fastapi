@@ -14,6 +14,10 @@ from ..models.calidad import AccionCorrectiva
 
 logger = logging.getLogger(__name__)
 
+REMITENTE_RESEND_SANDBOX = "SGC Calidad <beth.t@example.com>"
+_DOMINIOS_REMITENTE_PLACEHOLDER = frozenset(
+    {"example.com", "example.org", "example.net", "localhost", "test.com", "invalid"}
+)
 MENSAJE_SMTP_BLOQUEADO = (
     "No se pudo enviar el código a este correo. "
     "En Resend verifique un dominio en https://resend.com/domains "
@@ -50,8 +54,36 @@ def es_restriccion_prueba_resend(error: str) -> bool:
     texto = (error or "").lower()
     return any(
         marca in texto
-        for marca in ("modo prueba", "own email", "verify a domain", "only send testing")
+        for marca in (
+            "modo prueba",
+            "own email",
+            "verify a domain",
+            "verify your domain",
+            "domain is not verified",
+            "only send testing",
+            "resend.com/domains",
+        )
     )
+
+
+def dominio_del_correo(valor: Optional[str]) -> str:
+    _, direccion = extraer_remitente(valor, REMITENTE_RESEND_SANDBOX)
+    if "@" not in direccion:
+        return ""
+    return direccion.rsplit("@", 1)[-1].strip().lower()
+
+
+def es_remitente_resend_invalido(valor: Optional[str]) -> bool:
+    dominio = dominio_del_correo(valor or "")
+    return not dominio or dominio in _DOMINIOS_REMITENTE_PLACEHOLDER
+
+
+def remitente_resend() -> str:
+    """Resend no acepta example.com ni Gmail como remitente sin dominio verificado."""
+    crudo = (settings.RESEND_FROM or "").strip()
+    if es_remitente_resend_invalido(crudo):
+        return REMITENTE_RESEND_SANDBOX
+    return crudo
 
 
 def normalizar_smtp_password(valor: Optional[str]) -> str:
@@ -132,15 +164,15 @@ class EmailService:
     def envio_configurado(self) -> bool:
         return self.brevo_configurado() or self.resend_configurado() or self.smtp_configurado()
 
-    def _enviar_resend(
+    def _post_resend(
         self,
+        clave: str,
+        remitente: str,
         destinatario: str,
         asunto: str,
         cuerpo: str,
         html: Optional[str],
-    ) -> bool:
-        clave = (settings.RESEND_API_KEY or "").strip()
-        remitente = (settings.RESEND_FROM or settings.SMTP_FROM or "SGC Calidad <beth.t@example.com>").strip()
+    ):
         payload = {
             "from": remitente,
             "to": [destinatario],
@@ -149,7 +181,7 @@ class EmailService:
         }
         if html:
             payload["html"] = html
-        respuesta = requests.post(
+        return requests.post(
             "https://api.resend.com/emails",
             headers={
                 "Authorization": f"Bearer {clave}",
@@ -158,16 +190,42 @@ class EmailService:
             json=payload,
             timeout=20,
         )
+
+    def _enviar_resend(
+        self,
+        destinatario: str,
+        asunto: str,
+        cuerpo: str,
+        html: Optional[str],
+    ) -> bool:
+        clave = (settings.RESEND_API_KEY or "").strip()
+        remitente = remitente_resend()
+        respuesta = self._post_resend(clave, remitente, destinatario, asunto, cuerpo, html)
+        if (
+            not respuesta.ok
+            and es_restriccion_prueba_resend(respuesta.text)
+            and "resend.dev" not in remitente.lower()
+        ):
+            logger.warning(
+                "Resend rechazó remitente %s; reintento con %s",
+                remitente,
+                REMITENTE_RESEND_SANDBOX,
+            )
+            remitente = REMITENTE_RESEND_SANDBOX
+            respuesta = self._post_resend(
+                clave, remitente, destinatario, asunto, cuerpo, html
+            )
         if respuesta.ok:
-            logger.info("Correo OTP enviado por Resend a %s", destinatario)
+            logger.info("Correo OTP enviado por Resend a %s desde %s", destinatario, remitente)
             return True
         detalle = respuesta.text[:240]
         texto = detalle.lower()
-        if "own email" in texto or "verify a domain" in texto:
+        if es_restriccion_prueba_resend(detalle) or "own email" in texto:
             self.ultimo_error = (
-                "Resend en modo prueba solo envía al correo de la cuenta de Resend. "
-                "Verifique un dominio en https://resend.com/domains o inicie sesión "
-                "con ese mismo correo."
+                "Resend no puede usar ese remitente (falta verificar el dominio). "
+                "En https://resend.com/domains agregue el dominio y en Render ponga "
+                "RESEND_FROM con un correo de ese dominio, por ejemplo "
+                "SGC Calidad <noreply@su-dominio.com>."
             )
         else:
             self.ultimo_error = f"Resend rechazó el envío ({respuesta.status_code}): {detalle}"
