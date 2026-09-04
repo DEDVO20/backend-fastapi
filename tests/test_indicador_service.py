@@ -86,6 +86,7 @@ def test_aprobar_exige_otra_persona():
     )
     service = IndicadorService(db=MagicMock())
     service.obtener = lambda _id: indicador
+    service.historial = lambda _id: [SimpleNamespace(valor=10, periodo="2026-01")]
 
     try:
         service.aprobar(indicador.id, creador_id)
@@ -98,6 +99,7 @@ def test_solicitar_aprobacion_exige_medicion():
     indicador = SimpleNamespace(id=uuid4(), estado="borrador", mediciones=[])
     service = IndicadorService(db=MagicMock())
     service.obtener = lambda _id: indicador
+    service.historial = lambda _id: []
     try:
         service.solicitar_aprobacion(indicador.id, uuid4())
         assert False, "Debió exigir medición"

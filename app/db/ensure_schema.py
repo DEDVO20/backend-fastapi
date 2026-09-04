@@ -199,6 +199,40 @@ SQL_CALIDAD = (
         "mediciones_indicador.actualizado_en",
         "ALTER TABLE mediciones_indicador ADD COLUMN IF NOT EXISTS actualizado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()",
     ),
+    (
+        "audit_log",
+        """
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            tabla VARCHAR(100) NOT NULL,
+            registro_id UUID NOT NULL,
+            accion VARCHAR(20) NOT NULL,
+            usuario_id UUID REFERENCES usuarios(id) ON UPDATE CASCADE ON DELETE SET NULL,
+            cambios_json JSONB,
+            fecha TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            actualizado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            activo BOOLEAN NOT NULL DEFAULT TRUE,
+            creado_por UUID REFERENCES usuarios(id) ON UPDATE CASCADE ON DELETE SET NULL
+        )
+        """,
+    ),
+    (
+        "audit_log.activo",
+        "ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE",
+    ),
+    (
+        "audit_log.creado_por",
+        "ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS creado_por UUID",
+    ),
+    (
+        "audit_log.creado_en",
+        "ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()",
+    ),
+    (
+        "audit_log.actualizado_en",
+        "ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS actualizado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()",
+    ),
 )
 
 _calidad_listo = False

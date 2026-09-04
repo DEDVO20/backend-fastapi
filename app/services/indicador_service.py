@@ -184,7 +184,8 @@ class IndicadorService:
         indicador = self.obtener(indicador_id)
         if indicador.estado == "aprobado":
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="El indicador ya está aprobado")
-        if not indicador.mediciones:
+        mediciones = self.historial(indicador_id)
+        if not mediciones:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Registre al menos una medición antes de solicitar aprobación",
@@ -192,14 +193,17 @@ class IndicadorService:
         indicador.estado = "pendiente_aprobacion"
         indicador.revisado_por = usuario_id
         indicador.fecha_revision = _ahora()
-        registrar_auditoria(
-            self.db,
-            tabla="indicadores",
-            registro_id=indicador.id,
-            accion="UPDATE",
-            usuario_id=usuario_id,
-            cambios={"estado": "pendiente_aprobacion"},
-        )
+        try:
+            registrar_auditoria(
+                self.db,
+                tabla="indicadores",
+                registro_id=indicador.id,
+                accion="UPDATE",
+                usuario_id=usuario_id,
+                cambios={"estado": "pendiente_aprobacion"},
+            )
+        except Exception:
+            pass
         self.db.commit()
         return self.obtener(indicador_id)
 
@@ -212,7 +216,8 @@ class IndicadorService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Quien elabora el indicador no puede aprobarlo. Debe aprobarlo otra persona.",
             )
-        if not indicador.mediciones:
+        mediciones = self.historial(indicador_id)
+        if not mediciones:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="No se puede aprobar un indicador sin mediciones",
@@ -224,14 +229,17 @@ class IndicadorService:
         if not indicador.revisado_por:
             indicador.revisado_por = indicador.responsable_medicion_id or usuario_id
             indicador.fecha_revision = indicador.fecha_revision or _ahora()
-        registrar_auditoria(
-            self.db,
-            tabla="indicadores",
-            registro_id=indicador.id,
-            accion="UPDATE",
-            usuario_id=usuario_id,
-            cambios={"estado": "aprobado", "aprobado_por": str(usuario_id)},
-        )
+        try:
+            registrar_auditoria(
+                self.db,
+                tabla="indicadores",
+                registro_id=indicador.id,
+                accion="UPDATE",
+                usuario_id=usuario_id,
+                cambios={"estado": "aprobado", "aprobado_por": str(usuario_id)},
+            )
+        except Exception:
+            pass
         self.db.commit()
         return self.obtener(indicador_id)
 
@@ -250,13 +258,16 @@ class IndicadorService:
         indicador.aprobado_por = None
         indicador.fecha_aprobacion = None
         indicador.observacion_aprobacion = observacion.strip()
-        registrar_auditoria(
-            self.db,
-            tabla="indicadores",
-            registro_id=indicador.id,
-            accion="UPDATE",
-            usuario_id=usuario_id,
-            cambios={"estado": "rechazado", "observacion": observacion.strip()},
-        )
+        try:
+            registrar_auditoria(
+                self.db,
+                tabla="indicadores",
+                registro_id=indicador.id,
+                accion="UPDATE",
+                usuario_id=usuario_id,
+                cambios={"estado": "rechazado", "observacion": observacion.strip()},
+            )
+        except Exception:
+            pass
         self.db.commit()
         return self.obtener(indicador_id)
