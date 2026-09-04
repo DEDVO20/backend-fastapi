@@ -435,3 +435,43 @@ def test_verificar_otp_incorrecto(client):
     assert "incorrecto" in response.json()["detail"].lower()
     assert response.json().get("access_token") is None
 
+
+def test_login_no_marca_otp_enviado_si_el_correo_falla(client):
+    from unittest.mock import patch
+
+    from app.api.auth import email_service
+
+    hashed = get_password_hash("Password123")
+    usuario = FakeUser(
+        nombre_usuario="jperez",
+        correo_electronico="jperez@iudc.edu.co",
+        contrasena_hash=hashed,
+        activo=True,
+        requiere_otp=True,
+        roles=[make_role("colaborador", ["documentos.ver"])],
+    )
+    db = _db_con_usuario(usuario)
+
+    def _override():
+        yield db
+
+    app.dependency_overrides[get_db] = _override
+    try:
+        email_service.ultimo_error = (
+            "Resend en modo prueba solo envía al correo de la cuenta de Resend."
+        )
+        with patch("app.api.auth.email_service.enviar_codigo_otp", return_value=False), patch(
+            "app.api.auth.email_service.resend_configurado",
+            return_value=True,
+        ):
+            response = client.post(
+                "/api/v1/auth/login",
+                json={"nombre_usuario": "jperez@iudc.edu.co", "password": "Password123"},
+            )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 503
+    assert "Resend" in response.json()["detail"]
+    assert usuario.otp_enviado_en is None
+

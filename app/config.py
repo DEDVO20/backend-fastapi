@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     
     # Información de la aplicación
     APP_NAME: str = "FastAPI Backend"
-    APP_VERSION: str = "1.2.9"
+    APP_VERSION: str = "1.2.10"
     
     # Base de datos
     DATABASE_URL: str = "postgresql://fastapi_user:fastapi_password@localhost:5432/fastapi_db"
@@ -33,9 +33,11 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: Optional[str] = None
     SMTP_FROM: Optional[str] = "calidad.iudc@gmail.com"
     SMTP_USE_TLS: bool = True
-    # Render bloquea SMTP (puerto 587). El OTP debe ir por HTTPS (Resend).
+    # Render bloquea SMTP. OTP por HTTPS: Brevo (cualquier destinatario) o Resend.
     RESEND_API_KEY: Optional[str] = None
     RESEND_FROM: Optional[str] = "SGC Calidad <beth.t@example.com>"
+    BREVO_API_KEY: Optional[str] = None
+    BREVO_FROM: Optional[str] = "calidad.iudc@gmail.com"
     
     # Entorno
     ENVIRONMENT: str = "development"

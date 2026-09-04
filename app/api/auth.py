@@ -21,7 +21,12 @@ from ..schemas.auth import (
     VerificarOtpRequest,
 )
 from ..schemas.usuario import UsuarioWithArea
-from ..services.email import MENSAJE_SMTP_BLOQUEADO, email_service, es_error_red_smtp
+from ..services.email import (
+    MENSAJE_SMTP_BLOQUEADO,
+    email_service,
+    es_error_red_smtp,
+    es_restriccion_prueba_resend,
+)
 from ..utils.correo_institucional import (
     dominios_institucionales,
     es_correo_institucional,
@@ -227,7 +232,7 @@ def _emitir_y_enviar_otp(db: Session, usuario: Usuario) -> LoginResponse:
     usuario.otp_codigo_hash = hash_otp(codigo, str(usuario.id))
     usuario.otp_expira_en = otp_expira_en()
     usuario.otp_intentos = 0
-    usuario.otp_enviado_en = datetime.now(timezone.utc)
+    usuario.otp_enviado_en = None
     db.add(usuario)
     db.commit()
 
@@ -239,10 +244,9 @@ def _emitir_y_enviar_otp(db: Session, usuario: Usuario) -> LoginResponse:
     if not enviado:
         detalle = (email_service.ultimo_error or "").strip()
         if (
-            not email_service.envio_configurado()
+            es_restriccion_prueba_resend(detalle)
             or es_error_red_smtp(Exception(detalle))
             or "network is unreachable" in detalle.lower()
-            or "resend.com" in detalle.lower()
         ):
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -255,6 +259,10 @@ def _emitir_y_enviar_otp(db: Session, usuario: Usuario) -> LoginResponse:
                 f"{detalle or 'Revise spam o la configuración de correo.'}"
             ),
         )
+
+    usuario.otp_enviado_en = datetime.now(timezone.utc)
+    db.add(usuario)
+    db.commit()
 
     return _respuesta_desafio_otp(
         usuario,

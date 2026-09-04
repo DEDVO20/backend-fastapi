@@ -15,8 +15,9 @@ from ..models.calidad import AccionCorrectiva
 logger = logging.getLogger(__name__)
 
 MENSAJE_SMTP_BLOQUEADO = (
-    "Render no puede conectar con Gmail por SMTP (Network is unreachable). "
-    "Cree una API key en https://resend.com y agregue RESEND_API_KEY en Render."
+    "No se pudo enviar el código a este correo. "
+    "En Resend verifique un dominio en https://resend.com/domains "
+    "(no se registra cada usuario) o agregue BREVO_API_KEY en Render."
 )
 _ERRORES_RED_SMTP = (
     "network is unreachable",
@@ -34,6 +35,23 @@ _ERRORES_RED_SMTP = (
 
 def _entorno_permite_simulacion() -> bool:
     return settings.ENVIRONMENT.lower() in ("test", "local")
+
+
+def extraer_remitente(valor: Optional[str], respaldo: str = "calidad.iudc@gmail.com") -> tuple[str, str]:
+    texto = (valor or "").strip() or respaldo
+    coincide = re.match(r"^(.*?)\s*<([^>]+)>$", texto)
+    if coincide:
+        nombre = coincide.group(1).strip().strip('"') or "SGC Calidad"
+        return nombre, coincide.group(2).strip()
+    return "SGC Calidad", texto
+
+
+def es_restriccion_prueba_resend(error: str) -> bool:
+    texto = (error or "").lower()
+    return any(
+        marca in texto
+        for marca in ("modo prueba", "own email", "verify a domain", "only send testing")
+    )
 
 
 def normalizar_smtp_password(valor: Optional[str]) -> str:
@@ -103,13 +121,16 @@ class EmailService:
     def resend_configurado(self) -> bool:
         return bool((settings.RESEND_API_KEY or "").strip())
 
+    def brevo_configurado(self) -> bool:
+        return bool((settings.BREVO_API_KEY or "").strip())
+
     def smtp_configurado(self) -> bool:
         usuario = (settings.SMTP_USER or "").strip()
         password = normalizar_smtp_password(settings.SMTP_PASSWORD)
         return bool(settings.SMTP_HOST and usuario and password)
 
     def envio_configurado(self) -> bool:
-        return self.resend_configurado() or self.smtp_configurado()
+        return self.brevo_configurado() or self.resend_configurado() or self.smtp_configurado()
 
     def _enviar_resend(
         self,
@@ -140,9 +161,55 @@ class EmailService:
         if respuesta.ok:
             logger.info("Correo OTP enviado por Resend a %s", destinatario)
             return True
-        detalle = respuesta.text[:180]
-        self.ultimo_error = f"Resend rechazó el envío ({respuesta.status_code}): {detalle}"
+        detalle = respuesta.text[:240]
+        texto = detalle.lower()
+        if "own email" in texto or "verify a domain" in texto:
+            self.ultimo_error = (
+                "Resend en modo prueba solo envía al correo de la cuenta de Resend. "
+                "Verifique un dominio en https://resend.com/domains o inicie sesión "
+                "con ese mismo correo."
+            )
+        else:
+            self.ultimo_error = f"Resend rechazó el envío ({respuesta.status_code}): {detalle}"
         logger.error("Resend error %s: %s", respuesta.status_code, detalle)
+        return False
+
+    def _enviar_brevo(
+        self,
+        destinatario: str,
+        asunto: str,
+        cuerpo: str,
+        html: Optional[str],
+    ) -> bool:
+        clave = (settings.BREVO_API_KEY or "").strip()
+        nombre, correo_remitente = extraer_remitente(
+            settings.BREVO_FROM or settings.SMTP_FROM,
+            "calidad.iudc@gmail.com",
+        )
+        payload = {
+            "sender": {"name": nombre, "email": correo_remitente},
+            "to": [{"email": destinatario}],
+            "subject": asunto,
+            "textContent": cuerpo,
+        }
+        if html:
+            payload["htmlContent"] = html
+        respuesta = requests.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers={
+                "api-key": clave,
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=20,
+        )
+        if respuesta.ok:
+            logger.info("Correo OTP enviado por Brevo a %s", destinatario)
+            return True
+        detalle = respuesta.text[:240]
+        self.ultimo_error = f"Brevo rechazó el envío ({respuesta.status_code}): {detalle}"
+        logger.error("Brevo error %s: %s", respuesta.status_code, detalle)
         return False
 
     def enviar_correo_sync(
@@ -154,19 +221,41 @@ class EmailService:
         html: Optional[str] = None,
         log_cuerpo: bool = True,
     ) -> bool:
-        """Envía el correo por HTTPS (Resend) o SMTP. En test/local puede simular."""
+        """Envía el correo por HTTPS (Brevo/Resend) o SMTP. En test/local puede simular."""
         self.ultimo_error = ""
+        errores: list[str] = []
+
+        if self.brevo_configurado():
+            try:
+                if self._enviar_brevo(destinatario, asunto, cuerpo, html):
+                    return True
+            except Exception as exc:
+                self.ultimo_error = f"No se pudo contactar Brevo: {exc}"[:180]
+                logger.exception("Fallo Brevo hacia %s", destinatario)
+            if self.ultimo_error:
+                errores.append(self.ultimo_error)
+
         if self.resend_configurado():
             try:
-                return self._enviar_resend(destinatario, asunto, cuerpo, html)
+                if self._enviar_resend(destinatario, asunto, cuerpo, html):
+                    return True
             except Exception as exc:
                 self.ultimo_error = f"No se pudo contactar Resend: {exc}"[:180]
                 logger.exception("Fallo Resend hacia %s", destinatario)
-                return False
+            if self.ultimo_error:
+                errores.append(self.ultimo_error)
+            if self.ultimo_error and not es_restriccion_prueba_resend(self.ultimo_error):
+                if not self.smtp_configurado():
+                    return False
 
         if not self.smtp_configurado():
+            if errores:
+                self.ultimo_error = errores[-1]
+                if es_restriccion_prueba_resend(self.ultimo_error):
+                    self.ultimo_error = MENSAJE_SMTP_BLOQUEADO
+                return False
             logger.info("==================================================")
-            logger.info("SIMULACIÓN ENVÍO DE CORREO (SMTP/Resend no configurado)")
+            logger.info("SIMULACIÓN ENVÍO DE CORREO (SMTP/Resend/Brevo no configurado)")
             logger.info("Para: %s", destinatario)
             logger.info("Asunto: %s", asunto)
             if log_cuerpo:
@@ -177,6 +266,15 @@ class EmailService:
             self.ultimo_error = MENSAJE_SMTP_BLOQUEADO
             return False
 
+        return self._enviar_smtp_mensaje(destinatario, asunto, cuerpo, html)
+
+    def _enviar_smtp_mensaje(
+        self,
+        destinatario: str,
+        asunto: str,
+        cuerpo: str,
+        html: Optional[str],
+    ) -> bool:
         usuario = (settings.SMTP_USER or "").strip()
         password = normalizar_smtp_password(settings.SMTP_PASSWORD)
         remitente = (settings.SMTP_FROM or usuario or "noreply@localhost").strip()
