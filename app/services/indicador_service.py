@@ -19,6 +19,11 @@ def _ahora():
 class IndicadorService:
     def __init__(self, db: Session):
         self.db = db
+        try:
+            from ..db.ensure_schema import asegurar_esquema_calidad
+            asegurar_esquema_calidad()
+        except Exception:
+            pass
 
     def _query(self, con_mediciones: bool = True):
         opciones = [
@@ -35,7 +40,11 @@ class IndicadorService:
         return self.db.query(Indicador).options(*opciones)
 
     def obtener(self, indicador_id: UUID) -> Indicador:
-        indicador = self._query().filter(Indicador.id == indicador_id).unique().first()
+        try:
+            indicador = self._query().filter(Indicador.id == indicador_id).unique().first()
+        except Exception:
+            self.db.rollback()
+            indicador = self._query(con_mediciones=False).filter(Indicador.id == indicador_id).unique().first()
         if not indicador:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Indicador no encontrado")
         return indicador
@@ -110,11 +119,23 @@ class IndicadorService:
 
     def historial(self, indicador_id: UUID):
         self.obtener(indicador_id)
-        return self.db.query(MedicionIndicador).options(
-            joinedload(MedicionIndicador.registrador),
-        ).filter(
-            MedicionIndicador.indicador_id == indicador_id
-        ).order_by(MedicionIndicador.periodo.asc(), MedicionIndicador.creado_en.asc()).all()
+        try:
+            return (
+                self.db.query(MedicionIndicador)
+                .options(joinedload(MedicionIndicador.registrador))
+                .filter(MedicionIndicador.indicador_id == indicador_id)
+                .order_by(MedicionIndicador.periodo.asc(), MedicionIndicador.creado_en.asc())
+                .unique()
+                .all()
+            )
+        except Exception:
+            self.db.rollback()
+            return (
+                self.db.query(MedicionIndicador)
+                .filter(MedicionIndicador.indicador_id == indicador_id)
+                .order_by(MedicionIndicador.periodo.asc(), MedicionIndicador.creado_en.asc())
+                .all()
+            )
 
     def tendencia(self, indicador_id: UUID) -> dict:
         mediciones = self.historial(indicador_id)
@@ -128,7 +149,17 @@ class IndicadorService:
                 "tendencia": "sin_datos",
             }
 
-        valores = [Decimal(str(m.valor)) for m in mediciones]
+        valores = [Decimal(str(m.valor)) for m in mediciones if m.valor is not None]
+        if not valores:
+            return {
+                "indicador_id": indicador_id,
+                "total_mediciones": len(mediciones),
+                "promedio": Decimal("0"),
+                "ultimo_valor": None,
+                "ultimo_periodo": mediciones[-1].periodo if mediciones else None,
+                "tendencia": "sin_datos",
+            }
+
         promedio = sum(valores) / Decimal(len(valores))
 
         tendencia = "estable"
@@ -139,11 +170,12 @@ class IndicadorService:
                 tendencia = "bajando"
 
         ultima = mediciones[-1]
+        ultimo_val = Decimal(str(ultima.valor)) if ultima.valor is not None else None
         return {
             "indicador_id": indicador_id,
             "total_mediciones": len(mediciones),
             "promedio": promedio.quantize(Decimal("0.01")),
-            "ultimo_valor": Decimal(str(ultima.valor)),
+            "ultimo_valor": ultimo_val,
             "ultimo_periodo": ultima.periodo,
             "tendencia": tendencia,
         }

@@ -103,3 +103,22 @@ def test_solicitar_aprobacion_exige_medicion():
         assert False, "Debió exigir medición"
     except Exception as exc:
         assert getattr(exc, "status_code", None) == 400
+
+
+def test_historial_fallback_si_falla_query():
+    db_mock = MagicMock()
+    # Simular fallo en primer query y éxito en el query de fallback
+    query_first = MagicMock()
+    query_first.options.return_value.filter.return_value.order_by.return_value.unique.return_value.all.side_effect = Exception("DB error")
+    
+    query_fallback = MagicMock()
+    query_fallback.filter.return_value.order_by.return_value.all.return_value = ["medicion1"]
+    
+    db_mock.query.side_effect = [query_first, query_fallback]
+    
+    service = IndicadorService(db=db_mock)
+    service.obtener = lambda _id: None
+    
+    res = service.historial(uuid4())
+    assert res == ["medicion1"]
+
