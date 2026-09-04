@@ -54,8 +54,8 @@ class Auditoria(BaseModel):
     auditor_lider = relationship("Usuario", back_populates="auditorias_lider", foreign_keys=[auditor_lider_id])
     proceso = relationship("Proceso")
     creador = relationship("Usuario", back_populates="auditorias_creadas", foreign_keys=[creado_por])
-    hallazgos = relationship("HallazgoAuditoria", back_populates="auditoria")
-    respuestas_formularios = relationship("RespuestaFormulario", back_populates="auditoria")
+    hallazgos = relationship("HallazgoAuditoria", back_populates="auditoria", cascade="all, delete-orphan")
+    respuestas_formularios = relationship("RespuestaFormulario", back_populates="auditoria", cascade="all, delete-orphan")
     formulario_checklist = relationship("FormularioDinamico")
     
     # Índices

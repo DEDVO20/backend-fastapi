@@ -7,6 +7,7 @@ from app.db.ensure_schema import COLUMNAS_OTP, asegurar_esquema_login
 
 def setup_function():
     ensure_schema._otp_listo = False
+    ensure_schema._calidad_listo = False
 
 
 def test_columnas_otp_cubren_el_modelo_de_usuario():

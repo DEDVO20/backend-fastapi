@@ -124,47 +124,59 @@ def get_auditorias_stats(
 @router.get("/competencias/riesgo-humano")
 def get_competencias_riesgo_humano(
     db: Session = Depends(get_db),
-    current_user: Usuario = Depends(require_any_permission(["capacitaciones.gestion", "riesgos.gestion", "sistema.admin"])),
+    current_user: Usuario = Depends(require_any_permission(["calidad.ver", "capacitaciones.gestion", "riesgos.gestion", "sistema.admin"])),
 ):
     """KPIs estratégicos de brechas de competencia y riesgo humano."""
-    brechas_abiertas = db.query(func.count(BrechaCompetencia.id)).filter(
-        BrechaCompetencia.estado.in_(ESTADOS_BRECHA_ABIERTA),
-        BrechaCompetencia.activo.is_(True),
-    ).scalar() or 0
+    try:
+        brechas_abiertas = db.query(func.count(BrechaCompetencia.id)).filter(
+            BrechaCompetencia.estado.in_(ESTADOS_BRECHA_ABIERTA),
+            BrechaCompetencia.activo.is_(True),
+        ).scalar() or 0
 
-    brechas_criticas = db.query(func.count(BrechaCompetencia.id)).filter(
-        BrechaCompetencia.estado.in_(ESTADOS_BRECHA_ABIERTA),
-        BrechaCompetencia.riesgo_id.isnot(None),
-        BrechaCompetencia.activo.is_(True),
-    ).scalar() or 0
+        brechas_criticas = db.query(func.count(BrechaCompetencia.id)).filter(
+            BrechaCompetencia.estado.in_(ESTADOS_BRECHA_ABIERTA),
+            BrechaCompetencia.riesgo_id.isnot(None),
+            BrechaCompetencia.activo.is_(True),
+        ).scalar() or 0
 
-    total_riesgos = db.query(func.count(Riesgo.id)).filter(Riesgo.activo.is_(True)).scalar() or 0
-    riesgos_con_incremento = db.query(func.count(Riesgo.id)).filter(
-        Riesgo.activo.is_(True),
-        Riesgo.nivel_residual.isnot(None),
-        Riesgo.probabilidad.isnot(None),
-        Riesgo.impacto.isnot(None),
-        Riesgo.nivel_residual > (Riesgo.probabilidad * Riesgo.impacto),
-    ).scalar() or 0
+        total_riesgos = db.query(func.count(Riesgo.id)).filter(Riesgo.activo.is_(True)).scalar() or 0
+        riesgos_con_incremento = db.query(func.count(Riesgo.id)).filter(
+            Riesgo.activo.is_(True),
+            Riesgo.nivel_residual.isnot(None),
+            Riesgo.probabilidad.isnot(None),
+            Riesgo.impacto.isnot(None),
+            Riesgo.nivel_residual > (Riesgo.probabilidad * Riesgo.impacto),
+        ).scalar() or 0
 
-    procesos_totales = db.query(func.count(Proceso.id)).filter(Proceso.activo.is_(True)).scalar() or 0
-    procesos_vulnerables = db.query(func.count(func.distinct(EtapaProceso.proceso_id))).join(
-        BrechaCompetencia,
-        BrechaCompetencia.etapa_id == EtapaProceso.id,
-    ).filter(
-        EtapaProceso.activo.is_(True),
-        BrechaCompetencia.estado.in_(ESTADOS_BRECHA_ABIERTA),
-    ).scalar() or 0
+        procesos_totales = db.query(func.count(Proceso.id)).filter(Proceso.activo.is_(True)).scalar() or 0
+        procesos_vulnerables = db.query(func.count(func.distinct(EtapaProceso.proceso_id))).join(
+            BrechaCompetencia,
+            BrechaCompetencia.etapa_id == EtapaProceso.id,
+        ).filter(
+            EtapaProceso.activo.is_(True),
+            BrechaCompetencia.estado.in_(ESTADOS_BRECHA_ABIERTA),
+        ).scalar() or 0
 
-    indice_riesgo_humano = round((brechas_criticas / max(total_riesgos, 1)) * 100, 2)
-    cobertura_competencias = round(((total_riesgos - riesgos_con_incremento) / max(total_riesgos, 1)) * 100, 2)
+        indice_riesgo_humano = round((brechas_criticas / max(total_riesgos, 1)) * 100, 2)
+        cobertura_competencias = round(((total_riesgos - riesgos_con_incremento) / max(total_riesgos, 1)) * 100, 2)
 
-    return {
-        "brechas_abiertas": int(brechas_abiertas),
-        "brechas_criticas": int(brechas_criticas),
-        "riesgos_con_incremento_por_factor_humano": int(riesgos_con_incremento),
-        "indice_riesgo_humano": indice_riesgo_humano,
-        "procesos_vulnerables": int(procesos_vulnerables),
-        "total_procesos": int(procesos_totales),
-        "cobertura_competencias": cobertura_competencias,
-    }
+        return {
+            "brechas_abiertas": int(brechas_abiertas),
+            "brechas_criticas": int(brechas_criticas),
+            "riesgos_con_incremento_por_factor_humano": int(riesgos_con_incremento),
+            "indice_riesgo_humano": indice_riesgo_humano,
+            "procesos_vulnerables": int(procesos_vulnerables),
+            "total_procesos": int(procesos_totales),
+            "cobertura_competencias": cobertura_competencias,
+        }
+    except Exception:
+        db.rollback()
+        return {
+            "brechas_abiertas": 0,
+            "brechas_criticas": 0,
+            "riesgos_con_incremento_por_factor_humano": 0,
+            "indice_riesgo_humano": 0,
+            "procesos_vulnerables": 0,
+            "total_procesos": 0,
+            "cobertura_competencias": 0,
+        }

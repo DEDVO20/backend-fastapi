@@ -129,3 +129,76 @@ def marcar_otp_seguro(usuario) -> None:
         set_committed_value(usuario, "otp_intentos", 0)
     if "otp_enviado_en" not in estado:
         set_committed_value(usuario, "otp_enviado_en", None)
+
+
+SQL_CALIDAD = (
+    (
+        "indicadores.tipo_indicador",
+        "ALTER TABLE indicadores ADD COLUMN IF NOT EXISTS tipo_indicador VARCHAR(50) NOT NULL DEFAULT 'eficacia'",
+    ),
+    (
+        "indicadores.estado",
+        "ALTER TABLE indicadores ADD COLUMN IF NOT EXISTS estado VARCHAR(50) NOT NULL DEFAULT 'borrador'",
+    ),
+    (
+        "indicadores.revisado_por",
+        "ALTER TABLE indicadores ADD COLUMN IF NOT EXISTS revisado_por UUID",
+    ),
+    (
+        "indicadores.fecha_revision",
+        "ALTER TABLE indicadores ADD COLUMN IF NOT EXISTS fecha_revision TIMESTAMPTZ",
+    ),
+    (
+        "indicadores.aprobado_por",
+        "ALTER TABLE indicadores ADD COLUMN IF NOT EXISTS aprobado_por UUID",
+    ),
+    (
+        "indicadores.fecha_aprobacion",
+        "ALTER TABLE indicadores ADD COLUMN IF NOT EXISTS fecha_aprobacion TIMESTAMPTZ",
+    ),
+    (
+        "indicadores.observacion_aprobacion",
+        "ALTER TABLE indicadores ADD COLUMN IF NOT EXISTS observacion_aprobacion TEXT",
+    ),
+    (
+        "mediciones_indicador",
+        """
+        CREATE TABLE IF NOT EXISTS mediciones_indicador (
+            id UUID PRIMARY KEY,
+            indicador_id UUID NOT NULL REFERENCES indicadores(id) ON UPDATE CASCADE ON DELETE CASCADE,
+            periodo VARCHAR(20) NOT NULL,
+            valor NUMERIC(10, 2) NOT NULL,
+            meta NUMERIC(10, 2),
+            cumple_meta BOOLEAN,
+            observaciones TEXT,
+            registrado_por UUID REFERENCES usuarios(id) ON UPDATE CASCADE ON DELETE SET NULL,
+            creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            actualizado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            activo BOOLEAN NOT NULL DEFAULT TRUE,
+            creado_por UUID REFERENCES usuarios(id) ON UPDATE CASCADE ON DELETE SET NULL
+        )
+        """,
+    ),
+)
+
+_calidad_listo = False
+
+
+def asegurar_esquema_calidad() -> list[str]:
+    """Crea columnas/tablas de indicadores si el deploy llegó antes que Alembic."""
+    global _calidad_listo
+    if _calidad_listo:
+        return []
+
+    aplicadas: list[str] = []
+    for nombre, sql in SQL_CALIDAD:
+        try:
+            with engine.begin() as conexion:
+                conexion.execute(text(sql))
+            aplicadas.append(nombre)
+        except Exception as exc:
+            print(f"⚠️ No se pudo asegurar {nombre}: {exc}")
+            return aplicadas
+
+    _calidad_listo = True
+    return aplicadas

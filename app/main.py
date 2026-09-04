@@ -1,8 +1,12 @@
 """
 Aplicación principal FastAPI
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from .config import settings
 from .api import (
     routes, usuarios, procesos, documentos, 
@@ -18,14 +22,30 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configurar CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,
 )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Evita 500 sin CORS (el navegador lo muestra como fallo de red)."""
+    if isinstance(exc, StarletteHTTPException):
+        return await http_exception_handler(request, exc)
+    if isinstance(exc, RequestValidationError):
+        return await request_validation_exception_handler(request, exc)
+    print(f"ERROR no controlado en {request.method} {request.url.path}: {exc}")
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Error interno del servidor. Inténtelo de nuevo."},
+    )
 
 # ... (omitted)
 
@@ -72,7 +92,15 @@ async def startup_event():
         print(f"⚠️ No se pudo actualizar el esquema de login al arrancar: {exc}")
 
     try:
-        from .database import SessionLocal
+        from .db.ensure_schema import asegurar_esquema_calidad
+
+        calidad_cols = asegurar_esquema_calidad()
+        if calidad_cols:
+            print(f"✅ Esquema de calidad actualizado | {','.join(calidad_cols)}")
+        else:
+            print("✅ Esquema de calidad verificado")
+    except Exception as exc:
+        print(f"⚠️ No se pudo actualizar el esquema de calidad al arrancar: {exc}")
         from .db.sync_rbac import sincronizar_rbac_sgc
 
         db = SessionLocal()

@@ -2,9 +2,27 @@ from sqlalchemy.orm import Session
 from datetime import date
 from uuid import UUID
 from fastapi import HTTPException, status
+import json
 
 from ..models.calidad import AccionCorrectiva, NoConformidad
 from ..utils.audit import registrar_auditoria
+
+
+def tiene_evidencias(valor) -> bool:
+    if valor is None:
+        return False
+    texto = str(valor).strip()
+    if not texto or texto.lower() in {"[]", "{}", "null", "undefined"}:
+        return False
+    try:
+        parsed = json.loads(texto)
+        if isinstance(parsed, list):
+            return len(parsed) > 0
+        if isinstance(parsed, dict):
+            return bool(parsed)
+    except Exception:
+        pass
+    return True
 
 
 class CalidadService:
@@ -19,7 +37,7 @@ class CalidadService:
         if not accion.analisis_causa_raiz:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Debe completar el análisis de causa")
 
-        if not accion.evidencias:
+        if not tiene_evidencias(accion.evidencias):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Debe adjuntar evidencia de implementación")
 
         eficacia_val = verificacion_data.get("eficacia_verificada")

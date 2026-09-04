@@ -79,13 +79,29 @@ def listar_indicadores(
     current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Listar indicadores de desempeño"""
-    return _servicio_indicadores(db).listar(
-        proceso_id=proceso_id,
-        activo=activo,
-        tipo_indicador=tipo_indicador,
-        skip=skip,
-        limit=limit,
-    )
+    try:
+        return _servicio_indicadores(db).listar(
+            proceso_id=proceso_id,
+            activo=activo,
+            tipo_indicador=tipo_indicador,
+            skip=skip,
+            limit=limit,
+        )
+    except Exception as exc:
+        texto = str(exc).lower()
+        if "undefinedcolumn" in texto.replace(" ", "") or "does not exist" in texto:
+            db.rollback()
+            from ..db.ensure_schema import asegurar_esquema_calidad
+
+            asegurar_esquema_calidad()
+            return _servicio_indicadores(db).listar(
+                proceso_id=proceso_id,
+                activo=activo,
+                tipo_indicador=tipo_indicador,
+                skip=skip,
+                limit=limit,
+            )
+        raise
 
 
 @router.post("/indicadores", response_model=IndicadorResponse, status_code=status.HTTP_201_CREATED)

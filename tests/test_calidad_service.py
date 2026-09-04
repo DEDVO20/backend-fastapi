@@ -56,6 +56,15 @@ def test_cerrar_accion_sin_evidencias():
     assert exc.value.status_code == 400
 
 
+def test_cerrar_accion_evidencias_json_vacio():
+    from app.services.calidad_service import tiene_evidencias
+
+    assert not tiene_evidencias(None)
+    assert not tiene_evidencias("")
+    assert not tiene_evidencias("[]")
+    assert tiene_evidencias('[{"url":"x"}]')
+
+
 def test_cerrar_accion_eficaz_cierra():
     accion = SimpleNamespace(
         id=uuid4(),

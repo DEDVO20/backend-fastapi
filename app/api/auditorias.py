@@ -4,6 +4,7 @@ Endpoints CRUD para gestión de auditorías
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from uuid import UUID
@@ -764,9 +765,22 @@ def eliminar_auditoria(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Auditoría no encontrada"
         )
-    
-    db.delete(auditoria)
-    db.commit()
+
+    try:
+        db.query(RespuestaFormulario).filter(
+            RespuestaFormulario.auditoria_id == auditoria_id
+        ).delete(synchronize_session=False)
+        db.query(HallazgoAuditoria).filter(
+            HallazgoAuditoria.auditoria_id == auditoria_id
+        ).delete(synchronize_session=False)
+        db.delete(auditoria)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No se puede eliminar la auditoría porque tiene registros asociados.",
+        )
     return None
 
 
