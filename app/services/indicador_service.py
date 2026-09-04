@@ -41,10 +41,10 @@ class IndicadorService:
 
     def obtener(self, indicador_id: UUID) -> Indicador:
         try:
-            indicador = self._query().filter(Indicador.id == indicador_id).unique().first()
+            indicador = self._query().filter(Indicador.id == indicador_id).first()
         except Exception:
             self.db.rollback()
-            indicador = self._query(con_mediciones=False).filter(Indicador.id == indicador_id).unique().first()
+            indicador = self._query(con_mediciones=False).filter(Indicador.id == indicador_id).first()
         if not indicador:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Indicador no encontrado")
         return indicador
@@ -67,11 +67,11 @@ class IndicadorService:
     def listar(self, proceso_id: UUID = None, activo: bool = None, tipo_indicador: str = None, skip: int = 0, limit: int = 200):
         query = self._aplicar_filtros(self._query(), proceso_id, activo, tipo_indicador)
         try:
-            return query.order_by(Indicador.codigo.asc()).offset(skip).limit(limit).unique().all()
+            return query.order_by(Indicador.codigo.asc()).offset(skip).limit(limit).all()
         except Exception:
             self.db.rollback()
             query = self._aplicar_filtros(self._query(con_mediciones=False), proceso_id, activo, tipo_indicador)
-            return query.order_by(Indicador.codigo.asc()).offset(skip).limit(limit).unique().all()
+            return query.order_by(Indicador.codigo.asc()).offset(skip).limit(limit).all()
 
     def registrar_medicion(self, indicador_id: UUID, data: dict, usuario_id: UUID) -> MedicionIndicador:
         indicador = self.obtener(indicador_id)
@@ -125,7 +125,6 @@ class IndicadorService:
                 .options(joinedload(MedicionIndicador.registrador))
                 .filter(MedicionIndicador.indicador_id == indicador_id)
                 .order_by(MedicionIndicador.periodo.asc(), MedicionIndicador.creado_en.asc())
-                .unique()
                 .all()
             )
         except Exception:

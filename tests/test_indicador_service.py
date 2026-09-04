@@ -111,7 +111,7 @@ def test_historial_fallback_si_falla_query():
     db_mock = MagicMock()
     # Simular fallo en primer query y éxito en el query de fallback
     query_first = MagicMock()
-    query_first.options.return_value.filter.return_value.order_by.return_value.unique.return_value.all.side_effect = Exception("DB error")
+    query_first.options.return_value.filter.return_value.order_by.return_value.all.side_effect = Exception("DB error")
     
     query_fallback = MagicMock()
     query_fallback.filter.return_value.order_by.return_value.all.return_value = ["medicion1"]
