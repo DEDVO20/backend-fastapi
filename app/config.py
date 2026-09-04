@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     
     # Información de la aplicación
     APP_NAME: str = "FastAPI Backend"
-    APP_VERSION: str = "1.2.13"
+    APP_VERSION: str = "1.2.14"
     
     # Base de datos
     DATABASE_URL: str = "postgresql://fastapi_user:fastapi_password@localhost:5432/fastapi_db"

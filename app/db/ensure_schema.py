@@ -179,6 +179,26 @@ SQL_CALIDAD = (
         )
         """,
     ),
+    (
+        "mediciones_indicador.activo",
+        "ALTER TABLE mediciones_indicador ADD COLUMN IF NOT EXISTS activo BOOLEAN NOT NULL DEFAULT TRUE",
+    ),
+    (
+        "mediciones_indicador.creado_por",
+        "ALTER TABLE mediciones_indicador ADD COLUMN IF NOT EXISTS creado_por UUID",
+    ),
+    (
+        "mediciones_indicador.registrado_por",
+        "ALTER TABLE mediciones_indicador ADD COLUMN IF NOT EXISTS registrado_por UUID",
+    ),
+    (
+        "mediciones_indicador.creado_en",
+        "ALTER TABLE mediciones_indicador ADD COLUMN IF NOT EXISTS creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()",
+    ),
+    (
+        "mediciones_indicador.actualizado_en",
+        "ALTER TABLE mediciones_indicador ADD COLUMN IF NOT EXISTS actualizado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()",
+    ),
 )
 
 _calidad_listo = False

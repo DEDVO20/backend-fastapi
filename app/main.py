@@ -34,6 +34,20 @@ app.add_middleware(
 )
 
 
+def _cors_para_origen(request: Request) -> dict[str, str]:
+    origen = (request.headers.get("origin") or "").strip()
+    if not origen:
+        return {}
+    permitidos = set(settings.cors_origins_list)
+    if origen in permitidos or origen.endswith(".vercel.app"):
+        return {
+            "Access-Control-Allow-Origin": origen,
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Expose-Headers": "*",
+        }
+    return {}
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     """Evita 500 sin CORS (el navegador lo muestra como fallo de red)."""
@@ -44,7 +58,8 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     print(f"ERROR no controlado en {request.method} {request.url.path}: {exc}")
     return JSONResponse(
         status_code=500,
-        content={"detail": "Error interno del servidor. Inténtelo de nuevo."},
+        content={"detail": f"Error interno del servidor: {exc}"[:300]},
+        headers=_cors_para_origen(request),
     )
 
 # ... (omitted)

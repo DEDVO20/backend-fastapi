@@ -50,6 +50,29 @@ def test_tendencia_estable():
     assert result["tendencia"] == "estable"
 
 
+def test_indicador_response_acepta_tipo_antiguo():
+    from datetime import datetime, timezone
+    from app.schemas.calidad import IndicadorResponse
+
+    ahora = datetime.now(timezone.utc)
+    data = IndicadorResponse.model_validate(
+        {
+            "id": uuid4(),
+            "proceso_id": uuid4(),
+            "codigo": "IND-1",
+            "nombre": "Prueba",
+            "frecuencia_medicion": "mensual",
+            "tipo_indicador": "calidad",
+            "estado": "viejo",
+            "activo": True,
+            "creado_en": ahora,
+            "actualizado_en": ahora,
+        }
+    )
+    assert data.tipo_indicador == "eficacia"
+    assert data.estado == "borrador"
+
+
 def test_aprobar_exige_otra_persona():
     creador_id = uuid4()
     indicador = SimpleNamespace(

@@ -44,3 +44,15 @@ def test_asegurar_esquema_login_no_marca_listo_si_falla(mock_engine):
     creadas = asegurar_esquema_login()
     assert creadas == []
     assert ensure_schema.otp_disponible() is False
+
+
+def test_sql_calidad_parchea_mediciones_si_la_tabla_ya_existe():
+    from app.db.ensure_schema import SQL_CALIDAD
+
+    nombres = [nombre for nombre, _sql in SQL_CALIDAD]
+    assert "mediciones_indicador" in nombres
+    assert "mediciones_indicador.activo" in nombres
+    assert "mediciones_indicador.creado_por" in nombres
+    for nombre, sql in SQL_CALIDAD:
+        if nombre != "mediciones_indicador":
+            assert "IF NOT EXISTS" in sql

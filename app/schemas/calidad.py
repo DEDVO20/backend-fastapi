@@ -19,7 +19,7 @@ class UsuarioNested(BaseModel):
     """Schema para mostrar información básica de usuarios en relaciones"""
     id: UUID
     documento: Optional[int] = None
-    nombre: str
+    nombre: str = ""
     segundoNombre: Optional[str] = Field(None, validation_alias="segundo_nombre")
     primerApellido: Optional[str] = Field(None, validation_alias="primer_apellido")
     segundoApellido: Optional[str] = Field(None, validation_alias="segundo_apellido")
@@ -27,6 +27,11 @@ class UsuarioNested(BaseModel):
     nombreUsuario: Optional[str] = Field(None, validation_alias="nombre_usuario")
     
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    @field_validator("nombre", mode="before")
+    @classmethod
+    def nombre_no_nulo(cls, value):
+        return value or ""
 
 
 class ProcesoIndicadorNested(BaseModel):
@@ -60,14 +65,14 @@ class IndicadorBase(BaseModel):
     tipo_indicador: str = Field(default="eficacia", max_length=50)
     activo: bool = True
 
+
+class IndicadorCreate(IndicadorBase):
+    codigo: Optional[str] = Field(None, max_length=100)
+
     @field_validator("tipo_indicador")
     @classmethod
     def validar_tipo(cls, value: str) -> str:
         return _validar_tipo_indicador(value) or "eficacia"
-
-
-class IndicadorCreate(IndicadorBase):
-    codigo: Optional[str] = Field(None, max_length=100)
 
 
 class IndicadorUpdate(BaseModel):
@@ -135,6 +140,22 @@ class IndicadorResponse(IndicadorBase):
     ultima_medicion: Optional[MedicionIndicadorResponse] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("tipo_indicador", mode="before")
+    @classmethod
+    def coerce_tipo(cls, value):
+        if not value:
+            return "eficacia"
+        tipo = str(value).strip().lower()
+        return tipo if tipo in TIPOS_INDICADOR else "eficacia"
+
+    @field_validator("estado", mode="before")
+    @classmethod
+    def coerce_estado(cls, value):
+        if not value:
+            return "borrador"
+        estado = str(value).strip().lower()
+        return estado if estado in ESTADOS_INDICADOR else "borrador"
 
 
 class TendenciaIndicadorResponse(BaseModel):

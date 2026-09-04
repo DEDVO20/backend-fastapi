@@ -79,6 +79,14 @@ def listar_indicadores(
     current_user: Usuario = Depends(require_any_permission(["calidad.ver", "sistema.admin"]))
 ):
     """Listar indicadores de desempeño"""
+    from sqlalchemy.orm import noload
+    from ..db.ensure_schema import asegurar_esquema_calidad
+
+    try:
+        asegurar_esquema_calidad()
+    except Exception:
+        pass
+
     try:
         return _servicio_indicadores(db).listar(
             proceso_id=proceso_id,
@@ -87,21 +95,45 @@ def listar_indicadores(
             skip=skip,
             limit=limit,
         )
+    except HTTPException:
+        raise
     except Exception as exc:
         texto = str(exc).lower()
+        db.rollback()
         if "undefinedcolumn" in texto.replace(" ", "") or "does not exist" in texto:
-            db.rollback()
-            from ..db.ensure_schema import asegurar_esquema_calidad
-
-            asegurar_esquema_calidad()
-            return _servicio_indicadores(db).listar(
-                proceso_id=proceso_id,
-                activo=activo,
-                tipo_indicador=tipo_indicador,
-                skip=skip,
-                limit=limit,
+            try:
+                asegurar_esquema_calidad()
+                return _servicio_indicadores(db).listar(
+                    proceso_id=proceso_id,
+                    activo=activo,
+                    tipo_indicador=tipo_indicador,
+                    skip=skip,
+                    limit=limit,
+                )
+            except Exception:
+                db.rollback()
+        try:
+            return (
+                db.query(Indicador)
+                .options(
+                    noload(Indicador.mediciones),
+                    noload(Indicador.proceso),
+                    noload(Indicador.responsable_medicion),
+                    noload(Indicador.creador),
+                    noload(Indicador.revisador),
+                    noload(Indicador.aprobador),
+                )
+                .order_by(Indicador.codigo.asc())
+                .offset(skip)
+                .limit(limit)
+                .all()
             )
-        raise
+        except Exception as exc2:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"No se pudieron cargar indicadores: {exc2}",
+            ) from exc2
 
 
 @router.post("/indicadores", response_model=IndicadorResponse, status_code=status.HTTP_201_CREATED)

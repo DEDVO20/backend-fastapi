@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, noload
 from decimal import Decimal
 from uuid import UUID
 from fastapi import HTTPException, status
@@ -20,15 +20,19 @@ class IndicadorService:
     def __init__(self, db: Session):
         self.db = db
 
-    def _query(self):
-        return self.db.query(Indicador).options(
+    def _query(self, con_mediciones: bool = True):
+        opciones = [
             joinedload(Indicador.proceso),
             joinedload(Indicador.responsable_medicion),
             joinedload(Indicador.creador),
             joinedload(Indicador.revisador),
             joinedload(Indicador.aprobador),
-            joinedload(Indicador.mediciones).joinedload(MedicionIndicador.registrador),
-        )
+        ]
+        if con_mediciones:
+            opciones.append(joinedload(Indicador.mediciones).joinedload(MedicionIndicador.registrador))
+        else:
+            opciones.append(noload(Indicador.mediciones))
+        return self.db.query(Indicador).options(*opciones)
 
     def obtener(self, indicador_id: UUID) -> Indicador:
         indicador = self._query().filter(Indicador.id == indicador_id).unique().first()
@@ -36,8 +40,7 @@ class IndicadorService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Indicador no encontrado")
         return indicador
 
-    def listar(self, proceso_id: UUID = None, activo: bool = None, tipo_indicador: str = None, skip: int = 0, limit: int = 200):
-        query = self._query()
+    def _aplicar_filtros(self, query, proceso_id: UUID = None, activo: bool = None, tipo_indicador: str = None):
         if proceso_id:
             query = query.filter(Indicador.proceso_id == proceso_id)
         if activo is not None:
@@ -50,7 +53,16 @@ class IndicadorService:
                     detail=f"Tipo inválido. Use: {', '.join(sorted(TIPOS_INDICADOR))}",
                 )
             query = query.filter(Indicador.tipo_indicador == tipo)
-        return query.order_by(Indicador.codigo.asc()).offset(skip).limit(limit).unique().all()
+        return query
+
+    def listar(self, proceso_id: UUID = None, activo: bool = None, tipo_indicador: str = None, skip: int = 0, limit: int = 200):
+        query = self._aplicar_filtros(self._query(), proceso_id, activo, tipo_indicador)
+        try:
+            return query.order_by(Indicador.codigo.asc()).offset(skip).limit(limit).unique().all()
+        except Exception:
+            self.db.rollback()
+            query = self._aplicar_filtros(self._query(con_mediciones=False), proceso_id, activo, tipo_indicador)
+            return query.order_by(Indicador.codigo.asc()).offset(skip).limit(limit).unique().all()
 
     def registrar_medicion(self, indicador_id: UUID, data: dict, usuario_id: UUID) -> MedicionIndicador:
         indicador = self.obtener(indicador_id)
